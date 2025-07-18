@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "parsers/serialization.h"
 #include "walk/b_walk.h"
 #include "walk/c_walk.h"
 #include "walk/m_walk.h"
@@ -162,64 +163,35 @@ int test_biased_walk_grid(Point2DArrayGrid* grid, const char* filename, ssize_t 
 
 int test_serialization_terrain() {
     TerrainMap terrain;
-    parse_terrain_map("../../resources/terrain_movebank.txt", &terrain, ' ');
-    KernelsMap3D* tensor_map = tensor_map_terrain(&terrain);
-    serialize_kernels_map_3d(tensor_map, "terrain_baboons");
-    auto* loaded_map = deserialize_kernels_map_3d("terrain_baboons");
+    parse_terrain_map("../../resources/land3.txt", &terrain, ',');
+    Point2DArrayGrid* grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, 40);
+    printf("weather grid loaded\n");
+
+    const char* output_filename = "terrain_baboons.bin"; // Choose a descriptive filename
+    FILE* file = fopen(output_filename, "w+b"); // Open in write binary mode
+
+    if (file == NULL) {
+        perror("Error opening file for serialization");
+        return 1; // Indicate an error
+    }
+
+    KernelsMap4D* kmap = tensor_map_terrain_biased_grid(&terrain, grid);
+    serialize_kernels_map_4d(file, kmap);
+    auto* loaded_map = deserialize_kernels_map_4d(file);
     std::cout << loaded_map->height << loaded_map->width << std::endl;
     return 0;
 }
 
-int test_geo_multi() {
-    // Read file content
-    Point2D start = {100, 120};
-    Point2D st = {60, 20};
-    Point2D goal = {150, 20};
-
-
-    const char* csv = "../../resources/my_gridded_weather_grid_csvs";
-    const char* terrain_path = "../../resources/terrain_movebank.txt";
-    const char* walk_path = "../../resources/twalk3.json";
-    ssize_t T = 100, W = 200, H = 200;
-
-    Point2D* steps = static_cast<Point2D*>(malloc(sizeof(Point2D) * 3));
-    steps[0] = start;
-    steps[1] = st;
-    steps[2] = goal;
-
-    Point2DArray* steos = point_2d_array_new(steps, 3);
-
-    auto walk = time_walk_geo_multi(T, csv, terrain_path, walk_path, 5, 5, steos);
-    point2d_array_print(walk);
-    point2d_array_free(walk);
-    point2d_array_free(steos);
-    return 0;
-}
-
-void test_brownian_terrain() {
-    auto terrain = create_terrain_map("../../resources/terrain_baboons.txt", ' ');
-    // for (int  i = 0; i < terrain->height; ++i) {
-    //     for (int  j = 0; j < terrain->width; ++j) {
-    //         std::cout << terrain_at(j, i, terrain) << ' ';
-    //     }
-    // std::cout << '\n';
-    // }
-    auto kernels_map = tensor_map_terrain(terrain);
-    auto dp = m_walk(terrain->width, terrain->height, terrain, kernels_map, 100, 200, 200);
-    tensor4D_free(dp, 100);
-}
-
 int main() {
-    test_brownian_terrain();
+    // --- Create a KernelsMap4D instance for serialization ---
+    FILE* fp = fopen("../../resources/tensor.bin", "w+b");
+    Tensor* tensor = generate_kernels(8, 15);
+    serialize_tensor(fp, tensor);
+    auto *loaded = deserialize_tensor(fp);
+    for (int d = 0; d < loaded->len; ++d) {
+        matrix_print(loaded->data[d]);
+    }
+    std::cout << loaded->len << std::endl;
+    tensor_free(loaded);
     return 0;
-    auto kernels = generate_kernels(8, 15);
-    auto terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-
-    std::cout << terrain->data[0][0] ;
-
-    auto tmap = tensor_map_new(terrain, kernels);
-    Tensor** dp = c_walk_init_terrain(terrain->width, terrain->height, kernels, terrain, tmap, 80, 200, 200);
-    auto walk = backtrace(dp, 80, kernels, terrain, tmap, 350, 390, 2, 8);
-    point2d_array_print(walk);
-    tensor4D_free(dp, 80);
 }
