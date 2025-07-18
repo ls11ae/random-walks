@@ -1,7 +1,3 @@
-//
-// Created by DevChris on 12.02.2025.
-//
-
 #include "math/distribution.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -53,7 +49,7 @@ Tensor* b_walk_A_init(Matrix* matrix_start, Matrix* matrix_kernel, ssize_t T) {
 	const int W = (int)matrix_start->width;
 	const int S = (int)matrix_kernel->height / 2;
 	for (int t = 1; t < T; t++) {
-#pragma omp parallel for
+#pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
 			for (int x = 0; x < W; ++x) {
 				double sum = 0;
@@ -165,7 +161,6 @@ Point2DArray* b_walk_backtrace(const Tensor* tensor, Matrix* kernel, KernelsMap*
 					continue;
 				}
 
-				// TODO: kernel at nx, ny?
 				const Matrix* current_kernel = kernels_map ? kernel_at(kernels_map, x, y) : kernel;
 
 				const double transition_value = matrix_get(current_kernel, xx, yy);
@@ -277,46 +272,4 @@ Point2DArray* b_walk_backtrace_multiple(const ssize_t T, const ssize_t W, const 
 }
 
 
-double calculate_ram_mib(ssize_t D, ssize_t W, ssize_t H, ssize_t T, bool terrain_map) {
-	const size_t bytes_per_double = 8;
-	const size_t bytes_per_mib = 1024 * 1024;
 
-
-	size_t total_bytes_db = (size_t)D * W * H * T * bytes_per_double;
-	double total_mib = (double)total_bytes_db / bytes_per_mib;
-
-	double tensor_map_mib = 0.0;
-	if (terrain_map) {
-		// TODO: get tensor/kernels_map sizes after caching
-	}
-
-	// Add 30% buffer
-	total_mib *= 1.3;
-	printf("walker requires %f MiB of RAM\n", total_mib);
-	return total_mib;
-}
-
-
-double get_mem_available_mib() {
-	FILE* fp = fopen("/proc/meminfo", "r");
-	if (fp == NULL) {
-		perror("fopen");
-		return -1.0;
-	}
-
-	char line[256];
-	double mem_available_kb = 0.0;
-
-	while (fgets(line, sizeof(line), fp)) {
-		if (sscanf(line, "MemAvailable: %lf kB", &mem_available_kb) == 1) {
-			break;
-		}
-	}
-
-	fclose(fp);
-
-	printf("You have %f MiB of free RAM\n", mem_available_kb / 1024.0);
-
-	// Convert kB to MiB
-	return mem_available_kb / 1024.0;
-}

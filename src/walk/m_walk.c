@@ -18,6 +18,7 @@ Point2DArray* mixed_walk(ssize_t W, ssize_t H, TerrainMap* spatial_map,
 Tensor** m_walk(ssize_t W, ssize_t H, const TerrainMap* terrain_map,
                 const KernelsMap3D* kernels_map, const ssize_t T, const ssize_t start_x,
                 const ssize_t start_y) {
+	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
 	Tensor* start_kernel = kernels_map->kernels[start_y][start_x];
 	size_t max_D = kernels_map->max_D;
 	Matrix* map = matrix_new(W, H);
