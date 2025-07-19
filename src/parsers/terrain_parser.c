@@ -242,6 +242,7 @@ KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* current = matrix_elementwise_mul(kernels->data[d], reachable);
                     matrix_normalize_L1(current);
+                    matrix_free(kernels_arr->data[d]);
                     kernels_arr->data[d] = current;
                 }
                 cache_insert(cache, combined_hash, kernels_arr, true, D);
@@ -381,6 +382,7 @@ KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biase
                             reach_mat
                         );
                         matrix_normalize_L1(m);
+                        matrix_free(arr->data[d]);
                         arr->data[d] = m;
                     }
                     cache_insert(cache, combined, arr, true, D);
@@ -473,6 +475,7 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
                             reach_mat
                         );
                         matrix_normalize_L1(m);
+                        matrix_free(arr->data[d]);
                         arr->data[d] = m;
                     }
                     cache_insert(cache, pre_combined, arr, true, D);
@@ -555,6 +558,7 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
                         reach_mat
                     );
                     matrix_normalize_L1(m);
+                    matrix_free(arr->data[d]);
                     arr->data[d] = m;
                 }
                 cache_insert(cache, combined, arr, true, D);
@@ -604,17 +608,13 @@ void tensor_map_terrain_serialized(TerrainMap* terrain) {
                 matrix_free(arr->data[d]);
                 arr->data[d] = m;
             }
-
-            // d) Aufräumen und Zuordnung
             matrix_free(reach_mat);
 
             //  Serialize Tensor
             char path[256];
             snprintf(path, sizeof(path), "tensors/x%zd/y%zd.tensor", x, y);
 
-            // Verzeichnisse anlegen falls nötig
             ensure_dir_exists_for(path);
-
             FILE* tf = fopen(path, "wb");
             serialize_tensor(tf, arr);
             fclose(tf);

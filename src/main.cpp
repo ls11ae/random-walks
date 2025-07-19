@@ -197,18 +197,22 @@ int serialize_tensor() {
 }
 
 int main() {
-    //  TODO: flexibler mit pfad übergabe, tensoren copyen damit man freen kann, für 4d
+    //  TODO: flexibler mit pfad übergabe, für 4d
     TerrainMap terrain;
-    terrain.width = 1000;
-    terrain.height = 1000;
-    terrain.data = (int**)(malloc(1000 * sizeof(int*)));
-    srand(time(NULL));
-    for (int i = 0; i < 1000; ++i) {
-        terrain.data[i] = (int*)(malloc(1000 * sizeof(int)));
-        for (int j = 0; j < 1000; ++j) {
-            terrain.data[i][j] = (rand() % 10) * 10;
-        }
-    }
-    //parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
+    // terrain.width = 1000;
+    // terrain.height = 1000;
+    // terrain.data = (int**)(malloc(1000 * sizeof(int*)));
+    // srand(time(NULL));
+    // for (int i = 0; i < 1000; ++i) {
+    //     terrain.data[i] = (int*)(malloc(1000 * sizeof(int)));
+    //     for (int j = 0; j < 1000; ++j) {
+    //         terrain.data[i][j] = (rand() % 10) * 10;
+    //     }
+    // }
+    parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
     tensor_map_terrain_serialized(&terrain);
+    auto loaded = tensor_at(50, 50);
+    for (int d = 0; d < loaded->len; ++d) {
+        matrix_print(loaded->data[d]);
+    }
 }
