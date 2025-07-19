@@ -45,9 +45,9 @@ Point2DArray* b_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Matrix*
                                         const Point2DArray* steps);
 
 
-static double calculate_ram_mib(ssize_t D, ssize_t W, ssize_t H, ssize_t T, bool terrain_map);
+double calculate_ram_mib(ssize_t D, ssize_t W, ssize_t H, ssize_t T, bool terrain_map);
 
-static double get_mem_available_mib();
+double get_mem_available_mib();
 
 #ifdef __cplusplus
 }
