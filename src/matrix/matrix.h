@@ -38,17 +38,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 
-
-/**
- * @struct Matrix
- * @brief Represents a 2D matrix.
- */
-typedef struct {
-    ssize_t width; /**< The number of columns in the matrix. */
-    ssize_t height; /**< The number of rows in the matrix. */
-    ssize_t len; /**< The total number of elements (width * height). */
-    double* data; /**< Pointer to the array of matrix elements. */
-} Matrix;
+#include "parsers/types.h"
 
 Matrix* matrix_new(ssize_t width, ssize_t height);
 

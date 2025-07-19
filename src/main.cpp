@@ -182,16 +182,28 @@ int test_serialization_terrain() {
     return 0;
 }
 
-int main() {
+int serialize_tensor() {
     // --- Create a KernelsMap4D instance for serialization ---
     FILE* fp = fopen("../../resources/tensor.bin", "w+b");
     Tensor* tensor = generate_kernels(8, 15);
     serialize_tensor(fp, tensor);
-    auto *loaded = deserialize_tensor(fp);
+    auto* loaded = deserialize_tensor(fp);
     for (int d = 0; d < loaded->len; ++d) {
         matrix_print(loaded->data[d]);
     }
     std::cout << loaded->len << std::endl;
     tensor_free(loaded);
     return 0;
+}
+
+int main() {
+    //  TODO: flexibler mit pfad übergabe, tensoren copyen damit man freen kann, für 4d
+    TerrainMap terrain;
+    parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
+    tensor_map_terrain_serialized(&terrain);
+
+    auto tensor = tensor_at(20, 20);
+    std::cout << matrix_to_string(tensor->data[0]) << std::endl;
+
+    //tensor_map_terrain(&terrain);
 }

@@ -12,11 +12,13 @@ extern "C" {
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <libgen.h>  // für dirname()
+#include <unistd.h>
 
-#include "terrain_parser.h"
-#include "math/Point2D.h"
-#include "matrix/matrix.h"
-#include "matrix/tensor.h"
+#include "parsers/types.h"
+
+    void ensure_dir_exists_for(const char* filepath);
 
 // Serialization functions
     size_t serialize_point2d(FILE* fp, const Point2D* p);

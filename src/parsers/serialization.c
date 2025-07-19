@@ -14,7 +14,7 @@
 
 #include <assert.h>
 
-#include "terrain_parser.h"
+#include "types.h"
 
 
 // Helper function for error handling
@@ -24,6 +24,33 @@ static void handle_error(const char* message) {
 }
 
 // --- Serialization Functions ---
+void ensure_dir_exists(const char* dir_path) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "%s", dir_path);
+    size_t len = strlen(tmp);
+    if (tmp[len - 1] == '/') tmp[len - 1] = '\0'; // kein trailing slash
+
+    for (char* p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755); // ignoriert Fehler, z.B. wenn bereits existiert
+            *p = '/';
+        }
+    }
+    mkdir(tmp, 0755);
+}
+
+// extrahiert Verzeichnis aus Pfad und ruft ensure_dir_exists
+void ensure_dir_exists_for(const char* filepath) {
+    char path_copy[256];
+    snprintf(path_copy, sizeof(path_copy), "%s", filepath);
+
+    char* last_slash = strrchr(path_copy, '/');
+    if (!last_slash) return; // kein Verzeichnisanteil vorhanden
+
+    *last_slash = '\0'; // trennt Dateinamen ab
+    ensure_dir_exists(path_copy);
+}
 
 size_t serialize_point2d(FILE* fp, const Point2D* p) {
     size_t bytes_written = 0;
@@ -277,8 +304,10 @@ Tensor* deserialize_tensor(FILE* fp) {
 
 KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
     KernelsMap4D* km = (KernelsMap4D*)malloc(sizeof(KernelsMap4D));
-    if (!km) handle_error("Failed to allocate KernelsMap4D");
-    assert(km);
+    if (!km) {
+        handle_error("Failed to allocate KernelsMap4D");
+        return NULL;
+    }
 
     if (fread(&km->width, sizeof(ssize_t), 1, fp) != 1) { free(km); handle_error("Failed to read KernelsMap4D width"); }
     if (fread(&km->height, sizeof(ssize_t), 1, fp) != 1) { free(km); handle_error("Failed to read KernelsMap4D height"); }

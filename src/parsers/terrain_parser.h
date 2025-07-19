@@ -12,55 +12,22 @@ extern "C" {
 #include "move_bank_parser.h"
 
 
-typedef struct CacheEntry {
-    uint64_t hash;
-
-    union {
-        Tensor* array; // For tensor_map_new
-        Matrix* single; // For kernels_map_new
-    } data;
-
-    bool is_array;
-    ssize_t array_size;
-    struct CacheEntry* next;
-} CacheEntry;
-
-typedef struct {
-    CacheEntry** buckets;
-    size_t num_buckets;
-} Cache;
-
-typedef struct {
-    Matrix*** kernels;
-    ssize_t width, height;
-    Cache* cache;
-} KernelsMap;
-
-typedef struct {
-    Tensor*** kernels; // 3D [y][x][d]
-    ssize_t width, height, max_D;
-    Cache* cache;
-} KernelsMap3D;
-
-typedef struct {
-    Tensor**** kernels; // 4D array [y][x][t][d]
-    ssize_t width, height, timesteps, max_D;
-    Cache* cache;
-} KernelsMap4D;
-
 KernelsMap* kernels_map_new(const TerrainMap* terrain, const Matrix* kernel);
 
+KernelsMap* kernels_map_serialized(const TerrainMap* terrain, const Matrix* kernel);
+
+
 KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels);
-
-KernelsMap3D* tensor_map_mixed(const TerrainMap* terrain, TensorSet* tensor_set);
-
-KernelsMap4D* tensor_map_terrain_weather(TerrainMap* terrain, const WeatherGrid* weather_grid);
 
 KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biases);
 
 KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGrid* biases);
 
 KernelsMap3D* tensor_map_terrain(TerrainMap* terrain);
+
+void tensor_map_terrain_serialized(TerrainMap* terrain);
+
+Tensor* tensor_at(ssize_t x, ssize_t y);
 
 Matrix* kernel_at(const KernelsMap* kernels_map, ssize_t x, ssize_t y);
 

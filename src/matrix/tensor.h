@@ -7,30 +7,6 @@
 extern "C" {
 #endif
 
-typedef struct {
-    Point2D** data;
-    Point2D* grid_cells;
-    size_t* sizes;
-    size_t count;
-} Vector2D;
-
-typedef struct {
-    //size_t dim_len;
-    //size_t *dim;
-    size_t len;
-    Matrix** data;
-    Vector2D* dir_kernel;
-} Tensor;
-
-typedef struct {
-    //size_t dim_len;
-    //size_t *dim;
-    size_t len;
-    size_t max_D;
-    Tensor** data;
-    Vector2D** grid_cells;
-} TensorSet;
-
 Tensor* tensor_new(size_t width, size_t height, size_t depth);
 
 TensorSet* tensor_set_new(size_t count, Tensor** tensors);

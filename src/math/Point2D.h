@@ -7,23 +7,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdio.h>
 
-typedef struct {
-    ssize_t x;
-    ssize_t y;
-} Point2D;
-
-typedef struct {
-    Point2D* points;
-    size_t length;
-} Point2DArray;
-
-typedef struct {
-    Point2DArray*** data;
-    size_t width;
-    size_t height;
-    size_t times;
-} Point2DArrayGrid;
-
+#include "parsers/types.h"
 
 Point2D* point_2d_new(ssize_t x, ssize_t y);
 
