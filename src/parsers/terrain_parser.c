@@ -12,6 +12,7 @@
 #include <asm-generic/errno-base.h>
 
 #include "move_bank_parser.h"
+#include "serialization.h"
 #include "math/path_finding.h"
 #include "walk/c_walk.h"
 
@@ -119,6 +120,7 @@ TensorSet* generate_correlated_tensors() {
 }
 
 void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_t array_size) {
+    assert((is_array && data != NULL) || (!is_array && data != NULL));
     size_t bucket = hash % cache->num_buckets;
     CacheEntry* entry = malloc(sizeof(CacheEntry));
     entry->hash = hash;
@@ -173,7 +175,7 @@ KernelsMap* kernels_map_new(const TerrainMap* terrain, const Matrix* kernel) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain->height; y++) {
         for (ssize_t x = 0; x < terrain->width; x++) {
-            if (terrain_at(x, y, terrain) == 0) continue;
+            if (terrain_at(x, y, terrain) == WATER) continue;
             Matrix* reachable = get_reachability_kernel(x, y, kernel_size, terrain);
             const uint64_t reachable_hash = compute_matrix_hash(reachable);
             const uint64_t combined_hash = reachable_hash ^ kernel_hash;
@@ -193,6 +195,9 @@ KernelsMap* kernels_map_new(const TerrainMap* terrain, const Matrix* kernel) {
         }
     }
     return kernels_map;
+}
+
+KernelsMap* kernels_map_serialized(const TerrainMap* terrain, const Matrix* kernel) {
 }
 
 KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
@@ -237,6 +242,7 @@ KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* current = matrix_elementwise_mul(kernels->data[d], reachable);
                     matrix_normalize_L1(current);
+                    matrix_free(kernels_arr->data[d]);
                     kernels_arr->data[d] = current;
                 }
                 cache_insert(cache, combined_hash, kernels_arr, true, D);
@@ -250,7 +256,7 @@ KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
     for (ssize_t y = 0; y < terrain_height; y++) {
         kernels_map->kernels[y] = (Tensor**)malloc(terrain_width * sizeof(Tensor*));
         for (ssize_t x = 0; x < terrain_width; x++) {
-            if (terrain_at(x, y, terrain) == 0) continue;
+            if (terrain_at(x, y, terrain) == WATER) continue;
             CacheEntry* entry = cache_lookup_entry(cache, hash_grid[y][x]);
             if (entry) {
                 kernels_map->kernels[y][x] = entry->data.array;
@@ -269,103 +275,8 @@ KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
     return kernels_map;
 }
 
-KernelsMap3D* tensor_map_mixed(const TerrainMap* terrain, TensorSet* tensor_set) {
-    ssize_t terrain_width = terrain->width;
-    ssize_t terrain_height = terrain->height;
-
-    KernelsMap3D* kernels_map = (KernelsMap3D*)malloc(sizeof(KernelsMap3D));
-    kernels_map->width = terrain_width;
-    kernels_map->height = terrain_height;
-    kernels_map->kernels = malloc(terrain->height * sizeof(Tensor**));
-    for (ssize_t y = 0; y < terrain->height; y++) {
-        kernels_map->kernels[y] = malloc(terrain->width * sizeof(Tensor*));
-    }
-
-    Cache* cache = cache_create(4096);
-
-    // Precompute tensor hash using all kernels
-    uint64_t* tensor_hashes = (uint64_t*)malloc(tensor_set->len * sizeof(uint64_t));
-    for (ssize_t i = 1; i < tensor_set->len; i++) {
-        size_t D = tensor_set->data[i]->len;
-        uint64_t tensor_hash = 0;
-        for (ssize_t d = 0; d < D; d++) {
-            tensor_hash ^= compute_matrix_hash(tensor_set->data[i]->data[d]);
-        }
-        tensor_hashes[i] = tensor_hash;
-    }
-    size_t recomputed = 0;
-    // Precompute combined hashes and populate cache
-    uint64_t** hash_grid = (uint64_t**)malloc(terrain_height * sizeof(uint64_t*));
-    for (ssize_t y = 0; y < terrain_height; y++) {
-        hash_grid[y] = (uint64_t*)malloc(terrain_width * sizeof(uint64_t));
-        for (ssize_t x = 0; x < terrain_width; x++) {
-            const size_t terrain_val = terrain_at(x, y, terrain);
-            if (terrain_val == 0) continue;
-            const size_t tensor_index = terrain_val - 1; // Convert to 0-based index
-
-            if (tensor_index >= tensor_set->len) continue;
-
-            const ssize_t M = tensor_set->data[tensor_index]->data[0]->width;
-            const ssize_t D = (ssize_t)tensor_set->data[tensor_index]->len;
-            Matrix* reachable = get_reachability_kernel(x, y, M, terrain);
-            uint64_t reachable_hash = compute_matrix_hash(reachable);
-            uint64_t combined_hash = reachable_hash;
-            combined_hash ^= tensor_hashes[tensor_index] + (D * 0x9e3779b97f4a7c15ULL) + (combined_hash << 6) + (
-                combined_hash >> 2);
-            hash_grid[y][x] = combined_hash;
-
-            // Check cache with combined hash
-            CacheEntry* entry = cache_lookup_entry(cache, combined_hash);
-            Tensor* kernels_arr = NULL;
-
-            if (entry && entry->is_array && entry->array_size == D) {
-                kernels_arr = entry->data.array;
-            }
-            else {
-                recomputed++;
-                // Compute and cache if not found
-                kernels_arr = tensor_new(M, M, D);
-                for (ssize_t d = 0; d < D; d++) {
-                    Matrix* current = matrix_elementwise_mul(tensor_set->data[tensor_index]->data[d], reachable);
-                    matrix_normalize_L1(current);
-                    kernels_arr->data[d] = current;
-                }
-                cache_insert(cache, combined_hash, kernels_arr, true, D);
-            }
-            matrix_free(reachable);
-            kernels_map->kernels[y][x] = kernels_arr;
-        }
-    }
-
-    // Build kernels map from cache
-    for (ssize_t y = 0; y < terrain_height; y++) {
-        for (ssize_t x = 0; x < terrain_width; x++) {
-            const size_t terrain_val = terrain_at(x, y, terrain);
-            if (terrain_val == 0) continue;
-            const size_t tensor_index = terrain_val - 1; // Convert to 0-based index
-
-            if (tensor_index >= tensor_set->len) continue;
-            const ssize_t D = (ssize_t)tensor_set->data[tensor_index]->len;
-            CacheEntry* entry = cache_lookup_entry(cache, hash_grid[y][x]);
-            if (entry) {
-                kernels_map->kernels[y][x] = entry->data.array;
-            }
-            else {
-                // Fallback
-                fprintf(stderr, "Critical cache miss at (%zd, %zd)\n", x, y);
-                exit(EXIT_FAILURE);
-            }
-        }
-        free(hash_grid[y]);
-    }
-    free(hash_grid);
-    kernels_map->cache = cache;
-    printf("Recomputed: %zd\n", recomputed);
-    return kernels_map;
-}
-
-
-Tensor* generate_tensor(const KernelParameters* p, int terrain_value, bool full_bias, const TensorSet* correlated_tensors) {
+Tensor* generate_tensor(const KernelParameters* p, int terrain_value, bool full_bias,
+                        const TensorSet* correlated_tensors, bool serialized) {
     size_t M = p->S * 2 + 1;
     if (p->is_brownian) {
         float scale, sigma;
@@ -389,110 +300,10 @@ Tensor* generate_tensor(const KernelParameters* p, int terrain_value, bool full_
     else index = terrain_value / 10 - 1;
     Tensor* result = correlated_tensors->data[index];
     assert(result);
+    if (serialized) {
+        return tensor_clone(result);
+    }
     return result;
-}
-
-KernelsMap4D* tensor_map_terrain_weather(TerrainMap* terrain, const WeatherGrid* weather_grid) {
-    // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrainWeather* tensor_set = get_kernels_terrain_weather(terrain, weather_grid);
-    const ssize_t terrain_width = 100; //terrain->width;
-    const ssize_t terrain_height = 100; //terrain->height;
-    const ssize_t time_steps = (ssize_t)tensor_set->time;
-
-    printf("kernel parameters set\n");
-
-    // 2) Map und Cache anlegen
-    KernelsMap4D* kernels_map = malloc(sizeof(KernelsMap4D));
-    kernels_map->width = terrain_width;
-    kernels_map->height = terrain_height;
-    kernels_map->timesteps = time_steps;
-    kernels_map->kernels = malloc(terrain_height * sizeof(Tensor***));
-    for (ssize_t y = 0; y < terrain_height; y++) {
-        kernels_map->kernels[y] = malloc(terrain_width * sizeof(Tensor**));
-        for (ssize_t x = 0; x < terrain_width; x++) {
-            kernels_map->kernels[y][x] = malloc(time_steps * sizeof(Tensor*));
-        }
-    }
-
-
-    Cache* cache = cache_create(4096);
-
-    TensorSet* c_kernels = generate_correlated_tensors();
-
-    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    ssize_t maxD = 0;
-    for (ssize_t i = 0; i < tensor_set->height; i++)
-        for (ssize_t j = 0; j < tensor_set->width; j++)
-            for (ssize_t t = 0; t < tensor_set->time; t++)
-                if ((size_t)tensor_set->data[i][j][t]->D > maxD)
-                    maxD = tensor_set->data[i][j][t]->D;
-    kernels_map->max_D = maxD;
-
-    int recomputed = 0;
-
-    // 4) Hauptschleife: pro Terrain-Punkt
-#pragma omp parallel for collapse(3) reduction(+:recomputed) schedule(dynamic)
-    for (ssize_t y = 0; y < terrain_height; y++) {
-        printf("(%zd/%zd)\n", y, terrain->height);
-        for (ssize_t x = 0; x < terrain_width; x++) {
-            size_t terrain_val = terrain_at(x, y, terrain);
-            for (size_t t = 0; t < time_steps; t++) {
-                if (terrain_val == WATER) {
-                    kernels_map->kernels[y][x][t] = NULL;
-                    continue;
-                }
-                // weather indices to terrain grid
-                size_t weather_x = (x * weather_grid->width) / terrain->width;
-                size_t weather_y = (y * weather_grid->height) / terrain->height;
-
-                // paranoia-check (clamping)
-                if (weather_x >= weather_grid->width) weather_x = weather_grid->width - 1;
-                if (weather_y >= weather_grid->height) weather_y = weather_grid->height - 1;
-
-                WeatherTimeline* timeline = weather_grid->entries[weather_y][weather_x];
-                WeatherEntry* w_entry = timeline->data[t];
-                // a) Einzel-Hashes
-                uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
-                uint64_t w_params = weather_entry_hash(w_entry);
-                Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
-                uint64_t h_reach = compute_matrix_hash(reach_mat);
-                uint64_t pre_combined = hash_combine(h_params, h_reach);
-                uint64_t combined = hash_combine(pre_combined, w_params);
-
-                // b) Cache‐Lookup
-                CacheEntry* entry = cache_lookup_entry(cache, combined);
-                Tensor* arr;
-                if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x][t]->D) {
-                    arr = entry->data.array;
-                }
-                else {
-                    // c) Cache‐Miss → neu berechnen und einfügen
-                    recomputed++;
-                    ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, c_kernels);
-                    for (ssize_t d = 0; d < D; d++) {
-                        Matrix* m = matrix_elementwise_mul(
-                            arr->data[d],
-                            reach_mat
-                        );
-                        matrix_normalize_L1(m);
-                        arr->data[d] = m;
-                    }
-                    cache_insert(cache, combined, arr, true, D);
-                }
-
-                // d) Aufräumen und Zuordnung
-                matrix_free(reach_mat);
-                kernels_map->kernels[y][x][t] = arr;
-            }
-        }
-    }
-
-    // 5) Abschluss
-    printf("Recomputed: %i / %zu\n", recomputed, terrain_width * terrain->height * time_steps);
-    kernels_map->cache = cache;
-    kernel_parameters_mixed_free(tensor_set);
-    return kernels_map;
 }
 
 KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biases) {
@@ -564,13 +375,14 @@ KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biase
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck, false);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
                             reach_mat
                         );
                         matrix_normalize_L1(m);
+                        matrix_free(arr->data[d]);
                         arr->data[d] = m;
                     }
                     cache_insert(cache, combined, arr, true, D);
@@ -656,13 +468,14 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, false);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
                             reach_mat
                         );
                         matrix_normalize_L1(m);
+                        matrix_free(arr->data[d]);
                         arr->data[d] = m;
                     }
                     cache_insert(cache, pre_combined, arr, true, D);
@@ -712,7 +525,7 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
 
 
     // 4) Hauptschleife: pro Terrain-Punkt
-//#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
@@ -738,13 +551,14 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
                 // c) Cache‐Miss → neu berechnen und einfügen
                 recomputed++;
                 ssize_t D = tensor_set->data[y][x]->D;
-                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels);
+                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, false);
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* m = matrix_elementwise_mul(
                         arr->data[d],
                         reach_mat
                     );
                     matrix_normalize_L1(m);
+                    matrix_free(arr->data[d]);
                     arr->data[d] = m;
                 }
                 cache_insert(cache, combined, arr, true, D);
@@ -761,6 +575,59 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
     return kernels_map;
+}
+
+void tensor_map_terrain_serialized(TerrainMap* terrain) {
+    // 1) Vorbereitung: Parameter‐Set und Dimensionen
+    KernelParametersTerrain* tensor_set = get_kernels_terrain(terrain);
+    ssize_t terrain_width = terrain->width;
+    ssize_t terrain_height = terrain->height;
+
+    int recomputed = 0;
+    TensorSet* correlated_kernels = generate_correlated_tensors();
+
+    // 4) Hauptschleife: pro Terrain-Punkt
+#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+    for (ssize_t y = 0; y < terrain_height; y++) {
+        printf("%zu / %zu \n", y, terrain->height);
+        for (ssize_t x = 0; x < terrain_width; x++) {
+            size_t terrain_val = terrain_at(x, y, terrain);
+            if (terrain_val == WATER) {
+                continue;
+            }
+            Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain);
+            recomputed++;
+            ssize_t D = tensor_set->data[y][x]->D;
+            Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
+            for (ssize_t d = 0; d < D; d++) {
+                Matrix* m = matrix_elementwise_mul(
+                    arr->data[d],
+                    reach_mat
+                );
+                matrix_normalize_L1(m);
+                matrix_free(arr->data[d]);
+                arr->data[d] = m;
+            }
+            matrix_free(reach_mat);
+
+            //  Serialize Tensor
+            char path[256];
+            snprintf(path, sizeof(path), "tensors/x%zd/y%zd.tensor", x, y);
+
+            ensure_dir_exists_for(path);
+            FILE* tf = fopen(path, "wb");
+            serialize_tensor(tf, arr);
+            fclose(tf);
+
+            // Tensor wieder freigeben
+            tensor_free(arr);
+        }
+    }
+
+    // 5) Abschluss
+    printf("Recomputed: %d / %zu\n", recomputed, terrain->width * terrain->height);
+    kernel_parameters_terrain_free(tensor_set);
+    tensor_set_free(correlated_kernels);
 }
 
 
@@ -787,19 +654,32 @@ void kernels_map3d_free(KernelsMap3D* map) {
     free(map->kernels);
 }
 
-void kernels_map4d_free(KernelsMap4D* map) {
-    cache_free(map->cache);
-    for (int i = 0; i < map->height; ++i) {
-        for (int j = 0; j < map->width; ++j) {
-            for (int t = 0; t < map->timesteps; ++t) {
-                if (map->kernels[i][j][t] != NULL)
-                    tensor_free(map->kernels[i][j][t]);
+void kernels_map4d_free(KernelsMap4D* km) {
+    cache_free(km->cache);
+    if (km == NULL) return;
+    assert(km);
+    if (km->kernels != NULL) {
+        for (ssize_t y = 0; y < km->height; ++y) {
+            if (km->kernels[y] != NULL) {
+                for (ssize_t x = 0; x < km->width; ++x) {
+                    if (km->kernels[y][x] != NULL) {
+                        for (ssize_t t = 0; t < km->timesteps; ++t) {
+                            if (km->kernels[y][x][t] != NULL) {
+                                for (ssize_t d = 0; d < km->max_D; ++d) {
+                                    free_tensor(km->kernels[y][x][t]);
+                                }
+                                free(km->kernels[y][x][t]);
+                            }
+                        }
+                        free(km->kernels[y][x]);
+                    }
+                }
+                free(km->kernels[y]);
             }
-            free(map->kernels[i][j]);
         }
-        free(map->kernels[i]);
+        free(km->kernels);
     }
-    free(map->kernels);
+    free(km);
 }
 
 
@@ -1127,4 +1007,14 @@ bool kernels_maps_equal(const KernelsMap3D* kmap3d, const KernelsMap4D* kmap4d) 
     }
 
     return true;
+}
+
+Tensor* tensor_at(ssize_t x, ssize_t y) {
+    char path[256];
+    snprintf(path, sizeof(path), "tensors/x%zd/y%zd.tensor", x, y);
+    FILE* fp = fopen(path, "rb");
+    if (!fp) return NULL;
+    Tensor* t = deserialize_tensor(fp);
+    fclose(fp);
+    return t;
 }

@@ -7,30 +7,6 @@
 extern "C" {
 #endif
 
-typedef struct {
-    Point2D** data;
-    Point2D* grid_cells;
-    size_t* sizes;
-    size_t count;
-} Vector2D;
-
-typedef struct {
-    //size_t dim_len;
-    //size_t *dim;
-    size_t len;
-    Matrix** data;
-    Vector2D* dir_kernel;
-} Tensor;
-
-typedef struct {
-    //size_t dim_len;
-    //size_t *dim;
-    size_t len;
-    size_t max_D;
-    Tensor** data;
-    Vector2D** grid_cells;
-} TensorSet;
-
 Tensor* tensor_new(size_t width, size_t height, size_t depth);
 
 TensorSet* tensor_set_new(size_t count, Tensor** tensors);
@@ -41,6 +17,8 @@ bool tensor_equals(const Tensor* t1, const Tensor* t2);
 
 Vector2D* get_dir_kernel(ssize_t D, ssize_t size);
 
+Vector2D* vector2d_clone(const Vector2D* src, size_t len);
+
 void free_Vector2D(Vector2D* vec);
 
 void tensor_free(Tensor* tensor);
@@ -50,6 +28,8 @@ Tensor* tensor_copy(const Tensor* original);
 void tensor_fill(Tensor* tensor, double value);
 
 int tensor_in_bounds(Tensor* tensor, size_t x, size_t y, size_t z);
+
+Tensor* tensor_clone(const Tensor* src);
 
 size_t tensor_save(Tensor* tensor, const char* foldername);
 

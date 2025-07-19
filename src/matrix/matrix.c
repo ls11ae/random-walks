@@ -394,6 +394,25 @@ Matrix* matrix_load(const char* filename) {
     return mat;
 }
 
+Matrix* matrix_clone(const Matrix* src) {
+    if (!src) return NULL;
+    Matrix* clone = malloc(sizeof(Matrix));
+    if (!clone) return NULL;
+
+    clone->width = src->width;
+    clone->height = src->height;
+    clone->len = src->len;
+
+    clone->data = malloc(sizeof(double) * src->len);
+    if (!clone->data) {
+        free(clone);
+        return NULL;
+    }
+
+    memcpy(clone->data, src->data, sizeof(double) * src->len);
+    return clone;
+}
+
 void matrix_print(const Matrix* m) {
     for (size_t i = 0; i < m->height; i++) {
         for (size_t j = 0; j < m->width; j++) {

@@ -127,7 +127,6 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
     result->count = D;
     result->data = (Point2D**)malloc(D * sizeof(Point2D*));
     result->sizes = (size_t*)calloc(D, sizeof(size_t));
-    result->grid_cells = (Point2D*)malloc(size * size * sizeof(Point2D));
 
     // First pass to count points in each direction
     size_t* counts = (size_t*)calloc(D, sizeof(size_t));
@@ -138,7 +137,6 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
     for (ssize_t i = -S; i <= S; ++i) {
         for (ssize_t j = -S; j <= S; ++j) {
             const Point2D point = {j, i};
-            result->grid_cells[index++] = point;
             const double angle = compute_angle(j, i);
             const double closest = find_closest_angle(angle, angle_step_size);
             size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
@@ -170,15 +168,59 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
     return result;
 }
 
-// Helper function to free the Vector2D when done
-void free_Vector2D(Vector2D* vec) {
-    if (vec == NULL) return;
-    for (size_t i = 0; i < vec->count; i++) {
-        point_2d_free(vec->data[i]);
+Vector2D* vector2d_clone(const Vector2D* src, size_t len) {
+    if (!src) return NULL;
+    Vector2D* clone = malloc(sizeof(Vector2D));
+    if (!clone) return NULL;
+
+    clone->count = src->count;
+
+    clone->sizes = malloc(sizeof(size_t) * len);
+    if (!clone->sizes) {
+        free(clone);
+        return NULL;
     }
-    free(vec->grid_cells);
-    free(vec->data);
-    free(vec->sizes);
+    memcpy(clone->sizes, src->sizes, sizeof(size_t) * len);
+
+    clone->data = malloc(sizeof(Point2D*) * len);
+    if (!clone->data) {
+        free(clone->sizes);
+        free(clone);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        size_t count = clone->sizes[i];
+        clone->data[i] = malloc(sizeof(Point2D) * count);
+        if (!clone->data[i]) {
+            // Clean up
+            for (size_t j = 0; j < i; j++) {
+                free(clone->data[j]);
+            }
+            free(clone->data);
+            free(clone->sizes);
+            free(clone);
+            return NULL;
+        }
+        memcpy(clone->data[i], src->data[i], sizeof(Point2D) * count);
+    }
+
+    return clone;
+}
+
+
+// Helper function to free the Vector2D when done
+void free_Vector2D(Vector2D* v) {
+    if (v == NULL) return;
+    if (v->data != NULL) {
+        for (size_t i = 0; i < v->count; ++i) {
+            if (v->data[i] != NULL)
+                free(v->data[i]); // Free individual Point2D*
+        }
+        free(v->data);
+    }
+    free(v->sizes);
+    free(v);
 }
 
 
@@ -187,10 +229,10 @@ void tensor_free(Tensor* tensor) {
     for (size_t i = 0; i < tensor->len; i++) {
         if (tensor->data && tensor->data[i] != NULL) {
             matrix_free(tensor->data[i]);
-            //if (tensor->dir_kernel)
-            //  free_Vector2D(tensor->dir_kernel);
         }
     }
+    if (tensor->dir_kernel)
+        free_Vector2D(tensor->dir_kernel);
     free(tensor->data);
     tensor->len = 0;
     tensor->data = NULL;
@@ -227,6 +269,50 @@ void tensor_fill(Tensor* tensor, double value) {
 int tensor_in_bounds(Tensor* tensor, size_t x, size_t y, size_t z) {
     return z < tensor->len && matrix_in_bounds(tensor->data[z], x, y);
 }
+
+Tensor* tensor_clone(const Tensor* src) {
+    if (!src) return NULL;
+    Tensor* clone = malloc(sizeof(Tensor));
+    if (!clone) return NULL;
+
+    clone->len = src->len;
+    clone->data = malloc(sizeof(Matrix*) * clone->len);
+    if (!clone->data) {
+        free(clone);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < clone->len; i++) {
+        clone->data[i] = matrix_clone(src->data[i]);
+        if (!clone->data[i]) {
+            // Fehler beim Clonen → bisherige freigeben
+            for (size_t j = 0; j < i; j++) {
+                matrix_free(clone->data[j]);
+            }
+            free(clone->data);
+            free(clone);
+            return NULL;
+        }
+    }
+
+    if (src->dir_kernel) {
+        clone->dir_kernel = vector2d_clone(src->dir_kernel, clone->len);
+        if (!clone->dir_kernel) {
+            for (size_t i = 0; i < clone->len; i++) {
+                matrix_free(clone->data[i]);
+            }
+            free(clone->data);
+            free(clone);
+            return NULL;
+        }
+    }
+    else {
+        clone->dir_kernel = NULL;
+    }
+
+    return clone;
+}
+
 
 size_t tensor_save(Tensor* tensor, const char* foldername) {
     if (MKDIR(foldername) != 0 && errno != EEXIST) {
