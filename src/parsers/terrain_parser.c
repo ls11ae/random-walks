@@ -375,7 +375,7 @@ KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biase
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck, false);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck, true);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
@@ -441,7 +441,7 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
     int recomputed = 0;
 
     // 4) Hauptschleife: pro Terrain-Punkt
-#pragma omp parallel for collapse(3) reduction(+:recomputed) schedule(dynamic)
+#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         //printf("(%zd/%zd)\n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
@@ -468,7 +468,7 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, false);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, true);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
@@ -551,7 +551,7 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
                 // c) Cache‐Miss → neu berechnen und einfügen
                 recomputed++;
                 ssize_t D = tensor_set->data[y][x]->D;
-                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, false);
+                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* m = matrix_elementwise_mul(
                         arr->data[d],
