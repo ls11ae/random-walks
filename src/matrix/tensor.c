@@ -36,6 +36,7 @@ Tensor* tensor_new(size_t width, size_t height, size_t depth) {
         return NULL;
     }
     t->len = depth;
+    t->dir_kernel = NULL;
     for (size_t i = 0; i < depth; i++) {
         Matrix* m = matrix_new(width, height);
         if (m == NULL) {
