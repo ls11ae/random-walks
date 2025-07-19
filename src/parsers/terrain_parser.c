@@ -120,6 +120,7 @@ TensorSet* generate_correlated_tensors() {
 }
 
 void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_t array_size) {
+    assert((is_array && data != NULL) || (!is_array && data != NULL));
     size_t bucket = hash % cache->num_buckets;
     CacheEntry* entry = malloc(sizeof(CacheEntry));
     entry->hash = hash;
@@ -274,7 +275,7 @@ KernelsMap3D* tensor_map_new(const TerrainMap* terrain, const Tensor* kernels) {
 }
 
 Tensor* generate_tensor(const KernelParameters* p, int terrain_value, bool full_bias,
-                        const TensorSet* correlated_tensors) {
+                        const TensorSet* correlated_tensors, bool serialized) {
     size_t M = p->S * 2 + 1;
     if (p->is_brownian) {
         float scale, sigma;
@@ -298,6 +299,9 @@ Tensor* generate_tensor(const KernelParameters* p, int terrain_value, bool full_
     else index = terrain_value / 10 - 1;
     Tensor* result = correlated_tensors->data[index];
     assert(result);
+    if (serialized) {
+        return tensor_clone(result);
+    }
     return result;
 }
 
@@ -370,7 +374,7 @@ KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biase
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, ck, false);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
@@ -462,7 +466,7 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels);
+                    arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, false);
                     for (ssize_t d = 0; d < D; d++) {
                         Matrix* m = matrix_elementwise_mul(
                             arr->data[d],
@@ -544,7 +548,7 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
                 // c) Cache‐Miss → neu berechnen und einfügen
                 recomputed++;
                 ssize_t D = tensor_set->data[y][x]->D;
-                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels);
+                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, false);
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* m = matrix_elementwise_mul(
                         arr->data[d],
@@ -575,47 +579,30 @@ void tensor_map_terrain_serialized(TerrainMap* terrain) {
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
 
-    Cache* cache = cache_create(4096);
-
     int recomputed = 0;
     TensorSet* correlated_kernels = generate_correlated_tensors();
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
+        printf("%zu / %zu \n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == WATER) {
                 continue;
             }
-
-            // a) Einzel-Hashes
-            uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
             Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain);
-            uint64_t h_reach = compute_matrix_hash(reach_mat);
-            uint64_t combined = hash_combine(h_params, h_reach);
-            combined = hash_combine(combined, tensor_set->data[y][x]->D);
-
-            // b) Cache‐Lookup
-            CacheEntry* entry = cache_lookup_entry(cache, combined);
-            Tensor* arr;
-            if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x]->D) {
-                arr = entry->data.array;
-            }
-            else {
-                // c) Cache‐Miss → neu berechnen und einfügen
-                recomputed++;
-                ssize_t D = tensor_set->data[y][x]->D;
-                arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels);
-                for (ssize_t d = 0; d < D; d++) {
-                    Matrix* m = matrix_elementwise_mul(
-                        arr->data[d],
-                        reach_mat
-                    );
-                    matrix_normalize_L1(m);
-                    arr->data[d] = m;
-                }
-                cache_insert(cache, combined, arr, true, D);
+            recomputed++;
+            ssize_t D = tensor_set->data[y][x]->D;
+            Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
+            for (ssize_t d = 0; d < D; d++) {
+                Matrix* m = matrix_elementwise_mul(
+                    arr->data[d],
+                    reach_mat
+                );
+                matrix_normalize_L1(m);
+                matrix_free(arr->data[d]);
+                arr->data[d] = m;
             }
 
             // d) Aufräumen und Zuordnung
@@ -632,8 +619,8 @@ void tensor_map_terrain_serialized(TerrainMap* terrain) {
             serialize_tensor(tf, arr);
             fclose(tf);
 
-            // → Tensor wieder freigeben
-            //tensor_free(arr);
+            // Tensor wieder freigeben
+            tensor_free(arr);
         }
     }
 

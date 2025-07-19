@@ -91,6 +91,8 @@ size_t matrix_save(const Matrix* mat, const char* filename);
 
 Matrix* matrix_load(const char* filename);
 
+Matrix* matrix_clone(const Matrix* src);
+
 void matrix_normalize(const Matrix* mat, double sum);
 
 void matrix_normalize_01(Matrix* m);

@@ -28,7 +28,6 @@ typedef struct {
 
 typedef struct {
     Point2D** data;
-    Point2D* grid_cells;
     size_t* sizes;
     size_t count;
 } Vector2D;

@@ -199,11 +199,16 @@ int serialize_tensor() {
 int main() {
     //  TODO: flexibler mit pfad übergabe, tensoren copyen damit man freen kann, für 4d
     TerrainMap terrain;
-    parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
+    terrain.width = 1000;
+    terrain.height = 1000;
+    terrain.data = (int**)(malloc(1000 * sizeof(int*)));
+    srand(time(NULL));
+    for (int i = 0; i < 1000; ++i) {
+        terrain.data[i] = (int*)(malloc(1000 * sizeof(int)));
+        for (int j = 0; j < 1000; ++j) {
+            terrain.data[i][j] = (rand() % 10) * 10;
+        }
+    }
+    //parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
     tensor_map_terrain_serialized(&terrain);
-
-    auto tensor = tensor_at(20, 20);
-    std::cout << matrix_to_string(tensor->data[0]) << std::endl;
-
-    //tensor_map_terrain(&terrain);
 }
