@@ -495,6 +495,78 @@ KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGr
     return kernels_map;
 }
 
+void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArrayGrid* biases,
+                                               const char* output_path) {
+    // 1) Vorbereitung: Parameter‐Set und Dimensionen
+    KernelParametersTerrainWeather* tensor_set = get_kernels_terrain_biased_grid(terrain, biases);
+    const ssize_t terrain_width = terrain->width;
+    const ssize_t terrain_height = terrain->height;
+    const ssize_t time_steps = (ssize_t)tensor_set->time;
+    printf("kernel parameters set\n");
+
+    TensorSet* correlated_kernels = generate_correlated_tensors();
+    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
+    // ssize_t maxD = 0;
+    // for (ssize_t i = 0; i < tensor_set->height; i++)
+    //     for (ssize_t j = 0; j < tensor_set->width; j++)
+    //         for (ssize_t t = 0; t < tensor_set->time; t++)
+    //             if ((size_t)tensor_set->data[i][j][t]->D > maxD)
+    //                 maxD = tensor_set->data[i][j][t]->D;
+
+    int recomputed = 0;
+
+    // 4) Hauptschleife: pro Terrain-Punkt
+#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+    for (ssize_t y = 0; y < terrain_height; y++) {
+        //printf("(%zd/%zd)\n", y, terrain->height);
+        for (ssize_t x = 0; x < terrain_width; x++) {
+            size_t terrain_val = terrain_at(x, y, terrain);
+            for (size_t t = 0; t < time_steps; t++) {
+                if (terrain_val == WATER) {
+                    continue;
+                }
+
+                // a) Einzel-Hashes
+                Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
+                // b) Cache‐Lookup
+                Tensor* arr;
+
+                // c) Cache‐Miss → neu berechnen und einfügen
+                recomputed++;
+                ssize_t D = tensor_set->data[y][x][t]->D;
+                arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, true);
+                for (ssize_t d = 0; d < D; d++) {
+                    Matrix* m = matrix_elementwise_mul(
+                        arr->data[d],
+                        reach_mat
+                    );
+                    matrix_normalize_L1(m);
+                    matrix_free(arr->data[d]);
+                    arr->data[d] = m;
+                }
+
+
+                //  Serialize Tensor
+                char path[256];
+                snprintf(path, sizeof(path), "%s/tensors/t%zd/x%zd/y%zd.tensor", output_path, t, x, y);
+
+                ensure_dir_exists_for(path);
+                FILE* tf = fopen(path, "wb");
+                serialize_tensor(tf, arr);
+                fclose(tf);
+
+                // Tensor wieder freigeben
+                matrix_free(reach_mat);
+                tensor_free(arr);
+            }
+        }
+    }
+
+    // 5) Abschluss
+    printf("Recomputed: %i / %zu\n", recomputed, terrain_width * terrain->height * time_steps);
+    kernel_parameters_mixed_free(tensor_set);
+}
+
 
 KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
@@ -577,7 +649,7 @@ KernelsMap3D* tensor_map_terrain(TerrainMap* terrain) {
     return kernels_map;
 }
 
-void tensor_map_terrain_serialized(TerrainMap* terrain) {
+void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain* tensor_set = get_kernels_terrain(terrain);
     ssize_t terrain_width = terrain->width;
@@ -612,7 +684,7 @@ void tensor_map_terrain_serialized(TerrainMap* terrain) {
 
             //  Serialize Tensor
             char path[256];
-            snprintf(path, sizeof(path), "tensors/x%zd/y%zd.tensor", x, y);
+            snprintf(path, sizeof(path), "%s/tensors/x%zd/y%zd.tensor", output_path, x, y);
 
             ensure_dir_exists_for(path);
             FILE* tf = fopen(path, "wb");
@@ -1009,12 +1081,22 @@ bool kernels_maps_equal(const KernelsMap3D* kmap3d, const KernelsMap4D* kmap4d) 
     return true;
 }
 
-Tensor* tensor_at(ssize_t x, ssize_t y) {
+Tensor* tensor_at(const char* output_path, ssize_t x, ssize_t y) {
     char path[256];
-    snprintf(path, sizeof(path), "tensors/x%zd/y%zd.tensor", x, y);
+    snprintf(path, sizeof(path), "%s/tensors/x%zd/y%zd.tensor", output_path, x, y);
     FILE* fp = fopen(path, "rb");
     if (!fp) return NULL;
     Tensor* t = deserialize_tensor(fp);
     fclose(fp);
     return t;
+}
+
+Tensor* tensor_at_xyt(const char* output_path, ssize_t x, ssize_t y, ssize_t t) {
+    char path[256];
+    snprintf(path, sizeof(path), "%s/tensors/t%zd/x%zd/y%zd.tensor", output_path, t, x, y);
+    FILE* fp = fopen(path, "rb");
+    if (!fp) return NULL;
+    Tensor* ts = deserialize_tensor(fp);
+    fclose(fp);
+    return ts;
 }

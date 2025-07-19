@@ -197,15 +197,8 @@ int serialize_tensor() {
 }
 
 int main() {
-    //  TODO: flexibler mit pfad übergabe, für 4d
+    //  TODO: für 4d
     TerrainMap terrain;
     parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
-    const char* csv_path = "../../resources/my_gridded_weather_grid_csvs/";
-    auto grid_x = 5, grid_y = 5;
-    auto T = 70;
-    Point2DArrayGrid* grid = load_weather_grid(csv_path, grid_x, grid_y, T);
-    printf("weather grid loaded\n");
-
-
-    tensor_map_terrain_biased_grid(&terrain, grid);
+    tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
 }

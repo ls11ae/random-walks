@@ -23,11 +23,12 @@ KernelsMap4D* tensor_map_terrain_biased(TerrainMap* terrain, Point2DArray* biase
 
 KernelsMap4D* tensor_map_terrain_biased_grid(TerrainMap* terrain, Point2DArrayGrid* biases);
 
+void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArrayGrid* biases,
+                                               const char* output_path);
+
 KernelsMap3D* tensor_map_terrain(TerrainMap* terrain);
 
-void tensor_map_terrain_serialized(TerrainMap* terrain);
-
-Tensor* tensor_at(ssize_t x, ssize_t y);
+void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path);
 
 Matrix* kernel_at(const KernelsMap* kernels_map, ssize_t x, ssize_t y);
 
@@ -54,6 +55,11 @@ int parse_terrain_map(const char* filename, TerrainMap* map, char delimiter);
 TerrainMap* create_terrain_map(const char* filename, char delimiter);
 
 bool kernels_maps_equal(const KernelsMap3D* kmap3d, const KernelsMap4D* kmap4d);
+
+Tensor* tensor_at(const char* output_file, ssize_t x, ssize_t y);
+
+Tensor* tensor_at_xyt(const char* output_file, ssize_t x, ssize_t y, ssize_t t);
+
 
 #ifdef __cplusplus
 }
