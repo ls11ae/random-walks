@@ -134,7 +134,6 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
     const ssize_t S = size / 2;
     const double angle_step_size = 360.0 / (double)D;
 
-    int index = 0;
     for (ssize_t i = -S; i <= S; ++i) {
         for (ssize_t j = -S; j <= S; ++j) {
             const Point2D point = {j, i};

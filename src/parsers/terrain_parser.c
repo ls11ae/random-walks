@@ -506,17 +506,21 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
 
     TensorSet* correlated_kernels = generate_correlated_tensors();
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    // ssize_t maxD = 0;
-    // for (ssize_t i = 0; i < tensor_set->height; i++)
-    //     for (ssize_t j = 0; j < tensor_set->width; j++)
-    //         for (ssize_t t = 0; t < tensor_set->time; t++)
-    //             if ((size_t)tensor_set->data[i][j][t]->D > maxD)
-    //                 maxD = tensor_set->data[i][j][t]->D;
+    ssize_t maxD = 0;
+    for (ssize_t i = 0; i < tensor_set->height; i++)
+        for (ssize_t j = 0; j < tensor_set->width; j++)
+            for (ssize_t t = 0; t < tensor_set->time; t++)
+                if ((size_t)tensor_set->data[i][j][t]->D > maxD)
+                    maxD = tensor_set->data[i][j][t]->D;
 
-    int recomputed = 0;
+    KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, 0, maxD};
+    char meta_path[256];
+    snprintf(meta_path, sizeof(meta_path), "%s/meta.info", output_path);
+    ensure_dir_exists_for(meta_path);
+    write_kernel_map_meta(meta_path, &meta);
 
     // 4) Hauptschleife: pro Terrain-Punkt
-#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         //printf("(%zd/%zd)\n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
@@ -528,13 +532,9 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
 
                 // a) Einzel-Hashes
                 Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
-                // b) Cache‐Lookup
-                Tensor* arr;
-
-                // c) Cache‐Miss → neu berechnen und einfügen
-                recomputed++;
                 ssize_t D = tensor_set->data[y][x][t]->D;
-                arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels, true);
+                Tensor* arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels,
+                                              true);
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix* m = matrix_elementwise_mul(
                         arr->data[d],
@@ -555,15 +555,11 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
                 serialize_tensor(tf, arr);
                 fclose(tf);
 
-                // Tensor wieder freigeben
                 matrix_free(reach_mat);
                 tensor_free(arr);
             }
         }
     }
-
-    // 5) Abschluss
-    printf("Recomputed: %i / %zu\n", recomputed, terrain_width * terrain->height * time_steps);
     kernel_parameters_mixed_free(tensor_set);
 }
 
@@ -654,12 +650,28 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
     KernelParametersTerrain* tensor_set = get_kernels_terrain(terrain);
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
+    printf("terrain width = %zu\n", terrain_width);
+    printf("terrain height = %zu\n", terrain_height);
 
-    int recomputed = 0;
+    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
+    size_t maxD = 0;
+    for (ssize_t i = 0; i < tensor_set->height; i++)
+        for (ssize_t j = 0; j < tensor_set->width; j++)
+            if ((size_t)tensor_set->data[i][j]->D > maxD)
+                maxD = tensor_set->data[i][j]->D;
+
     TensorSet* correlated_kernels = generate_correlated_tensors();
+    KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, 0, maxD};
+    char meta_path[256];
+    snprintf(meta_path, sizeof(meta_path), "%s/meta.info", output_path);
+    ensure_dir_exists_for(meta_path);
+    write_kernel_map_meta(meta_path, &meta);
+    KernelMapMeta m = read_kernel_map_meta(meta_path);
+    assert(m.height == terrain_height);
+    assert(m.width == terrain_width);
 
     // 4) Hauptschleife: pro Terrain-Punkt
-#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         printf("%zu / %zu \n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
@@ -668,7 +680,6 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
                 continue;
             }
             Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain);
-            recomputed++;
             ssize_t D = tensor_set->data[y][x]->D;
             Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
             for (ssize_t d = 0; d < D; d++) {
@@ -697,7 +708,6 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
     }
 
     // 5) Abschluss
-    printf("Recomputed: %d / %zu\n", recomputed, terrain->width * terrain->height);
     kernel_parameters_terrain_free(tensor_set);
     tensor_set_free(correlated_kernels);
 }

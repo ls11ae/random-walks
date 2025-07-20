@@ -73,32 +73,30 @@ size_t serialize_matrix(FILE* fp, const Matrix* m) {
 
 size_t serialize_vector2d(FILE* fp, const Vector2D* v) {
     size_t bytes_written = 0;
+
+    // 1. Anzahl der Richtungen
     bytes_written += fwrite(&v->count, sizeof(size_t), 1, fp);
 
-    // Serialize Point2D** data
-    if (v->count > 0 && v->data != NULL) {
-        for (size_t i = 0; i < v->count; ++i) {
-            // Write a flag indicating if the inner Point2D* is NULL
-            int is_null = (v->data[i] == NULL);
-            bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
-            if (!is_null) {
-                bytes_written += serialize_point2d(fp, v->data[i]);
-            }
-        }
-    }
-
-
-    // Serialize size_t* sizes
-    // Write a flag indicating if sizes is NULL
+    // 2. Größen-Array schreiben (für jede Richtung, wie viele Punkte)
     int sizes_is_null = (v->sizes == NULL);
     bytes_written += fwrite(&sizes_is_null, sizeof(int), 1, fp);
     if (!sizes_is_null) {
-        // Assume sizes has 'count' elements if not NULL
         bytes_written += fwrite(v->sizes, sizeof(size_t), v->count, fp);
+    }
+
+    // 3. Daten: für jede Richtung (v->count)
+    for (size_t i = 0; i < v->count; ++i) {
+        int is_null = (v->data[i] == NULL);
+        bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
+        if (!is_null) {
+            size_t len = v->sizes[i];
+            bytes_written += fwrite(v->data[i], sizeof(Point2D), len, fp);
+        }
     }
 
     return bytes_written;
 }
+
 
 size_t serialize_tensor(FILE* fp, const Tensor* t) {
     size_t bytes_written = 0;
@@ -208,30 +206,73 @@ Matrix* deserialize_matrix(FILE* fp) {
 Vector2D* deserialize_vector2d(FILE* fp) {
     Vector2D* v = (Vector2D*)malloc(sizeof(Vector2D));
     if (!v) handle_error("Failed to allocate Vector2D");
+
+    // 1. Anzahl der Richtungen
     if (fread(&v->count, sizeof(size_t), 1, fp) != 1) {
         free(v);
         handle_error("Failed to read Vector2D count");
     }
 
-    // Deserialize Point2D** data
+    // 2. Größen-Array lesen (für jede Richtung, wie viele Punkte)
+    int sizes_is_null;
+    if (fread(&sizes_is_null, sizeof(int), 1, fp) != 1) {
+        free(v);
+        handle_error("Failed to read sizes null flag");
+    }
+
+    v->sizes = NULL;
+    if (!sizes_is_null) {
+        v->sizes = (size_t*)malloc(v->count * sizeof(size_t));
+        if (!v->sizes) {
+            free(v);
+            handle_error("Failed to allocate sizes array");
+        }
+        if (fread(v->sizes, sizeof(size_t), v->count, fp) != v->count) {
+            free(v->sizes);
+            free(v);
+            handle_error("Failed to read sizes array");
+        }
+    }
+
+    // 3. Daten lesen: für jede Richtung
     v->data = NULL;
     if (v->count > 0) {
         v->data = (Point2D**)malloc(v->count * sizeof(Point2D*));
         if (!v->data) {
+            if (v->sizes) free(v->sizes);
             free(v);
-            handle_error("Failed to allocate Vector2D data array");
+            handle_error("Failed to allocate data array");
         }
+
         for (size_t i = 0; i < v->count; ++i) {
             int is_null;
             if (fread(&is_null, sizeof(int), 1, fp) != 1) {
-                // Cleanup already allocated data pointers
-                for (size_t j = 0; j < i; ++j) { free(v->data[j]); }
+                // Cleanup
+                for (size_t j = 0; j < i; ++j) free(v->data[j]);
                 free(v->data);
+                if (v->sizes) free(v->sizes);
                 free(v);
-                handle_error("Failed to read Point2D* null flag in Vector2D");
+                handle_error("Failed to read null flag for data[i]");
             }
+
             if (!is_null) {
-                v->data[i] = deserialize_point2d(fp);
+                size_t len = v->sizes ? v->sizes[i] : 0;
+                v->data[i] = (Point2D*)malloc(len * sizeof(Point2D));
+                if (!v->data[i]) {
+                    for (size_t j = 0; j < i; ++j) free(v->data[j]);
+                    free(v->data);
+                    if (v->sizes) free(v->sizes);
+                    free(v);
+                    handle_error("Failed to allocate Point2D array");
+                }
+
+                if (fread(v->data[i], sizeof(Point2D), len, fp) != len) {
+                    for (size_t j = 0; j <= i; ++j) free(v->data[j]);
+                    free(v->data);
+                    if (v->sizes) free(v->sizes);
+                    free(v);
+                    handle_error("Failed to read Point2D array");
+                }
             }
             else {
                 v->data[i] = NULL;
@@ -239,29 +280,9 @@ Vector2D* deserialize_vector2d(FILE* fp) {
         }
     }
 
-    // Deserialize size_t* sizes
-    v->sizes = NULL;
-    int sizes_is_null;
-    if (fread(&sizes_is_null, sizeof(int), 1, fp) != 1) {
-        free_vector2d(v);
-        handle_error("Failed to read sizes null flag in Vector2D");
-    }
-    if (!sizes_is_null) {
-        if (v->count > 0) { // Assume sizes has 'count' elements if not NULL
-            v->sizes = (size_t*)malloc(v->count * sizeof(size_t));
-            if (!v->sizes) {
-                free_vector2d(v);
-                handle_error("Failed to allocate sizes data");
-            }
-            if (fread(v->sizes, sizeof(size_t), v->count, fp) != v->count) {
-                free_vector2d(v);
-                handle_error("Failed to read sizes data in Vector2D");
-            }
-        }
-    }
-
     return v;
 }
+
 
 Tensor* deserialize_tensor(FILE* fp) {
     Tensor* t = (Tensor*)malloc(sizeof(Tensor));
@@ -376,9 +397,6 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
                     for (ssize_t d = 0; d < km->max_D; ++d) {
                         int is_null;
                         if (fread(&is_null, sizeof(int), 1, fp) != 1) {
-                            // Cleanup all partially allocated and deserialized data
-                            // This gets complex quickly. A more robust error handling
-                            // might involve a dedicated cleanup function for each level.
                             free_kernels_map_4d(km);
                             handle_error("Failed to read Tensor* null flag in KernelsMap4D");
                         }
@@ -454,4 +472,22 @@ void free_kernels_map_4d(KernelsMap4D* km) {
     }
     free(km);
 }
+
+void write_kernel_map_meta(const char* path, KernelMapMeta* meta) {
+    FILE* f = fopen(path, "wb");
+    assert(f && "Could not open meta info file for writing");
+    fwrite(meta, sizeof(KernelMapMeta), 1, f);
+    fclose(f);
+}
+
+KernelMapMeta read_kernel_map_meta(const char* path) {
+    FILE* f = fopen(path, "rb");
+    assert(f && "Could not open meta info file for reading");
+    KernelMapMeta meta;
+    fread(&meta, sizeof(KernelMapMeta), 1, f);
+    fclose(f);
+    return meta;
+}
+
+
 #endif //SERIALIZATION_H

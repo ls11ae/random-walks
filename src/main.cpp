@@ -119,7 +119,8 @@ int test_biased_walk(Point2DArray* biases, const char* filename) {
     Point2D start = {360, 227};
     Point2D goal = {290, 132};
 
-    auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y);
+    char* path = "";
+    auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, path);
     auto walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
 
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
@@ -144,7 +145,7 @@ int test_biased_walk_grid(Point2DArrayGrid* grid, const char* filename, ssize_t 
     // Kernel Map generieren mit terrain und bias timeline
     KernelsMap4D* kmap = tensor_map_terrain_biased_grid(&terrain, grid);
 
-    Tensor** dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y);
+    Tensor** dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, "");
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
     Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
 
@@ -198,7 +199,17 @@ int serialize_tensor() {
 
 int main() {
     //  TODO: für 4d
+    // TerrainMap terrain;
+    // parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
+    // tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
+    //Tensor* current = tensor_at_xyt("../../resources/kernels_map", x, y, t);
+
+    Vector2D* dk = get_dir_kernel(8, 15);
+
     TerrainMap terrain;
     parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
     tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
+    auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
+    auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
+    point2d_array_print(walk);
 }
