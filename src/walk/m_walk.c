@@ -114,10 +114,10 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 
 Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
                 const KernelsMap3D* kernels_map, const ssize_t T, const ssize_t start_x,
-                const ssize_t start_y, bool use_serialized, const char* serialize_dir) {
+                const ssize_t start_y, bool use_serialized, bool recompute, const char* serialize_dir) {
 	if (use_serialized) {
 		struct stat st;
-		if (stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+		if (!recompute && stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
 			return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 		}
 		tensor_map_terrain_serialize(terrain_map, serialize_dir);

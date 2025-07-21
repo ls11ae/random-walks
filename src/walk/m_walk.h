@@ -19,7 +19,7 @@ Point2DArray* mixed_walk(ssize_t W, ssize_t H, TerrainMap* spatial_map,
 
 Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
                 const KernelsMap3D* kernels_map, ssize_t T, ssize_t start_x,
-                ssize_t start_y, bool use_serialized, const char* serialize_dir);
+                ssize_t start_y, bool use_serialized, bool recompute, const char* serialize_dir);
 
 Point2DArray* m_walk_backtrace(Tensor** DP_Matrix, const ssize_t T,
                                KernelsMap3D* tensor_map, TerrainMap* terrain, ssize_t end_x, ssize_t end_y,

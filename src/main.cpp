@@ -215,7 +215,7 @@ int main() {
     //                            steps[0], steps[1], true);
     // point2d_array_print(walk2);
     // return 0;
-    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, path);
+    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, false, path);
     char dp_path[256];
     sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
     auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path,
