@@ -522,7 +522,7 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
-        //printf("(%zd/%zd)\n", y, terrain->height);
+        printf("(%zd/%zd)\n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
             for (size_t t = 0; t < time_steps; t++) {
@@ -548,7 +548,7 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
 
                 //  Serialize Tensor
                 char path[256];
-                snprintf(path, sizeof(path), "%s/tensors/t%zd/x%zd/y%zd.tensor", output_path, t, x, y);
+                snprintf(path, sizeof(path), "%s/tensors/y%zd/x%zd/t%zd.tensor", output_path, y, x, t);
                 ensure_dir_exists_for(path);
                 FILE* tf = fopen(path, "wb");
                 serialize_tensor(tf, arr);
@@ -1099,7 +1099,7 @@ Tensor* tensor_at(const char* output_path, ssize_t x, ssize_t y) {
 
 Tensor* tensor_at_xyt(const char* output_path, ssize_t x, ssize_t y, ssize_t t) {
     char path[256];
-    snprintf(path, sizeof(path), "%s/tensors/t%zd/x%zd/y%zd.tensor", output_path, t, x, y);
+    snprintf(path, sizeof(path), "%s/tensors/y%zd/x%zd/t%zd.tensor", output_path, y, x, t);
     FILE* fp = fopen(path, "rb");
     if (!fp) return NULL;
     Tensor* ts = deserialize_tensor(fp);
