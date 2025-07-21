@@ -1,6 +1,7 @@
 #include "m_walk.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -20,6 +21,14 @@ Point2DArray* mixed_walk(ssize_t W, ssize_t H, TerrainMap* spatial_map,
 static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrain_map,
                                   const ssize_t T, const ssize_t start_x, const ssize_t start_y,
                                   const char* serialize_dir) {
+	char tensor_dir[512];
+	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%zd_X%zd_Y%zd", serialize_dir, T, start_x, start_y);
+
+	struct stat st;
+	if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+		return NULL;
+	}
+
 	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
 
 	// Lade Meta-Infos und überprüfe Konsistenz
@@ -33,9 +42,6 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 	// Initialisierung
 	Tensor* start_kernel = tensor_at(serialize_dir, start_x, start_y);
 	const double init_value = 1.0 / (double)start_kernel->len;
-
-	char tensor_dir[256];
-	sprintf(tensor_dir, "%s/DP", serialize_dir);
 
 	// Allocate only current and previous
 	Tensor* prev = tensor_new(W, H, max_D);
@@ -106,10 +112,15 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 }
 
 
-Tensor** m_walk(ssize_t W, ssize_t H, const TerrainMap* terrain_map,
+Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
                 const KernelsMap3D* kernels_map, const ssize_t T, const ssize_t start_x,
                 const ssize_t start_y, bool use_serialized, char* serialize_dir) {
 	if (use_serialized) {
+		struct stat st;
+		if (stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+			return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
+		}
+		tensor_map_terrain_serialize(terrain_map, serialize_dir);
 		return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 	}
 	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
@@ -281,12 +292,10 @@ static Point2DArray* backtrace_serialized(const char* dp_folder, const ssize_t T
 
 Point2DArray* m_walk_backtrace(Tensor** DP_Matrix, const ssize_t T,
                                KernelsMap3D* tensor_map, TerrainMap* terrain, const ssize_t end_x, const ssize_t end_y,
-                               const ssize_t dir, bool use_serialized, char* serialize_dir) {
+                               const ssize_t dir, bool use_serialized, char* serialize_dir, char* dp_folder) {
 	assert(terrain_at(end_x, end_y, terrain) != WATER);
 	if (use_serialized) {
-		char dp_filename[512];
-		sprintf(dp_filename, "%s/DP", serialize_dir);
-		return backtrace_serialized(dp_filename, T, terrain, end_x, end_y, dir, serialize_dir);
+		return backtrace_serialized(dp_folder, T, terrain, end_x, end_y, dir, serialize_dir);
 	}
 	//printf("backtrace\n");
 	fflush(stdout);

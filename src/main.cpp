@@ -199,40 +199,30 @@ int serialize_tensor() {
 
 int main() {
     //  TODO: für 4d
-    // TerrainMap terrain;
-    // parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
-    // tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
-    //Tensor* current = tensor_at_xyt("../../resources/kernels_map", x, y, t);
 
-    // srand(0);
-    // TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    // terrain->width = 600;
-    // terrain->height = 600;
-    // terrain->data = (int**)(malloc(sizeof(int*) * terrain->height));
-    // for (int i = 0; i < terrain->height; ++i) {
-    //     terrain->data[i] = (int*)(malloc(sizeof(int) * terrain->width));
-    //     for (int j = 0; j < terrain->width; ++j) {
-    //         terrain->data[i][j] = (rand() % 10) * 10;
-    //     }
-    // }
+    srand(0);
+    TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
+    parse_terrain_map("../../resources/terrain_baboons.txt", terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
-    steps[0] = (Point2D){5, 5};
-    steps[1] = (Point2D){25, 25};
+    steps[0] = (Point2D){100, 100};
+    steps[1] = (Point2D){200, 200};
     Point2DArray* stepss = point_2d_array_new(steps, 2);
     char* path = "../../resources/kernels_map";
     size_t T = 20;
-    auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
-                               "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,
-                               steps[0], steps[1], true);
-    point2d_array_print(walk2);
-    return 0;
-    // m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, path);
-    // auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path);
+    // auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
+    //                            "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,
+    //                            steps[0], steps[1], true);
+    // point2d_array_print(walk2);
+    // return 0;
+    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, path);
+    char dp_path[256];
+    sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
+    auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path,
+                                 dp_path);
+    point2d_array_print(walk);
+    // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
+    // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
     // point2d_array_print(walk);
-    // save_walk_to_json(stepss, walk, terrain, "../../resources/serialized_walk.json");
-    // // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
-    // // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
-    // // point2d_array_print(walk);
     return 0;
 }
