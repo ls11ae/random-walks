@@ -204,12 +204,30 @@ int main() {
     // tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
     //Tensor* current = tensor_at_xyt("../../resources/kernels_map", x, y, t);
 
-    Vector2D* dk = get_dir_kernel(8, 15);
-
-    TerrainMap terrain;
-    parse_terrain_map("../../resources/terrain_baboons.txt", &terrain, ' ');
-    tensor_map_terrain_serialize(&terrain, "../../resources/kernels_map");
-    auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
-    auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
+    srand(0);
+    TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
+    terrain->width = 600;
+    terrain->height = 600;
+    terrain->data = (int**)(malloc(sizeof(int*) * terrain->height));
+    for (int i = 0; i < terrain->height; ++i) {
+        terrain->data[i] = (int*)(malloc(sizeof(int) * terrain->width));
+        for (int j = 0; j < terrain->width; ++j) {
+            terrain->data[i][j] = (rand() % 10) * 10;
+        }
+    }
+    Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
+    steps[0] = (Point2D){50, 50};
+    steps[1] = (Point2D){410, 410};
+    Point2DArray* stepss = point_2d_array_new(steps, 2);
+    char* path = "../../resources/kernels_map";
+    tensor_map_terrain_serialize(terrain, path);
+    size_t T = 200;
+    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, path);
+    auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path);
     point2d_array_print(walk);
+    save_walk_to_json(stepss, walk, terrain, "../../resources/serialized_walk.json");
+    // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
+    // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
+    // point2d_array_print(walk);
+    return 0;
 }

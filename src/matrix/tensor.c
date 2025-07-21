@@ -46,7 +46,7 @@ Tensor* tensor_new(size_t width, size_t height, size_t depth) {
             }
             free(t->data);
             free(t);
-            break;
+            return NULL;
         }
         t->data[i] = m;
     }

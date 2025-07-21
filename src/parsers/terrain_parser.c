@@ -683,10 +683,7 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
             ssize_t D = tensor_set->data[y][x]->D;
             Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
             for (ssize_t d = 0; d < D; d++) {
-                Matrix* m = matrix_elementwise_mul(
-                    arr->data[d],
-                    reach_mat
-                );
+                Matrix* m = matrix_elementwise_mul(arr->data[d], reach_mat);
                 matrix_normalize_L1(m);
                 matrix_free(arr->data[d]);
                 arr->data[d] = m;
