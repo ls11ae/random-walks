@@ -121,7 +121,7 @@ int test_biased_walk(Point2DArray* biases, const char* filename) {
 
     char* path = "";
     auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, path);
-    auto walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
+    auto walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, path);
 
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
 
@@ -147,7 +147,7 @@ int test_biased_walk_grid(Point2DArrayGrid* grid, const char* filename, ssize_t 
 
     Tensor** dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, "");
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
-    Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
+    Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, "");
 
 
     Point2D* points = static_cast<Point2D*>(malloc(sizeof(Point2D) * 2));
@@ -215,13 +215,18 @@ int main() {
             terrain->data[i][j] = (rand() % 10) * 10;
         }
     }
+
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
-    steps[0] = (Point2D){50, 50};
-    steps[1] = (Point2D){410, 410};
+    steps[0] = (Point2D){5, 5};
+    steps[1] = (Point2D){25, 25};
     Point2DArray* stepss = point_2d_array_new(steps, 2);
     char* path = "../../resources/kernels_map";
-    tensor_map_terrain_serialize(terrain, path);
-    size_t T = 200;
+    size_t T = 50;
+    auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
+                               "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,
+                               steps[0], steps[1], true);
+    point2d_array_print(walk2);
+    return 0;
     m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, path);
     auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path);
     point2d_array_print(walk);

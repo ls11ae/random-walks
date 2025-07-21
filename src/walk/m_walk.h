@@ -35,7 +35,9 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
                          char* serialized_path);
 
 Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const TerrainMap* terrain,
-                                  const KernelsMap4D* kernels_map, ssize_t end_x, ssize_t end_y, ssize_t dir);
+                                  const KernelsMap4D* kernels_map, ssize_t end_x, ssize_t end_y, ssize_t dir,
+                                  bool use_serialized,
+                                  char* serialized_path);
 
 
 Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain_path, const char* walk_path,

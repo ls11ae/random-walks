@@ -513,7 +513,7 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
                 if ((size_t)tensor_set->data[i][j][t]->D > maxD)
                     maxD = tensor_set->data[i][j][t]->D;
 
-    KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, 0, maxD};
+    KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, biases->times, maxD};
     char meta_path[256];
     snprintf(meta_path, sizeof(meta_path), "%s/meta.info", output_path);
     ensure_dir_exists_for(meta_path);
@@ -549,7 +549,6 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
                 //  Serialize Tensor
                 char path[256];
                 snprintf(path, sizeof(path), "%s/tensors/t%zd/x%zd/y%zd.tensor", output_path, t, x, y);
-
                 ensure_dir_exists_for(path);
                 FILE* tf = fopen(path, "wb");
                 serialize_tensor(tf, arr);

@@ -22,15 +22,16 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
 
 	if (use_serialized) {
 		meta = read_kernel_map_meta(serialized_path);
-		max_D = meta.max_D;
-		T = meta.timesteps;
+		max_D = 8; //meta.max_D;
+		//T = meta.timesteps;
 		W = meta.width;
 		H = meta.height;
 	}
 	else {
 		max_D = kernels_map->max_D;
 	}
-
+	W = terrain_map->width;
+	H = terrain_map->height;
 
 	const Matrix* map = matrix_new(W, H);
 	assert(map != NULL && "Failed to create matrix");
@@ -121,7 +122,8 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
 
 Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const TerrainMap* terrain,
                                   const KernelsMap4D* kernels_map, const ssize_t end_x, const ssize_t end_y,
-                                  const ssize_t dir) {
+                                  const ssize_t dir, bool use_serialized,
+                                  char* serialized_path) {
 	assert(terrain_at(end_x, end_y, terrain) != WATER);
 	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
 
@@ -140,7 +142,9 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 	size_t index = T - 1;
 
 	for (ssize_t t = T - 1; t >= 1; --t) {
-		const Tensor* current_tensor = kernels_map->kernels[y][x][t];
+		Tensor* current_tensor = use_serialized
+			                         ? tensor_at_xyt(serialized_path, x, y, t)
+			                         : kernels_map->kernels[y][x][t];
 		const size_t D = current_tensor->len;
 		const ssize_t kernel_width = current_tensor->data[0]->width;
 		const ssize_t S = kernel_width / 2;
@@ -166,17 +170,21 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
 
+				Tensor* prev_tensor = use_serialized
+					                      ? tensor_at_xyt(serialized_path, prev_x, prev_y, t - 1)
+					                      : kernels_map->kernels[prev_y][prev_x][t - 1];
+
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
 				if (terrain_at(prev_x, prev_y, terrain) == WATER) continue;
 
-				if (d >= kernels_map->kernels[prev_y][prev_x][t - 1]->len) continue;
+				if (d >= prev_tensor->len) continue;
 
 				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
 
 				const ssize_t kernel_x = dx + S;
 				const ssize_t kernel_y = dy + S;
 
-				const Matrix* current_kernel = kernels_map->kernels[prev_y][prev_x][t - 1]->data[d];
+				const Matrix* current_kernel = prev_tensor->data[d];
 
 				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= current_kernel->width || kernel_y >=
 					current_kernel->
@@ -213,6 +221,7 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 		free(movements_y);
 		free(prev_probs);
 		free(directions);
+		if (use_serialized) tensor_free(current_tensor);
 	}
 
 	path->points[0].x = x;
@@ -234,15 +243,7 @@ Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain
 	const char* serialized_path = "../../resources/kernels_map";
 
 	if (use_serialized) {
-		// Check if directory exists
-		struct stat st;
-		if (stat(serialized_path, &st) == 0 && S_ISDIR(st.st_mode)) {
-			printf("Using serialized tensor map at %s\n", serialized_path);
-		}
-		else {
-			printf("Serialized map not found, generating and saving to %s\n", serialized_path);
-			tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
-		}
+		tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
 	}
 	else {
 		kmap = tensor_map_terrain_biased_grid(&terrain, grid);
@@ -251,7 +252,8 @@ Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain
 	Tensor** dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, use_serialized,
 	                              serialized_path);
 
-	Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
+	Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, use_serialized,
+	                                         serialized_path);
 
 	Point2D points[2] = {start, goal};
 	Point2DArray* steps = point_2d_array_new(points, 2);
@@ -289,7 +291,7 @@ Point2DArray* time_walk_geo_multi(ssize_t T, const char* csv_path, const char* t
 		Point2D start = steps->points[i];
 		Point2D goal = steps->points[i + 1];
 		Tensor** dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, "");
-		Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0);
+		Point2DArray* walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, "");
 
 		for (int s = 0; s < walk->length; ++s) {
 			result->points[index++] = walk->points[s];
