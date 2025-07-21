@@ -12,7 +12,7 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
                          const ssize_t start_x,
                          const ssize_t start_y,
                          bool use_serialized,
-                         char* serialized_path) {
+                         const char* serialized_path) {
 	const Tensor* start_kernel = use_serialized
 		                             ? tensor_at_xyt(serialized_path, start_x, start_y, 0)
 		                             : kernels_map->kernels[start_y][start_x][0];
@@ -123,7 +123,7 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
 Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const TerrainMap* terrain,
                                   const KernelsMap4D* kernels_map, const ssize_t end_x, const ssize_t end_y,
                                   const ssize_t dir, bool use_serialized,
-                                  char* serialized_path) {
+                                  const char* serialized_path) {
 	assert(terrain_at(end_x, end_y, terrain) != WATER);
 	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
 

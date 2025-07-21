@@ -119,7 +119,7 @@ int test_biased_walk(Point2DArray* biases, const char* filename) {
     Point2D start = {360, 227};
     Point2D goal = {290, 132};
 
-    char* path = "";
+    const char* path = "";
     auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, path);
     auto walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, path);
 
@@ -208,7 +208,7 @@ int main() {
     steps[0] = (Point2D){100, 100};
     steps[1] = (Point2D){200, 200};
     Point2DArray* stepss = point_2d_array_new(steps, 2);
-    char* path = "../../resources/kernels_map";
+    const char* path = "../../resources/kernels_map";
     size_t T = 20;
     // auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
     //                            "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,

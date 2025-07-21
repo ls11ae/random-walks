@@ -114,7 +114,7 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 
 Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
                 const KernelsMap3D* kernels_map, const ssize_t T, const ssize_t start_x,
-                const ssize_t start_y, bool use_serialized, char* serialize_dir) {
+                const ssize_t start_y, bool use_serialized, const char* serialize_dir) {
 	if (use_serialized) {
 		struct stat st;
 		if (stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
@@ -292,7 +292,8 @@ static Point2DArray* backtrace_serialized(const char* dp_folder, const ssize_t T
 
 Point2DArray* m_walk_backtrace(Tensor** DP_Matrix, const ssize_t T,
                                KernelsMap3D* tensor_map, TerrainMap* terrain, const ssize_t end_x, const ssize_t end_y,
-                               const ssize_t dir, bool use_serialized, char* serialize_dir, char* dp_folder) {
+                               const ssize_t dir, bool use_serialized, const char* serialize_dir,
+                               const char* dp_folder) {
 	assert(terrain_at(end_x, end_y, terrain) != WATER);
 	if (use_serialized) {
 		return backtrace_serialized(dp_folder, T, terrain, end_x, end_y, dir, serialize_dir);
