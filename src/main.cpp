@@ -197,30 +197,102 @@ int serialize_tensor() {
     return 0;
 }
 
+void test_sym_link() {
+    Tensor* t1 = generate_kernels(8, 15);
+    Tensor* t2 = generate_kernels(8, 15);
+    if (!tensor_equals(t1, t2)) {
+        printf("Error: tensors should be equal\n");
+        return;
+    }
+
+    char current_path[256];
+    char existing_path[256];
+    snprintf(current_path, sizeof(current_path), "../../resources/x%i", 3);
+    snprintf(existing_path, sizeof(existing_path), "../../resources/x%i", 4);
+    realpath("../../resources/x3", current_path);
+    realpath("../../resources/x4", existing_path);
+
+    // 1. Schreibe originalen Tensor nach existing_path
+    FILE* tf = fopen(existing_path, "wb");
+    if (!tf) {
+        perror("Error opening file to write t1");
+        return;
+    }
+    serialize_tensor(tf, t1);
+    fclose(tf);
+
+    // 2. Erzeuge Symlink von current_path → existing_path
+    remove(current_path); // wichtig!
+    int sm = symlink(existing_path, current_path);
+    printf("symlink returned %d\n", sm);
+    if (sm != 0) {
+        perror("symlink failed");
+        return;
+    }
+
+    // 3. Lade beide Tensoren
+    FILE* fp = fopen(current_path, "rb");
+    if (!fp) {
+        perror("error opening symlink path");
+        return;
+    }
+    Tensor* t = deserialize_tensor(fp);
+    fclose(fp);
+
+    FILE* fp2 = fopen(existing_path, "rb");
+    if (!fp2) {
+        perror("error opening existing file");
+        return;
+    }
+    Tensor* t22 = deserialize_tensor(fp2);
+    fclose(fp2);
+
+    // 4. Vergleiche und drucke Ergebnis
+    if (tensor_equals(t, t22)) {
+        printf("✅ success: tensors are equal\n");
+    }
+    else {
+        printf("❌ failed: tensors are NOT equal\n");
+        matrix_print(t->data[0]);
+        matrix_print(t22->data[0]);
+    }
+
+    tensor_free(t);
+    tensor_free(t22);
+}
+
+
 int main() {
+    //test_sym_link();
     //  TODO: für 4d
 
     srand(0);
+    size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/terrain_baboons.txt", terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_500.txt", terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
-    steps[0] = (Point2D){100, 100};
-    steps[1] = (Point2D){200, 200};
+    steps[0] = (Point2D){50, 50};
+    steps[1] = (Point2D){110, 110};
     Point2DArray* stepss = point_2d_array_new(steps, 2);
     const char* path = "../../resources/kernels_map";
-    size_t T = 20;
     // auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
     //                            "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,
     //                            steps[0], steps[1], true);
     // point2d_array_print(walk2);
     // return 0;
-    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, false, path);
     char dp_path[256];
     sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
-    auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path,
-                                 dp_path);
-    point2d_array_print(walk);
+
+    const auto start = std::chrono::high_resolution_clock::now();
+    m_walk(terrain->width, terrain->height, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, true,
+           path);
+
+    const auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    printf("Time: %f seconds\n", duration.count());
+
     // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
     // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
     // point2d_array_print(walk);

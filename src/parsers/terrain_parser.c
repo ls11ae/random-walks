@@ -11,94 +11,11 @@
 #include <limits.h>
 #include <asm-generic/errno-base.h>
 
+#include "caching.h"
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
 #include "walk/c_walk.h"
-
-uint64_t compute_matrix_hash(const Matrix* m) {
-    uint64_t h = 146527;
-    for (size_t i = 0; i < m->len; i++) {
-        uint64_t bits;
-        memcpy(&bits, &m->data[i], sizeof(bits));
-        h ^= bits + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-    }
-    return h;
-}
-
-uint64_t compute_parameters_hash(const KernelParameters* params) {
-    uint64_t h = 14695981039346656037ULL;
-    h = (h ^ (params->is_brownian)) * 1099511628211ULL;
-    h = (h ^ params->S) * 1099511628211ULL;
-    h = (h ^ params->D) * 1099511628211ULL;
-    // Hash float values by their bit pattern
-    uint64_t bits;
-    memcpy(&bits, &params->diffusity, sizeof(bits));
-    h = (h ^ bits) * 1099511628211ULL;
-
-    h = (h ^ params->bias_x) * 1099511628211ULL;
-    h = (h ^ params->bias_y) * 1099511628211ULL;
-
-    return h;
-}
-
-uint32_t hash_bytes(const void* key, size_t length) {
-    const uint8_t* data = (const uint8_t*)key;
-    uint32_t hash = 0;
-    for (size_t i = 0; i < length; i++) {
-        hash += data[i];
-        hash += (hash << 10);
-        hash ^= (hash >> 6);
-    }
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-    return hash;
-}
-
-uint32_t weather_entry_hash(const WeatherEntry* entry) {
-    uint32_t hash = 0;
-    // Hash each field individually and combine them
-    hash = hash_bytes(&entry->temperature, sizeof(entry->temperature));
-    hash ^= hash_bytes(&entry->humidity, sizeof(entry->humidity));
-    hash ^= hash_bytes(&entry->precipitation, sizeof(entry->precipitation));
-    hash ^= hash_bytes(&entry->wind_speed, sizeof(entry->wind_speed));
-    hash ^= hash_bytes(&entry->wind_direction, sizeof(entry->wind_direction));
-    hash ^= hash_bytes(&entry->snow_fall, sizeof(entry->snow_fall));
-    hash ^= hash_bytes(&entry->weather_code, sizeof(entry->weather_code));
-    hash ^= hash_bytes(&entry->cloud_cover, sizeof(entry->cloud_cover));
-
-    // Final mixing
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-
-    return hash;
-}
-
-
-Cache* cache_create(size_t num_buckets) {
-    Cache* cache = (Cache*)malloc(sizeof(Cache));
-    cache->num_buckets = num_buckets;
-    cache->buckets = (CacheEntry**)calloc(num_buckets, sizeof(CacheEntry*));
-    return cache;
-}
-
-CacheEntry* cache_lookup_entry(Cache* cache, uint64_t hash) {
-    size_t bucket = hash % cache->num_buckets;
-
-    CacheEntry* entry = cache->buckets[bucket];
-
-    while (entry != NULL) {
-        if (entry->hash == hash) {
-            return entry;
-        }
-
-        entry = entry->next;
-    }
-
-    return NULL;
-}
 
 TensorSet* generate_correlated_tensors() {
     const int terrain_count = 11;
@@ -117,46 +34,6 @@ TensorSet* generate_correlated_tensors() {
     }
     TensorSet* correlated_kernels = tensor_set_new(terrain_count, tensors);
     return correlated_kernels;
-}
-
-void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_t array_size) {
-    assert((is_array && data != NULL) || (!is_array && data != NULL));
-    size_t bucket = hash % cache->num_buckets;
-    CacheEntry* entry = malloc(sizeof(CacheEntry));
-    entry->hash = hash;
-    entry->is_array = is_array;
-    entry->array_size = array_size;
-    if (is_array) {
-        entry->data.array = (Tensor*)data;
-    }
-    else {
-        entry->data.single = (Matrix*)data;
-    }
-    entry->next = cache->buckets[bucket];
-    cache->buckets[bucket] = entry;
-}
-
-void cache_free(Cache* cache) {
-    for (size_t i = 0; i < cache->num_buckets; i++) {
-        CacheEntry* entry = cache->buckets[i];
-        while (entry != NULL) {
-            CacheEntry* next = entry->next;
-            if (entry->is_array) {
-                tensor_free(entry->data.array);
-            }
-            else {
-                matrix_free(entry->data.single);
-            }
-            free(entry);
-            entry = next;
-        }
-    }
-    free(cache->buckets);
-    free(cache);
-}
-
-uint64_t hash_combine(uint64_t a, uint64_t b) {
-    return a ^ (b + 0x9e3779b97f4a7c15ULL + (a << 6) + (a >> 2));
 }
 
 KernelsMap* kernels_map_new(const TerrainMap* terrain, const Matrix* kernel) {
@@ -669,6 +546,8 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
     assert(m.height == terrain_height);
     assert(m.width == terrain_width);
 
+    HashCache* global_cache = hash_cache_create();
+
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
@@ -682,21 +561,51 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
             ssize_t D = tensor_set->data[y][x]->D;
             Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
             for (ssize_t d = 0; d < D; d++) {
-                Matrix* m = matrix_elementwise_mul(arr->data[d], reach_mat);
-                matrix_normalize_L1(m);
+                Matrix* mat = matrix_elementwise_mul(arr->data[d], reach_mat);
+                matrix_normalize_L1(mat);
                 matrix_free(arr->data[d]);
-                arr->data[d] = m;
+                arr->data[d] = mat;
             }
             matrix_free(reach_mat);
 
             //  Serialize Tensor
-            char path[256];
-            snprintf(path, sizeof(path), "%s/tensors/x%zd/y%zd.tensor", output_path, x, y);
+            char current_path[256];
+            snprintf(current_path, sizeof(current_path), "%s/tensors/y%zd/x%zd.tensor", output_path, y, x);
+            ensure_dir_exists_for(current_path);
+            uint64_t hash = tensor_hash(arr);
+            const char* existing_path = hash_cache_lookup_or_insert(global_cache, arr, hash, current_path);
 
-            ensure_dir_exists_for(path);
-            FILE* tf = fopen(path, "wb");
-            serialize_tensor(tf, arr);
-            fclose(tf);
+            if (existing_path) {
+                // Ziel und Link als absolute Pfade berechnen
+                char abs_target[PATH_MAX];
+                char abs_link[PATH_MAX];
+                realpath(existing_path, abs_target);
+
+                // current_path existiert nicht unbedingt – baue absoluten Pfad zum Verzeichnis
+                char dir_buf[PATH_MAX];
+                strncpy(dir_buf, current_path, sizeof(dir_buf));
+                dirname(dir_buf); // Pfad zum Ordner, in dem Link liegt
+
+                realpath(dir_buf, abs_link); // hole absoluten Pfad zum Zielverzeichnis
+                snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/x%zd.tensor", x);
+                // hänge Dateinamen an
+
+                // relativen Pfad von Link-Verzeichnis zum Ziel berechnen
+                const char* relative_target = abs_target; // für einfache Lösung: Symlink als absoluter Pfad
+                remove(current_path); // wichtig: alte Datei oder Link entfernen
+                if (symlink(relative_target, current_path) != 0) {
+                    perror("symlink failed");
+                }
+            }
+            else {
+                FILE* tf = fopen(current_path, "wb");
+                if (!tf) {
+                    perror("fopen failed");
+                    continue;
+                }
+                serialize_tensor(tf, arr);
+                fclose(tf);
+            }
 
             // Tensor wieder freigeben
             tensor_free(arr);
@@ -1089,7 +998,7 @@ bool kernels_maps_equal(const KernelsMap3D* kmap3d, const KernelsMap4D* kmap4d) 
 
 Tensor* tensor_at(const char* output_path, ssize_t x, ssize_t y) {
     char path[256];
-    snprintf(path, sizeof(path), "%s/tensors/x%zd/y%zd.tensor", output_path, x, y);
+    snprintf(path, sizeof(path), "%s/tensors/y%zd/x%zd.tensor", output_path, y, x);
     FILE* fp = fopen(path, "rb");
     if (!fp) return NULL;
     Tensor* t = deserialize_tensor(fp);

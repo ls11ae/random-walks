@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <linux/limits.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +20,6 @@ typedef struct {
     ssize_t len; /**< The total number of elements (width * height). */
     double* data; /**< Pointer to the array of matrix elements. */
 } Matrix;
-
 
 typedef struct {
     ssize_t x;
@@ -39,6 +39,38 @@ typedef struct {
     Matrix** data;
     Vector2D* dir_kernel;
 } Tensor;
+
+
+#define HASH_CACHE_BUCKETS 1024
+
+typedef struct HashEntry {
+    uint64_t hash;
+    Tensor* tensor;
+    char path[PATH_MAX];
+    struct HashEntry* next;
+} HashEntry;
+
+typedef struct HashCache {
+    HashEntry* buckets[HASH_CACHE_BUCKETS];
+} HashCache;
+
+typedef struct CacheEntry {
+    uint64_t hash;
+
+    union {
+        Tensor* array; // For tensor_map_new
+        Matrix* single; // For kernels_map_new
+    } data;
+
+    bool is_array;
+    ssize_t array_size;
+    struct CacheEntry* next;
+} CacheEntry;
+
+typedef struct {
+    CacheEntry** buckets;
+    size_t num_buckets;
+} Cache;
 
 typedef struct {
     //size_t dim_len;
@@ -81,23 +113,6 @@ typedef struct {
     ssize_t bias_y;
 } KernelParameters;
 
-typedef struct CacheEntry {
-    uint64_t hash;
-
-    union {
-        Tensor* array; // For tensor_map_new
-        Matrix* single; // For kernels_map_new
-    } data;
-
-    bool is_array;
-    ssize_t array_size;
-    struct CacheEntry* next;
-} CacheEntry;
-
-typedef struct {
-    CacheEntry** buckets;
-    size_t num_buckets;
-} Cache;
 
 typedef struct {
     Matrix*** kernels;

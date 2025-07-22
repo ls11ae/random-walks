@@ -3,6 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <linux/limits.h>
 #include "matrix/matrix.h"
 #include "matrix/tensor.h"
 #include "types.h"
