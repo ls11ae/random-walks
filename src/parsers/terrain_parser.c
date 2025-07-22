@@ -529,14 +529,13 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
     printf("terrain width = %zu\n", terrain_width);
     printf("terrain height = %zu\n", terrain_height);
 
+    TensorSet* correlated_kernels = generate_correlated_tensors();
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
     size_t maxD = 0;
-    for (ssize_t i = 0; i < tensor_set->height; i++)
-        for (ssize_t j = 0; j < tensor_set->width; j++)
-            if ((size_t)tensor_set->data[i][j]->D > maxD)
-                maxD = tensor_set->data[i][j]->D;
+    for (ssize_t i = 0; i < correlated_kernels->len; i++)
+        if ((size_t)correlated_kernels->data[i]->len > maxD)
+            maxD = correlated_kernels->data[i]->len;
 
-    TensorSet* correlated_kernels = generate_correlated_tensors();
     KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, 0, maxD};
     char meta_path[256];
     snprintf(meta_path, sizeof(meta_path), "%s/meta.info", output_path);
@@ -557,22 +556,25 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
             if (terrain_val == WATER) {
                 continue;
             }
-            Matrix* reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain);
-            ssize_t D = tensor_set->data[y][x]->D;
-            Tensor* arr = generate_tensor(tensor_set->data[y][x], (int)terrain_val, false, correlated_kernels, true);
+            KernelParameters* current_parameters = tensor_set->data[y][x];
+            Matrix* reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain);
+            ssize_t D = current_parameters->D;
+            Tensor* arr = generate_tensor(current_parameters, (int)terrain_val, false, correlated_kernels, true);
             for (ssize_t d = 0; d < D; d++) {
                 Matrix* mat = matrix_elementwise_mul(arr->data[d], reach_mat);
                 matrix_normalize_L1(mat);
                 matrix_free(arr->data[d]);
                 arr->data[d] = mat;
             }
-            matrix_free(reach_mat);
 
             //  Serialize Tensor
             char current_path[256];
             snprintf(current_path, sizeof(current_path), "%s/tensors/y%zd/x%zd.tensor", output_path, y, x);
             ensure_dir_exists_for(current_path);
+            // uint64_t pre_hash = compute_matrix_hash(reach_mat);
+            // uint64_t hash = hash_combine(pre_hash, compute_parameters_hash(current_parameters));
             uint64_t hash = tensor_hash(arr);
+            matrix_free(reach_mat);
             const char* existing_path = hash_cache_lookup_or_insert(global_cache, arr, hash, current_path);
 
             if (existing_path) {
@@ -592,7 +594,7 @@ void tensor_map_terrain_serialize(TerrainMap* terrain, const char* output_path) 
 
                 // relativen Pfad von Link-Verzeichnis zum Ziel berechnen
                 const char* relative_target = abs_target; // für einfache Lösung: Symlink als absoluter Pfad
-                remove(current_path); // wichtig: alte Datei oder Link entfernen
+                //remove(current_path); // wichtig: alte Datei oder Link entfernen
                 if (symlink(relative_target, current_path) != 0) {
                     perror("symlink failed");
                 }

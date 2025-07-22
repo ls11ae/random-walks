@@ -269,7 +269,7 @@ int main() {
     srand(0);
     size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/landcover_baboons123_500.txt", terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_400.txt", terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
     steps[0] = (Point2D){50, 50};

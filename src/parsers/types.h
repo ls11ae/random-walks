@@ -41,7 +41,7 @@ typedef struct {
 } Tensor;
 
 
-#define HASH_CACHE_BUCKETS 1024
+#define HASH_CACHE_BUCKETS 4096
 
 typedef struct HashEntry {
     uint64_t hash;
