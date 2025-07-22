@@ -201,28 +201,31 @@ int main() {
     //  TODO: für 4d
 
     srand(0);
+    size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/terrain_baboons.txt", terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_200.txt", terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
-    steps[0] = (Point2D){100, 100};
-    steps[1] = (Point2D){200, 200};
+    steps[0] = (Point2D){50, 50};
+    steps[1] = (Point2D){110, 110};
     Point2DArray* stepss = point_2d_array_new(steps, 2);
     const char* path = "../../resources/kernels_map";
-    size_t T = 20;
     // auto walk2 = time_walk_geo(T, "../../resources/my_gridded_weather_grid_csvs",
     //                            "../../resources/land3.txt", "../../resources/time_walk_serialized.json", 5, 5,
     //                            steps[0], steps[1], true);
     // point2d_array_print(walk2);
     // return 0;
-    m_walk(0, 0, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, false, path);
     char dp_path[256];
     sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
-    auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path,
-                                 dp_path);
-    point2d_array_print(walk);
-    // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
-    // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
-    // point2d_array_print(walk);
+
+    const auto start = std::chrono::high_resolution_clock::now();
+    m_walk(terrain->width, terrain->height, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, true,
+           path);
+
+    const auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    printf("Time: %f seconds\n", duration.count());
+
     return 0;
 }
