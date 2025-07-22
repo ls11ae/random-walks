@@ -269,7 +269,7 @@ int main() {
     srand(0);
     size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/landcover_baboons123_400.txt", terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_1000.txt", terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
     steps[0] = (Point2D){50, 50};
@@ -287,14 +287,16 @@ int main() {
     const auto start = std::chrono::high_resolution_clock::now();
     m_walk(terrain->width, terrain->height, terrain, NULL, T, stepss->points[0].x, stepss->points[0].y, true, true,
            path);
-
     const auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
 
+    // sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
+    // auto walk = m_walk_backtrace(NULL, T, NULL, terrain, stepss->points[1].x, stepss->points[1].y, 0, true, path,
+    //                              dp_path);
+    // point2d_array_print(walk);
     printf("Time: %f seconds\n", duration.count());
 
     // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
-    // auto walk = m_walk_backtrace(dp, 100, NULL, &terrain, 200, 200, 0, true, "../../resources/kernels_map");
     // point2d_array_print(walk);
     return 0;
 }
