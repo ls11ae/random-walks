@@ -197,13 +197,17 @@ int serialize_tensor() {
     return 0;
 }
 
-int main() {
+int main(int argc, char** argv) {
     //  TODO: für 4d
-
+    int num = 100;
+    if (argc == 2)
+        num = atoi(argv[1]);
     srand(0);
     size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/landcover_baboons123_200.txt", terrain, ' ');
+    char terrain_path[256];
+    sprintf(terrain_path, "../../resources/landcover_baboons123_%i.txt", num);
+    parse_terrain_map(terrain_path, terrain, ' ');
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
     steps[0] = (Point2D){50, 50};

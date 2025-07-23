@@ -121,6 +121,7 @@ Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
 			return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 		}
 		tensor_map_terrain_serialize(terrain_map, serialize_dir);
+		return NULL;
 		return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 	}
 	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
