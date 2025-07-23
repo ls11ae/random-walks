@@ -261,15 +261,17 @@ void test_sym_link() {
     tensor_free(t22);
 }
 
-
-int main() {
-    //test_sym_link();
-    //  TODO: für 4d
-
+void test_serialization(int argc, char** argv) {
+    int num = 100;
+    if (argc == 2)
+        num = atoi(argv[1]);
     srand(0);
     size_t T = 100;
     TerrainMap* terrain = (TerrainMap*)(malloc(sizeof(TerrainMap)));
-    parse_terrain_map("../../resources/landcover_baboons123_1000.txt", terrain, ' ');
+    char terrain_path[256];
+    sprintf(terrain_path, "../../resources/landcover_baboons123_%i.txt", num);
+    parse_terrain_map(terrain_path, terrain, ' ');
+
 
     Point2D* steps = (Point2D*)(malloc(sizeof(Point2D) * 2));
     steps[0] = (Point2D){50, 50};
@@ -295,8 +297,24 @@ int main() {
     //                              dp_path);
     // point2d_array_print(walk);
     printf("Time: %f seconds\n", duration.count());
+}
 
-    // auto dp = m_walk(0, 0, &terrain, NULL, 100, 100, 100, true, "../../resources/kernels_map");
-    // point2d_array_print(walk);
+int main(int argc, char** argv) {
+    auto csv_path = "../../resources/my_gridded_weather_grid_csvs";
+    auto grid_x = 2, grid_y = 2;
+    auto T = 48;
+    Point2DArrayGrid* grid = load_weather_grid(csv_path, grid_x, grid_y, T);
+    printf("weather grid loaded\n");
+
+    TerrainMap terrain;
+    parse_terrain_map("../../resources/landcover_baboons123_200.txt", &terrain, ' ');
+
+    const char* serialized_path = "../../resources/kernels_map";
+
+    const auto start = std::chrono::high_resolution_clock::now();
+    tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
+    const auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    printf("Time: %f seconds\n", duration.count());
     return 0;
 }

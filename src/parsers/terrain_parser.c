@@ -384,17 +384,17 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
     TensorSet* correlated_kernels = generate_correlated_tensors();
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
     ssize_t maxD = 0;
-    for (ssize_t i = 0; i < tensor_set->height; i++)
-        for (ssize_t j = 0; j < tensor_set->width; j++)
-            for (ssize_t t = 0; t < tensor_set->time; t++)
-                if ((size_t)tensor_set->data[i][j][t]->D > maxD)
-                    maxD = tensor_set->data[i][j][t]->D;
+    for (ssize_t i = 0; i < correlated_kernels->len; i++)
+        if ((size_t)correlated_kernels->data[i]->len > maxD)
+            maxD = correlated_kernels->data[i]->len;
 
     KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, biases->times, maxD};
     char meta_path[256];
     snprintf(meta_path, sizeof(meta_path), "%s/meta.info", output_path);
     ensure_dir_exists_for(meta_path);
     write_kernel_map_meta(meta_path, &meta);
+
+    HashCache* global_cache = hash_cache_create();
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
@@ -413,25 +413,55 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap* terrain, Point2DArray
                 Tensor* arr = generate_tensor(tensor_set->data[y][x][t], (int)terrain_val, true, correlated_kernels,
                                               true);
                 for (ssize_t d = 0; d < D; d++) {
-                    Matrix* m = matrix_elementwise_mul(
-                        arr->data[d],
-                        reach_mat
-                    );
+                    Matrix* m = matrix_elementwise_mul(arr->data[d], reach_mat);
                     matrix_normalize_L1(m);
                     matrix_free(arr->data[d]);
                     arr->data[d] = m;
                 }
 
-
                 //  Serialize Tensor
-                char path[256];
-                snprintf(path, sizeof(path), "%s/tensors/y%zd/x%zd/t%zd.tensor", output_path, y, x, t);
-                ensure_dir_exists_for(path);
-                FILE* tf = fopen(path, "wb");
-                serialize_tensor(tf, arr);
-                fclose(tf);
-
+                char current_path[256];
+                snprintf(current_path, sizeof(current_path), "%s/tensors/y%zd/x%zd/t%zd.tensor", output_path, y, x, t);
+                ensure_dir_exists_for(current_path);
+                // uint64_t pre_hash = compute_matrix_hash(reach_mat);
+                // uint64_t hash = hash_combine(pre_hash, compute_parameters_hash(current_parameters));
+                uint64_t hash = tensor_hash(arr);
                 matrix_free(reach_mat);
+                const char* existing_path = hash_cache_lookup_or_insert(global_cache, arr, hash, current_path);
+
+                if (existing_path) {
+                    // Ziel und Link als absolute Pfade berechnen
+                    char abs_target[PATH_MAX];
+                    char abs_link[PATH_MAX];
+                    realpath(existing_path, abs_target);
+
+                    // current_path existiert nicht unbedingt – baue absoluten Pfad zum Verzeichnis
+                    char dir_buf[PATH_MAX];
+                    strncpy(dir_buf, current_path, sizeof(dir_buf));
+                    dirname(dir_buf); // Pfad zum Ordner, in dem Link liegt
+
+                    realpath(dir_buf, abs_link); // hole absoluten Pfad zum Zielverzeichnis
+                    snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/t%zd.tensor", t);
+                    // hänge Dateinamen an
+
+                    // relativen Pfad von Link-Verzeichnis zum Ziel berechnen
+                    const char* relative_target = abs_target; // für einfache Lösung: Symlink als absoluter Pfad
+                    //remove(current_path); // wichtig: alte Datei oder Link entfernen
+                    if (symlink(relative_target, current_path) != 0) {
+                        perror("symlink failed");
+                    }
+                }
+                else {
+                    FILE* tf = fopen(current_path, "wb");
+                    if (!tf) {
+                        perror("fopen failed");
+                        continue;
+                    }
+                    serialize_tensor(tf, arr);
+                    fclose(tf);
+                }
+
+                // Tensor wieder freigeben
                 tensor_free(arr);
             }
         }
