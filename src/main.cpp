@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
     printf("weather grid loaded\n");
 
     TerrainMap terrain;
-    parse_terrain_map("../../resources/landcover_baboons123_500.txt", &terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_300.txt", &terrain, ' ');
 
     const char *serialized_path = "../../resources/kernels_map";
 

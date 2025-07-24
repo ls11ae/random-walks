@@ -9,6 +9,24 @@ extern "C" {
 #include "types.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <inttypes.h>
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <limits.h>
+#include <asm-generic/errno-base.h>
+
+#include "caching.h"
+#include "move_bank_parser.h"
+#include "serialization.h"
+#include "math/path_finding.h"
+#include "walk/c_walk.h"
 
 #include "move_bank_parser.h"
 
@@ -55,7 +73,10 @@ int parse_terrain_map(const char* filename, TerrainMap* map, char delimiter);
 
 TerrainMap* create_terrain_map(const char* filename, char delimiter);
 
-bool kernels_maps_equal(const KernelsMap3D* kmap3d, const KernelsMap4D* kmap4d);
+TensorSet *generate_correlated_tensors();
+
+Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
+                        const TensorSet *correlated_tensors, bool serialized);
 
 Tensor* tensor_at(const char* output_file, ssize_t x, ssize_t y);
 
