@@ -18,19 +18,19 @@
 
 
 // Helper function for error handling
-static void handle_error(const char* message) {
+static void handle_error(const char *message) {
     fprintf(stderr, "Error: %s\n", message);
     exit(EXIT_FAILURE);
 }
 
 // --- Serialization Functions ---
-void ensure_dir_exists(const char* dir_path) {
+void ensure_dir_exists(const char *dir_path) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "%s", dir_path);
     size_t len = strlen(tmp);
     if (tmp[len - 1] == '/') tmp[len - 1] = '\0'; // kein trailing slash
 
-    for (char* p = tmp + 1; *p; p++) {
+    for (char *p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
             mkdir(tmp, 0755); // ignoriert Fehler, z.B. wenn bereits existiert
@@ -41,18 +41,18 @@ void ensure_dir_exists(const char* dir_path) {
 }
 
 // extrahiert Verzeichnis aus Pfad und ruft ensure_dir_exists
-void ensure_dir_exists_for(const char* filepath) {
+void ensure_dir_exists_for(const char *filepath) {
     char path_copy[256];
     snprintf(path_copy, sizeof(path_copy), "%s", filepath);
 
-    char* last_slash = strrchr(path_copy, '/');
+    char *last_slash = strrchr(path_copy, '/');
     if (!last_slash) return; // kein Verzeichnisanteil vorhanden
 
     *last_slash = '\0'; // trennt Dateinamen ab
     ensure_dir_exists(path_copy);
 }
 
-size_t serialize_point2d(FILE* fp, const Point2D* p) {
+size_t serialize_point2d(FILE *fp, const Point2D *p) {
     assert(p != NULL);
     size_t bytes_written = 0;
     bytes_written += fwrite(&p->x, sizeof(ssize_t), 1, fp);
@@ -60,7 +60,7 @@ size_t serialize_point2d(FILE* fp, const Point2D* p) {
     return bytes_written * sizeof(ssize_t); // Return total bytes written
 }
 
-size_t serialize_matrix(FILE* fp, const Matrix* m) {
+size_t serialize_matrix(FILE *fp, const Matrix *m) {
     size_t bytes_written = 0;
     bytes_written += fwrite(&m->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->height, sizeof(ssize_t), 1, fp);
@@ -71,7 +71,7 @@ size_t serialize_matrix(FILE* fp, const Matrix* m) {
     return bytes_written * (sizeof(ssize_t) + (m->len > 0 ? sizeof(double) : 0)); // Approximate total bytes
 }
 
-size_t serialize_vector2d(FILE* fp, const Vector2D* v) {
+size_t serialize_vector2d(FILE *fp, const Vector2D *v) {
     size_t bytes_written = 0;
 
     // 1. Anzahl der Richtungen
@@ -98,7 +98,7 @@ size_t serialize_vector2d(FILE* fp, const Vector2D* v) {
 }
 
 
-size_t serialize_tensor(FILE* fp, const Tensor* t) {
+size_t serialize_tensor(FILE *fp, const Tensor *t) {
     size_t bytes_written = 0;
     bytes_written += fwrite(&t->len, sizeof(size_t), 1, fp);
 
@@ -114,19 +114,11 @@ size_t serialize_tensor(FILE* fp, const Tensor* t) {
         }
     }
 
-    // Serialize Vector2D* dir_kernel
-    // Write a flag indicating if dir_kernel is NULL
-    int dir_kernel_is_null = (t->dir_kernel == NULL);
-    bytes_written += fwrite(&dir_kernel_is_null, sizeof(int), 1, fp);
-    if (!dir_kernel_is_null) {
-        bytes_written += serialize_vector2d(fp, t->dir_kernel);
-    }
     rewind(fp);
-
     return bytes_written;
 }
 
-size_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km) {
+size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km) {
     size_t bytes_written = 0;
     bytes_written += fwrite(&km->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&km->height, sizeof(ssize_t), 1, fp);
@@ -157,8 +149,8 @@ size_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km) {
 
 // --- Deserialization Functions ---
 
-Point2D* deserialize_point2d(FILE* fp) {
-    Point2D* p = (Point2D*)malloc(sizeof(Point2D));
+Point2D *deserialize_point2d(FILE *fp) {
+    Point2D *p = (Point2D *) malloc(sizeof(Point2D));
     if (!p) handle_error("Failed to allocate Point2D");
     if (fread(&p->x, sizeof(ssize_t), 1, fp) != 1) {
         free(p);
@@ -171,8 +163,8 @@ Point2D* deserialize_point2d(FILE* fp) {
     return p;
 }
 
-Matrix* deserialize_matrix(FILE* fp) {
-    Matrix* m = (Matrix*)malloc(sizeof(Matrix));
+Matrix *deserialize_matrix(FILE *fp) {
+    Matrix *m = (Matrix *) malloc(sizeof(Matrix));
     if (!m) handle_error("Failed to allocate Matrix");
     if (fread(&m->width, sizeof(ssize_t), 1, fp) != 1) {
         free(m);
@@ -189,7 +181,7 @@ Matrix* deserialize_matrix(FILE* fp) {
 
     m->data = NULL;
     if (m->len > 0) {
-        m->data = (double*)malloc(m->len * sizeof(double));
+        m->data = (double *) malloc(m->len * sizeof(double));
         if (!m->data) {
             free(m);
             handle_error("Failed to allocate Matrix data");
@@ -203,8 +195,8 @@ Matrix* deserialize_matrix(FILE* fp) {
     return m;
 }
 
-Vector2D* deserialize_vector2d(FILE* fp) {
-    Vector2D* v = (Vector2D*)malloc(sizeof(Vector2D));
+Vector2D *deserialize_vector2d(FILE *fp) {
+    Vector2D *v = (Vector2D *) malloc(sizeof(Vector2D));
     if (!v) handle_error("Failed to allocate Vector2D");
 
     // 1. Anzahl der Richtungen
@@ -222,7 +214,7 @@ Vector2D* deserialize_vector2d(FILE* fp) {
 
     v->sizes = NULL;
     if (!sizes_is_null) {
-        v->sizes = (size_t*)malloc(v->count * sizeof(size_t));
+        v->sizes = (size_t *) malloc(v->count * sizeof(size_t));
         if (!v->sizes) {
             free(v);
             handle_error("Failed to allocate sizes array");
@@ -237,7 +229,7 @@ Vector2D* deserialize_vector2d(FILE* fp) {
     // 3. Daten lesen: für jede Richtung
     v->data = NULL;
     if (v->count > 0) {
-        v->data = (Point2D**)malloc(v->count * sizeof(Point2D*));
+        v->data = (Point2D **) malloc(v->count * sizeof(Point2D *));
         if (!v->data) {
             if (v->sizes) free(v->sizes);
             free(v);
@@ -257,7 +249,7 @@ Vector2D* deserialize_vector2d(FILE* fp) {
 
             if (!is_null) {
                 size_t len = v->sizes ? v->sizes[i] : 0;
-                v->data[i] = (Point2D*)malloc(len * sizeof(Point2D));
+                v->data[i] = (Point2D *) malloc(len * sizeof(Point2D));
                 if (!v->data[i]) {
                     for (size_t j = 0; j < i; ++j) free(v->data[j]);
                     free(v->data);
@@ -273,8 +265,7 @@ Vector2D* deserialize_vector2d(FILE* fp) {
                     free(v);
                     handle_error("Failed to read Point2D array");
                 }
-            }
-            else {
+            } else {
                 v->data[i] = NULL;
             }
         }
@@ -284,8 +275,8 @@ Vector2D* deserialize_vector2d(FILE* fp) {
 }
 
 
-Tensor* deserialize_tensor(FILE* fp) {
-    Tensor* t = (Tensor*)malloc(sizeof(Tensor));
+Tensor *deserialize_tensor(FILE *fp) {
+    Tensor *t = (Tensor *) malloc(sizeof(Tensor));
     if (!t) handle_error("Failed to allocate Tensor");
     if (fread(&t->len, sizeof(size_t), 1, fp) != 1) {
         free(t);
@@ -295,7 +286,7 @@ Tensor* deserialize_tensor(FILE* fp) {
     // Deserialize Matrix** data
     t->data = NULL;
     if (t->len > 0) {
-        t->data = (Matrix**)malloc(t->len * sizeof(Matrix*));
+        t->data = (Matrix **) malloc(t->len * sizeof(Matrix *));
         if (!t->data) {
             free(t);
             handle_error("Failed to allocate Tensor data array");
@@ -310,8 +301,7 @@ Tensor* deserialize_tensor(FILE* fp) {
             }
             if (!is_null) {
                 t->data[i] = deserialize_matrix(fp);
-            }
-            else {
+            } else {
                 t->data[i] = NULL;
             }
         }
@@ -331,8 +321,8 @@ Tensor* deserialize_tensor(FILE* fp) {
     return t;
 }
 
-KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
-    KernelsMap4D* km = (KernelsMap4D*)malloc(sizeof(KernelsMap4D));
+KernelsMap4D *deserialize_kernels_map_4d(FILE *fp) {
+    KernelsMap4D *km = (KernelsMap4D *) malloc(sizeof(KernelsMap4D));
     if (!km) {
         handle_error("Failed to allocate KernelsMap4D");
         return NULL;
@@ -358,13 +348,13 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
     // Deserialize Tensor**** kernels
     km->kernels = NULL;
     if (km->width > 0 && km->height > 0 && km->timesteps > 0 && km->max_D > 0) {
-        km->kernels = (Tensor****)malloc(km->height * sizeof(Tensor***));
+        km->kernels = (Tensor ****) malloc(km->height * sizeof(Tensor ***));
         if (!km->kernels) {
             free(km);
             handle_error("Failed to allocate kernels 1st dim");
         }
         for (ssize_t y = 0; y < km->height; ++y) {
-            km->kernels[y] = (Tensor***)malloc(km->width * sizeof(Tensor**));
+            km->kernels[y] = (Tensor ***) malloc(km->width * sizeof(Tensor **));
             if (!km->kernels[y]) {
                 // Cleanup previously allocated dimensions
                 for (ssize_t prev_y = 0; prev_y < y; ++prev_y) free(km->kernels[prev_y]);
@@ -373,7 +363,7 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
                 handle_error("Failed to allocate kernels 2nd dim");
             }
             for (ssize_t x = 0; x < km->width; ++x) {
-                km->kernels[y][x] = (Tensor**)malloc(km->timesteps * sizeof(Tensor*));
+                km->kernels[y][x] = (Tensor **) malloc(km->timesteps * sizeof(Tensor *));
                 if (!km->kernels[y][x]) {
                     // Cleanup
                     for (ssize_t prev_x = 0; prev_x < x; ++prev_x) free(km->kernels[y][prev_x]);
@@ -383,7 +373,7 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
                     handle_error("Failed to allocate kernels 3rd dim");
                 }
                 for (ssize_t t = 0; t < km->timesteps; ++t) {
-                    km->kernels[y][x][t] = (Tensor*)malloc(km->max_D * sizeof(Tensor));
+                    km->kernels[y][x][t] = (Tensor *) malloc(km->max_D * sizeof(Tensor));
                     // This is actually storing Tensor*
                     if (!km->kernels[y][x][t]) {
                         // Cleanup
@@ -402,8 +392,7 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
                         }
                         if (!is_null) {
                             km->kernels[y][x][t] = deserialize_tensor(fp);
-                        }
-                        else {
+                        } else {
                             km->kernels[y][x][t] = NULL;
                         }
                     }
@@ -416,13 +405,13 @@ KernelsMap4D* deserialize_kernels_map_4d(FILE* fp) {
 
 // --- Free Functions ---
 
-void free_matrix(Matrix* m) {
+void free_matrix(Matrix *m) {
     if (m == NULL) return;
     free(m->data);
     free(m);
 }
 
-void free_vector2d(Vector2D* v) {
+void free_vector2d(Vector2D *v) {
     if (v == NULL) return;
     if (v->data != NULL) {
         for (size_t i = 0; i < v->count; ++i) {
@@ -434,7 +423,7 @@ void free_vector2d(Vector2D* v) {
     free(v);
 }
 
-void free_tensor(Tensor* t) {
+void free_tensor(Tensor *t) {
     if (t == NULL) return;
     if (t->data != NULL) {
         for (size_t i = 0; i < t->len; ++i) {
@@ -446,7 +435,7 @@ void free_tensor(Tensor* t) {
     free(t);
 }
 
-void free_kernels_map_4d(KernelsMap4D* km) {
+void free_kernels_map_4d(KernelsMap4D *km) {
     if (km == NULL) return;
     assert(km);
     if (km->kernels != NULL) {
@@ -473,15 +462,15 @@ void free_kernels_map_4d(KernelsMap4D* km) {
     free(km);
 }
 
-void write_kernel_map_meta(const char* path, KernelMapMeta* meta) {
-    FILE* f = fopen(path, "wb");
+void write_kernel_map_meta(const char *path, KernelMapMeta *meta) {
+    FILE *f = fopen(path, "wb");
     assert(f && "Could not open meta info file for writing");
     fwrite(meta, sizeof(KernelMapMeta), 1, f);
     fclose(f);
 }
 
-KernelMapMeta read_kernel_map_meta(const char* path) {
-    FILE* f = fopen(path, "rb");
+KernelMapMeta read_kernel_map_meta(const char *path) {
+    FILE *f = fopen(path, "rb");
     assert(f && "Could not open meta info file for reading");
     KernelMapMeta meta;
     fread(&meta, sizeof(KernelMapMeta), 1, f);

@@ -153,6 +153,27 @@ const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t ha
     return NULL; // Neu eingefügt, kein vorhandener Pfad
 }
 
+const char* hash_cache_lookup_or_insert2(HashCache* cache, uint64_t hash, const char* new_path) {
+    size_t bucket = hash % HASH_CACHE_BUCKETS;
+    HashEntry* entry = cache->buckets[bucket];
+    
+    // Durchsuche Kollisionsliste
+    while (entry) {
+        if (entry->hash == hash) return entry->path; // Gefunden!
+        entry = entry->next;
+    }
+    
+    // Neuer Eintrag: Füge hinzu
+    HashEntry* new_entry = malloc(sizeof(HashEntry));
+    *new_entry = (HashEntry){
+        .hash = hash,
+        .path = "", //strndup(new_path, PATH_MAX),  // Now valid
+        .next = cache->buckets[bucket]
+    };
+    cache->buckets[bucket] = new_entry;
+    return NULL;  // Neu, kein existierender Pfad
+}
+
 size_t hash_mix(size_t hash, size_t value) {
     hash ^= value + 0x9e3779b97f4a7c15 + (hash << 6) + (hash >> 2); // gute Mischung
     return hash;

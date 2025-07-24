@@ -34,6 +34,9 @@ size_t hash_to_bucket(uint64_t hash);
 
 const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t hash, const char* new_path);
 
+const char* hash_cache_lookup_or_insert2(HashCache* cache, uint64_t hash, const char* new_path);
+
+
 size_t hash_mix(size_t hash, size_t value);
 
 uint64_t hash_double(double x);
