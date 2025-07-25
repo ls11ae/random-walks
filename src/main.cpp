@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
     const auto start = std::chrono::high_resolution_clock::now();
     auto kmap = tensor_map_terrain_biased_grid(&terrain, grid);
     auto walk = time_walk_geo(T, csv_path, "../../resources/landcover_baboons123_200.txt",
-                            "../../resources/time_walk_serialized.json", grid_x, grid_y,
+                            "../../resources/time_walk_serialized.json", serialized_path, grid_x, grid_y,
                             (Point2D){30, 30}, (Point2D){100, 150}, false);
     point2d_array_print(walk);
     //tensor_map_terrain_biased_grid(&terrain, grid);

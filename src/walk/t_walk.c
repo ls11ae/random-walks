@@ -230,7 +230,7 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 	return path;
 }
 
-Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain_path, const char* walk_path,
+Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain_path, const char* walk_path, const char* serialized_path,
                             int grid_x, int grid_y,
                             Point2D start, Point2D goal,
                             bool use_serialized) {
@@ -241,7 +241,6 @@ Point2DArray* time_walk_geo(ssize_t T, const char* csv_path, const char* terrain
 	parse_terrain_map(terrain_path, &terrain, ' ');
 
 	KernelsMap4D* kmap = NULL;
-	const char* serialized_path = "../../resources/kernels_map";
 
 	if (use_serialized) {
 		tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
