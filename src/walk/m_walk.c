@@ -59,7 +59,7 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 
 				Tensor* kernel_tensor = tensor_at(serialize_dir, x, y);
 				const size_t D = kernel_tensor->len;
-				Vector2D* dir_cell_set = kernel_tensor->dir_kernel;
+				Vector2D* dir_cell_set = get_dir_kernel(D, kernel_tensor->data[0]->width);
 
 				for (ssize_t d = 0; d < D; ++d) {
 					double sum = 0.0;
@@ -83,6 +83,7 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 					}
 					matrix_set(current->data[d], x, y, sum);
 				}
+				free_Vector2D(dir_cell_set);
 				tensor_free(kernel_tensor);
 			}
 		}
@@ -152,12 +153,12 @@ Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
 
 				Tensor* current_tensor = kernels_map->kernels[y][x];
 				const size_t D = current_tensor->len;
+				Vector2D* dir_cell_set = get_dir_kernel(D, current_tensor->data[0]->width);
 				for (ssize_t d = 0; d < D; ++d) {
 					double sum = 0.0;
 					for (int di = 0; di < D; di++) {
 						const Matrix* current_kernel = current_tensor->data[di];
 						const ssize_t kernel_width = current_kernel->width;
-						Vector2D* dir_cell_set = current_tensor->dir_kernel;
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
 							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
 							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
@@ -175,6 +176,7 @@ Tensor** m_walk(ssize_t W, ssize_t H, TerrainMap* terrain_map,
 					}
 					DP_mat[t]->data[d]->data[y * W + x] = sum;
 				}
+				free_Vector2D(dir_cell_set);
 			}
 		}
 		printf("(%zd/%zd)\n", t, T);
@@ -220,7 +222,7 @@ static Point2DArray* backtrace_serialized(const char* dp_folder, const ssize_t T
 		FILE* file = fopen(dp_filename, "rb");
 		Tensor* DP_t_minus_1 = deserialize_tensor(file);
 
-		Vector2D* dir_kernel = current_tensor->dir_kernel;
+		Vector2D* dir_kernel = get_dir_kernel(D, current_tensor->data[0]->width);
 		size_t count = 0;
 
 		for (int d = 0; d < D; ++d) {
@@ -259,6 +261,7 @@ static Point2DArray* backtrace_serialized(const char* dp_folder, const ssize_t T
 				count++;
 			}
 		}
+		free_Vector2D(dir_kernel);
 
 		if (count == 0) {
 			free(movements_x);
@@ -329,7 +332,7 @@ Point2DArray* m_walk_backtrace(Tensor** DP_Matrix, const ssize_t T,
 		path->points[index].y = y;
 		index--;
 		size_t count = 0;
-		Vector2D* dir_kernel = current_tensor->dir_kernel;
+		Vector2D* dir_kernel = get_dir_kernel(D, current_tensor->data[0]->width);
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
 				const ssize_t dx = dir_kernel->data[direction][i].x;
@@ -370,7 +373,7 @@ Point2DArray* m_walk_backtrace(Tensor** DP_Matrix, const ssize_t T,
 				count++;
 			}
 		}
-
+		free_Vector2D(dir_kernel);
 
 		if (count == 0) {
 			free(movements_x);

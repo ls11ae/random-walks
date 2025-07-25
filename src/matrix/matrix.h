@@ -75,6 +75,8 @@ Matrix* matrix_mul(const Matrix* a, const Matrix* b);
 
 Matrix* matrix_elementwise_mul(const Matrix* a, const Matrix* b);
 
+void matrix_mul_inplace(Matrix* a, const Matrix* b);
+
 double matrix_sum(const Matrix* matrix);
 
 void matrix_transpose(Matrix* m);

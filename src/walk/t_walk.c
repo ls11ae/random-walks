@@ -64,14 +64,12 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
 			for (ssize_t x = 0; x < W; ++x) {
 				if (terrain_map->data[y][x] == WATER) continue;
 
-				const Tensor* tensor_at_t = use_serialized
-					                            ? tensor_at_xyt(serialized_path, x, y, t)
-					                            : kernels_map->kernels[y][x][t];
+				const Tensor* tensor_at_t = use_serialized? tensor_at_xyt(serialized_path, x, y, t) : kernels_map->kernels[y][x][t];
 
-				Vector2D* dir_cell_set = tensor_at_t->dir_kernel;
 				assert(tensor_at_t != NULL && "Tensor at time step is NULL");
 				const size_t D = tensor_at_t->len;
 				assert(D <= max_D && "Direction count exceeds max_D");
+				Vector2D* dir_cell_set = get_dir_kernel(D, tensor_at_t->data[0]->width);
 
 				for (ssize_t d = 0; d < D; ++d) {
 					assert(d < DP_mat[t]->len && "Direction index out of bounds");
@@ -112,6 +110,7 @@ Tensor** mixed_walk_time(ssize_t W, ssize_t H,
 					assert(y * W + x < DP_mat[t]->data[d]->len && "Matrix index out of bounds");
 					DP_mat[t]->data[d]->data[y * W + x] = sum;
 				}
+				free_Vector2D(dir_cell_set);
 			}
 		}
 		printf("(%zd/%zd)\n", t, T);
@@ -160,7 +159,7 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 		index--;
 
 		size_t count = 0;
-		Vector2D* dir_kernel = current_tensor->dir_kernel;
+		Vector2D* dir_kernel = get_dir_kernel(D, current_tensor->data[0]->width);
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
@@ -170,11 +169,11 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
 
+				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
 				Tensor* prev_tensor = use_serialized
 					                      ? tensor_at_xyt(serialized_path, prev_x, prev_y, t - 1)
 					                      : kernels_map->kernels[prev_y][prev_x][t - 1];
 
-				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
 				if (terrain_at(prev_x, prev_y, terrain) == WATER) continue;
 
 				if (d >= prev_tensor->len) continue;
@@ -201,6 +200,8 @@ Point2DArray* backtrace_time_walk(Tensor** DP_Matrix, const ssize_t T, const Ter
 				count++;
 			}
 		}
+
+		free_Vector2D(dir_kernel);
 
 		if (count == 0) {
 			free(movements_x);

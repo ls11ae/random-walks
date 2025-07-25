@@ -45,7 +45,7 @@ bool matrix_equals(const Matrix* matrix1, const Matrix* matrix2) {
     assert(matrix2 != NULL);
     if (matrix1->len != matrix2->len) return false;
     for (size_t i = 0; i < matrix1->len; i++) {
-        if (fabs(matrix1->data[i] - matrix2->data[i]) < 0.1) return false;
+        if (fabs(matrix1->data[i] - matrix2->data[i]) > 0.01) return false;
     }
     return true;
 }
@@ -208,6 +208,15 @@ Matrix* matrix_elementwise_mul(const Matrix* a, const Matrix* b) {
     return result;
 }
 
+void matrix_mul_inplace(Matrix* a, const Matrix* b) {
+    assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
+    assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
+    assert(a->width == b->width && a->height == b->height);
+
+    for (size_t i = 0; i < a->len; ++i) {
+        a->data[i] *= b->data[i];
+    }
+}
 
 double matrix_sum(const Matrix* matrix) {
     if (matrix == NULL) return 0.0;
