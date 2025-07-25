@@ -146,8 +146,6 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
             kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
 
         Tensor *result = tensor_new(M, M, 1);
-        Vector2D *dir_kernel = get_dir_kernel(1, M);
-        result->dir_kernel = dir_kernel;
         result->len = 1;
         result->data[0] = kernel;
         return result;
@@ -179,13 +177,23 @@ void kernels_map_free(KernelsMap *kernels_map) {
 }
 
 void kernels_map3d_free(KernelsMap3D *map) {
-    cache_free(map->cache);
-    for (int i = 0; i < map->height; ++i) {
-        for (int j = 0; j < map->width; ++j) {
-            tensor_free(map->kernels[i][j]);
+    if (!map) return;
+
+    // Zuerst die einzelnen Tensoren freigeben (nur die Pointer, nicht die Daten)
+    if (map->kernels) {
+        for (ssize_t y = 0; y < map->height; y++) {
+            // Die Tensor-Pointer werden vom Cache verwaltet, nicht hier freigeben
+            free(map->kernels[y]); // Nur das zweite Array freigeben
         }
+        free(map->kernels); // Das Hauptarray freigeben
     }
-    free(map->kernels);
+
+    // Dann den Cache freigeben (dies gibt auch die Tensor-Daten frei)
+    if (map->cache) {
+        cache_free(map->cache);
+    }
+
+    free(map);
 }
 
 void kernels_map4d_free(KernelsMap4D *km) {
@@ -199,10 +207,8 @@ void kernels_map4d_free(KernelsMap4D *km) {
                     if (km->kernels[y][x] != NULL) {
                         for (ssize_t t = 0; t < km->timesteps; ++t) {
                             if (km->kernels[y][x][t] != NULL) {
-                                for (ssize_t d = 0; d < km->max_D; ++d) {
-                                    free_tensor(km->kernels[y][x][t]);
-                                }
-                                free(km->kernels[y][x][t]);
+                                
+                                tensor_free(km->kernels[y][x][t]);
                             }
                         }
                         free(km->kernels[y][x]);

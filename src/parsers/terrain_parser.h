@@ -22,8 +22,8 @@ extern "C" {
 #include <limits.h>
 #include <asm-generic/errno-base.h>
 
-#include "caching.h"
-#include "move_bank_parser.h"
+#include "parsers/caching.h"
+#include "parsers/move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
 #include "walk/c_walk.h"
@@ -81,6 +81,8 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 Tensor* tensor_at(const char* output_file, ssize_t x, ssize_t y);
 
 Tensor* tensor_at_xyt(const char* output_file, ssize_t x, ssize_t y, ssize_t t);
+
+void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain, const char *output_path);
 
 
 #ifdef __cplusplus

@@ -235,66 +235,158 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
                 Tensor *arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true, correlated_kernels,
                                               true);
                 for (ssize_t d = 0; d < D; d++) {
-                    Matrix *m = matrix_elementwise_mul(arr->data[d], reach_mat);
-                    matrix_normalize_L1(m);
-                    matrix_free(arr->data[d]);
-                    arr->data[d] = m;
+                    matrix_mul_inplace(arr->data[d], reach_mat);
+                    matrix_normalize_L1(arr->data[d]);
                 }
 
                 //  Serialize Tensor
-            char current_path[256];
-            snprintf(current_path, sizeof(current_path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
-            ensure_dir_exists_for(current_path);
-            uint64_t hash = tensor_hash(arr);
-            char original_path[PATH_MAX];
-            snprintf(original_path, sizeof(original_path), "%s/%016" PRIx64 ".tensor", originals_dir, hash);
-            ensure_dir_exists_for(original_path);
-            
-            // Cache-Operation (thread-safe)
-            const char* source_path = NULL;
-            #pragma omp critical(hash_cache_access)
-            {
-                source_path = hash_cache_lookup_or_insert2(global_cache, hash, original_path);
-            }
+                char current_path[256];
+                snprintf(current_path, sizeof(current_path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
+                ensure_dir_exists_for(current_path);
+                uint64_t hash = tensor_hash(arr);
+                char original_path[PATH_MAX];
+                snprintf(original_path, sizeof(original_path), "%s/%016" PRIx64 ".tensor", originals_dir, hash);
+                ensure_dir_exists_for(original_path);
+                
+                // Cache-Operation (thread-safe)
+                const char* source_path = NULL;
+                // #pragma omp critical(hash_cache_access)
+                // {
+                    source_path = hash_cache_lookup_or_insert2(global_cache, hash, original_path);
+                //}
 
-            // Wenn neu: Tensor in .originals speichern
-            if (!source_path) {
-                FILE *f = fopen(original_path, "wb");
-                if (f) {
-                    serialize_tensor(f, arr);
-                    fclose(f);
-                } else {
-                    perror("Failed to write tensor file");
+                // Wenn neu: Tensor in .originals speichern
+                if (!source_path) {
+                    FILE *f = fopen(original_path, "wb");
+                    if (f) {
+                        serialize_tensor(f, arr);
+                        fclose(f);
+                    } else {
+                        perror("Failed to write tensor file");
+                    }
+                    source_path = original_path;
                 }
-                source_path = original_path;
-            }
 
-            // Symbolischen Link erstellen (statt Hardlink)
-            char final_path[PATH_MAX];
-            snprintf(final_path, sizeof(final_path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
-            ensure_dir_exists_for(final_path);
-            
-            // Lösche existierende Datei/Link falls vorhanden
-            if (access(final_path, F_OK) == 0) {
-                unlink(final_path);
-            }
-            
-            // Erstelle relativen Pfad für Symlink
-            char relative_path[PATH_MAX];
-            snprintf(relative_path, sizeof(relative_path), "../../../.originals/%016" PRIx64 ".tensor", hash);
-            
-            if (symlink(relative_path, final_path) != 0) {
-                perror("Symlink creation failed");
-            }
-            
-            // Aufräumen
-            matrix_free(reach_mat);
-            tensor_free(arr);
+                // Symbolischen Link erstellen (statt Hardlink)
+                char final_path[PATH_MAX];
+                snprintf(final_path, sizeof(final_path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
+                ensure_dir_exists_for(final_path);
+                
+                // Lösche existierende Datei/Link falls vorhanden
+                // if (access(final_path, F_OK) == 0) {
+                //     unlink(final_path);
+                // }
+                
+                // Erstelle relativen Pfad für Symlink
+                char relative_path[PATH_MAX];
+                snprintf(relative_path, sizeof(relative_path), "../../../.originals/%016" PRIx64 ".tensor", hash);
+                
+                if (symlink(relative_path, final_path) != 0) {
+                    perror("Symlink creation failed");
+                }
+                
+                // Aufräumen
+                matrix_free(reach_mat);
+                tensor_free(arr);
 
             }
         }
     }
     kernel_parameters_mixed_free(tensor_set);
+}
+
+void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain, const char *output_path) {
+    // 1) Vorbereitung: Parameter‐Set und Dimensionen
+    ssize_t terrain_width = terrain->width;
+    ssize_t terrain_height = terrain->height;
+    ssize_t time_steps = tensor_set_time->time;
+
+    // Bestimme maxD über alle Zeitschritte und Positionen
+    size_t maxD = 0;
+    for (ssize_t y = 0; y < terrain_height; y++) {
+        for (ssize_t x = 0; x < terrain_width; x++) {
+            for (ssize_t t = 0; t < time_steps; t++) {
+                KernelParameters *params = tensor_set_time->data[y][x][t];
+                if ((size_t) params->D > maxD) {
+                    maxD = params->D;
+                }
+            }
+        }
+    }
+
+    TensorSet *correlated_kernels = generate_correlated_tensors();
+    
+    // Hauptschleife über Zeit
+    for (ssize_t t = 0; t < time_steps; t++) {
+        printf("%zu / %zu \n", t, tensor_set_time->time);
+        
+        HashCache *global_cache = hash_cache_create();
+        
+        // 4) Hauptschleife: pro Terrain-Punkt
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+        for (ssize_t y = 0; y < terrain_height; y++) {
+            for (ssize_t x = 0; x < terrain_width; x++) {
+                size_t terrain_val = terrain_at(x, y, terrain);
+                if (terrain_val == WATER) {
+                    continue;
+                }
+                KernelParameters *current_parameters = tensor_set_time->data[y][x][t];
+                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain);
+                ssize_t D = current_parameters->D;
+                Tensor *arr = generate_tensor(current_parameters, (int) terrain_val, false, correlated_kernels, true);
+                for (ssize_t d = 0; d < D; d++) {
+                    matrix_mul_inplace(arr->data[d], reach_mat);
+                    matrix_normalize_L1(arr->data[d]);
+                }
+
+                //  Serialize Tensor
+                char current_path[256];
+                snprintf(current_path, sizeof(current_path), "%s/tensors%zd/y%zd/x%zd.tensor", output_path, t, y, x);
+                ensure_dir_exists_for(current_path);
+                uint64_t hash = tensor_hash(arr);
+                matrix_free(reach_mat);
+                const char *existing_path = hash_cache_lookup_or_insert(global_cache, arr, hash, current_path);
+
+                if (existing_path) {
+                    // Ziel und Link als absolute Pfade berechnen
+                    char abs_target[PATH_MAX];
+                    char abs_link[PATH_MAX];
+                    realpath(existing_path, abs_target);
+
+                    // current_path existiert nicht unbedingt – baue absoluten Pfad zum Verzeichnis
+                    char dir_buf[PATH_MAX];
+                    strncpy(dir_buf, current_path, sizeof(dir_buf));
+                    dirname(dir_buf); // Pfad zum Ordner, in dem Link liegt
+
+                    realpath(dir_buf, abs_link); // hole absoluten Pfad zum Zielverzeichnis
+                    snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/x%zd.tensor", x);
+                    // hänge Dateinamen an
+
+                    // relativen Pfad von Link-Verzeichnis zum Ziel berechnen
+                    const char *relative_target = abs_target; // für einfache Lösung: Symlink als absoluter Pfad
+                    //remove(current_path); // wichtig: alte Datei oder Link entfernen
+                    if (symlink(relative_target, current_path) != 0) {
+                        perror("symlink failed");
+                    }
+                } else {
+                    FILE *tf = fopen(current_path, "wb");
+                    if (!tf) {
+                        perror("fopen failed");
+                        continue;
+                    }
+                    serialize_tensor(tf, arr);
+                    fclose(tf);
+                }
+
+                // Tensor wieder freigeben
+                tensor_free(arr);
+            }
+        }
+        hash_cache_free(global_cache);
+    }
+
+    // Aufräumen
+    tensor_set_free(correlated_kernels);
 }
 
 

@@ -45,6 +45,8 @@ size_t tensor_hash(const Tensor* t);
 
 HashCache* hash_cache_create();
 
+void hash_cache_free(HashCache* cache);
+
 #ifdef __cplusplus
 }
 #endif

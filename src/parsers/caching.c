@@ -102,20 +102,30 @@ void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_
 }
 
 void cache_free(Cache* cache) {
+    if (!cache) return;
+
     for (size_t i = 0; i < cache->num_buckets; i++) {
         CacheEntry* entry = cache->buckets[i];
         while (entry != NULL) {
-            CacheEntry* next = entry->next;
+            CacheEntry* next = entry->next; // Nächsten Eintrag sichern BEVOR wir den aktuellen freigeben
+            
+            // Ressourcen freigeben
             if (entry->is_array) {
-                tensor_free(entry->data.array);
+                if (entry->data.array) {
+                    tensor_free(entry->data.array);
+                }
+            } else {
+                if (entry->data.single) {
+                    matrix_free(entry->data.single);
+                }
             }
-            else {
-                matrix_free(entry->data.single);
-            }
+            
             free(entry);
-            entry = next;
+            entry = next; // Zum nächsten Eintrag gehen
         }
+        cache->buckets[i] = NULL; // Bucket leeren
     }
+    
     free(cache->buckets);
     free(cache);
 }
@@ -167,15 +177,18 @@ const char* hash_cache_lookup_or_insert2(HashCache* cache, uint64_t hash, const 
     HashEntry* new_entry = malloc(sizeof(HashEntry));
     *new_entry = (HashEntry){
         .hash = hash,
-        .path = "", //strndup(new_path, PATH_MAX),  // Now valid
+        .path = "",  
         .next = cache->buckets[bucket]
     };
+    strncpy(new_entry->path, new_path, PATH_MAX);
+    new_entry->path[PATH_MAX - 1] = '\0';
+    new_entry->next = cache->buckets[bucket];
     cache->buckets[bucket] = new_entry;
-    return NULL;  // Neu, kein existierender Pfad
+    return NULL;
 }
 
 size_t hash_mix(size_t hash, size_t value) {
-    hash ^= value + 0x9e3779b97f4a7c15 + (hash << 6) + (hash >> 2); // gute Mischung
+    hash ^= value + 0x9e3779b97f4a7c15 + (hash << 6) + (hash >> 2); 
     return hash;
 }
 
@@ -215,4 +228,19 @@ HashCache* hash_cache_create() {
     }
     memset(cache->buckets, 0, sizeof(cache->buckets));
     return cache;
+}
+
+void hash_cache_free(HashCache* cache) {
+    if (!cache) return;
+
+    for (size_t i = 0; i < HASH_CACHE_BUCKETS; ++i) {
+        HashEntry* entry = cache->buckets[i];
+        while (entry) {
+            HashEntry* next = entry->next;
+            tensor_free(entry->tensor);
+            free(entry);
+            entry = next;
+        }
+    }
+    free(cache);
 }

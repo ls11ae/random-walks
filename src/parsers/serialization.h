@@ -37,6 +37,7 @@ size_t serialize_matrix(FILE* fp, const Matrix* m);
 size_t serialize_vector2d(FILE* fp, const Vector2D* v);
 size_t serialize_tensor(FILE* fp, const Tensor* t);
 size_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km);
+size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
 // Deserialization functions
 Point2D* deserialize_point2d(FILE* fp);
@@ -44,6 +45,7 @@ Matrix* deserialize_matrix(FILE* fp);
 Vector2D* deserialize_vector2d(FILE* fp);
 Tensor* deserialize_tensor(FILE* fp);
 KernelsMap4D* deserialize_kernels_map_4d(FILE* fp);
+KernelsMap3D* deserialize_kernels_map_3d(const char* filename);
 
 // Free functions (important for memory management)
 void free_matrix(Matrix* m);

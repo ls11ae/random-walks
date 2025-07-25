@@ -208,6 +208,15 @@ Matrix* matrix_elementwise_mul(const Matrix* a, const Matrix* b) {
     return result;
 }
 
+void matrix_mul_inplace(Matrix* a, const Matrix* b) {
+    assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
+    assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
+    assert(a->width == b->width && a->height == b->height);
+
+    for (size_t i = 0; i < a->len; ++i) {
+        a->data[i] *= b->data[i];
+    }
+}
 
 double matrix_sum(const Matrix* matrix) {
     if (matrix == NULL) return 0.0;

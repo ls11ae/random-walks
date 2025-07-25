@@ -15,6 +15,7 @@
 #include <assert.h>
 
 #include "types.h"
+#include "matrix/tensor.h"
 
 
 // Helper function for error handling
@@ -141,6 +142,32 @@ size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km) {
                 }
             }
         }
+    }
+    rewind(fp);
+
+    return bytes_written;
+}
+
+size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
+    size_t bytes_written = 0;
+    bytes_written += fwrite(&km->width, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&km->height, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&km->max_D, sizeof(ssize_t), 1, fp);
+
+    // Serialize Tensor*** kernels
+    if (km->kernels != NULL) {
+        for (ssize_t y = 0; y < km->height; ++y) {
+            for (ssize_t x = 0; x < km->width; ++x) {
+                // Write a flag indicating if the Tensor* is NULL
+                int is_null = (!km->kernels[y][x] || km->kernels[y][x]->data[0] == NULL);
+                bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
+                if (!is_null) {
+                    bytes_written += serialize_tensor(fp, km->kernels[y][x]);
+                }
+            }
+            
+        }   
+            
     }
     rewind(fp);
 
@@ -403,6 +430,100 @@ KernelsMap4D *deserialize_kernels_map_4d(FILE *fp) {
     return km;
 }
 
+
+KernelsMap3D* deserialize_kernels_map_3d(const char* filename) {
+    FILE* fp = fopen(filename, "rb");
+    if (!fp) {
+        perror("Failed to open file for deserialization");
+        return NULL;
+    }
+
+    // Allocate memory for the map structure
+    KernelsMap3D* kmap = malloc(sizeof(KernelsMap3D));
+    if (!kmap) {
+        fclose(fp);
+        return NULL;
+    }
+
+    // Read basic dimensions
+    if (fread(&kmap->width, sizeof(ssize_t), 1, fp) != 1 ||
+        fread(&kmap->height, sizeof(ssize_t), 1, fp) != 1 ||
+        fread(&kmap->max_D, sizeof(ssize_t), 1, fp) != 1) {
+        free(kmap);
+        fclose(fp);
+        return NULL;
+    }
+
+    // Initialize cache to NULL (ignored as per requirements)
+    kmap->cache = NULL;
+
+    // Allocate memory for the kernels 3D array
+    kmap->kernels = malloc(kmap->height * sizeof(Tensor**));
+    if (!kmap->kernels) {
+        free(kmap);
+        fclose(fp);
+        return NULL;
+    }
+
+    for (ssize_t y = 0; y < kmap->height; y++) {
+        kmap->kernels[y] = malloc(kmap->width * sizeof(Tensor*));
+        if (!kmap->kernels[y]) {
+            // Cleanup already allocated memory
+            for (ssize_t i = 0; i < y; i++) {
+                free(kmap->kernels[i]);
+            }
+            free(kmap->kernels);
+            free(kmap);
+            fclose(fp);
+            return NULL;
+        }
+
+        for (ssize_t x = 0; x < kmap->width; x++) {
+            // Read the null flag
+            int is_null;
+            if (fread(&is_null, sizeof(int), 1, fp) != 1) {
+                // Cleanup
+                for (ssize_t i = 0; i <= y; i++) {
+                    for (ssize_t j = 0; j < (i == y ? x : kmap->width); j++) {
+                        if (kmap->kernels[i][j]) {
+                            free_tensor(kmap->kernels[i][j]);
+                        }
+                    }
+                    free(kmap->kernels[i]);
+                }
+                free(kmap->kernels);
+                free(kmap);
+                fclose(fp);
+                return NULL;
+            }
+
+            if (is_null) {
+                kmap->kernels[y][x] = NULL;
+            } else {
+                kmap->kernels[y][x] = deserialize_tensor(fp);
+                if (!kmap->kernels[y][x]) {
+                    // Cleanup
+                    for (ssize_t i = 0; i <= y; i++) {
+                        for (ssize_t j = 0; j < (i == y ? x : kmap->width); j++) {
+                            if (kmap->kernels[i][j]) {
+                                tensor_free(kmap->kernels[i][j]);
+                            }
+                        }
+                        free(kmap->kernels[i]);
+                    }
+                    free(kmap->kernels);
+                    free(kmap);
+                    fclose(fp);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    fclose(fp);
+    return kmap;
+}
+
 // --- Free Functions ---
 
 void free_matrix(Matrix *m) {
@@ -445,9 +566,7 @@ void free_kernels_map_4d(KernelsMap4D *km) {
                     if (km->kernels[y][x] != NULL) {
                         for (ssize_t t = 0; t < km->timesteps; ++t) {
                             if (km->kernels[y][x][t] != NULL) {
-                                for (ssize_t d = 0; d < km->max_D; ++d) {
-                                    free_tensor(km->kernels[y][x][t]);
-                                }
+                                free_tensor(km->kernels[y][x][t]);
                                 free(km->kernels[y][x][t]);
                             }
                         }

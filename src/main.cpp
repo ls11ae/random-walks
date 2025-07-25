@@ -298,18 +298,26 @@ void test_serialization(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     auto csv_path = "../../resources/my_gridded_weather_grid_csvs";
-    auto grid_x = 5, grid_y = 5;
+    auto grid_x = 2, grid_y = 2;
     auto T = 120;
     Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, T);
     printf("weather grid loaded\n");
 
     TerrainMap terrain;
-    parse_terrain_map("../../resources/landcover_baboons123_300.txt", &terrain, ' ');
+    parse_terrain_map("../../resources/landcover_baboons123_200.txt", &terrain, ' ');
 
-    const char *serialized_path = "../../resources/kernels_map";
+    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(&terrain, grid);
+
+    const char *serialized_path = "../../resources/kernels_maps";
+
 
     const auto start = std::chrono::high_resolution_clock::now();
-    tensor_map_terrain(&terrain);
+    auto kmap = tensor_map_terrain_biased_grid(&terrain, grid);
+    auto walk = time_walk_geo(T, csv_path, "../../resources/landcover_baboons123_200.txt",
+                            "../../resources/time_walk_serialized.json", grid_x, grid_y,
+                            (Point2D){30, 30}, (Point2D){100, 150}, false);
+    point2d_array_print(walk);
+    //tensor_map_terrain_biased_grid(&terrain, grid);
     const auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("Time: %f seconds\n", duration.count());

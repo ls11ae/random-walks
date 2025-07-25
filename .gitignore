@@ -43,3 +43,4 @@
 /.pytest_cache/
 /.coverage
 /resources/kernels_map/
+resources/kernels_maps/
