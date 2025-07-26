@@ -215,6 +215,7 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
     char originals_dir[PATH_MAX];
     snprintf(originals_dir, sizeof(originals_dir), "%s/.originals", output_path);
     ensure_dir_exists_for(originals_dir);
+    printf("Originals dir: %s\n", originals_dir);
 
     HashCache *global_cache = hash_cache_create();
 
@@ -272,10 +273,10 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
                 snprintf(final_path, sizeof(final_path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
                 ensure_dir_exists_for(final_path);
                 
-                // Lösche existierende Datei/Link falls vorhanden
-                // if (access(final_path, F_OK) == 0) {
-                //     unlink(final_path);
-                // }
+                //Lösche existierende Datei/Link falls vorhanden
+                //if (access(final_path, F_OK) == 0) {
+                  //   unlink(final_path);
+                //}
                 
                 // Erstelle relativen Pfad für Symlink
                 char relative_path[PATH_MAX];
@@ -292,7 +293,13 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
             }
         }
     }
+    printf("Serialized %zd tensors\n", terrain_width * terrain_height * time_steps);
+    hash_cache_free(global_cache);
+    printf("Freeing correlated tensors\n");
+    tensor_set_free(correlated_kernels);
+    printf("Freeing kernel parameters terrain\n");
     kernel_parameters_mixed_free(tensor_set);
+    printf("Done serializing tensors\n");
 }
 
 void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain, const char *output_path) {
@@ -392,9 +399,14 @@ void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_se
 
 Tensor *tensor_at_xyt(const char *output_path, ssize_t x, ssize_t y, ssize_t t) {
     char path[256];
-    snprintf(path, sizeof(path), "%s/tensors/y%zd/x%zd/t%zd.tensor", output_path, y, x, t);
+    snprintf(path, sizeof(path), "%s/tensors/t%zd/y%zd/x%zd.tensor", output_path, t, y, x);
     FILE *fp = fopen(path, "rb");
-    if (!fp) return NULL;
+    if (!fp) {
+        char str[256];
+        snprintf(str, sizeof(str), "Error opening tensor file %s", path);
+        perror(str);
+        return NULL;
+    }
     Tensor *ts = deserialize_tensor(fp);
     fclose(fp);
     return ts;

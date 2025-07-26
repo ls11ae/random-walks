@@ -336,14 +336,6 @@ Tensor *deserialize_tensor(FILE *fp) {
 
     // Deserialize Vector2D* dir_kernel
     t->dir_kernel = NULL;
-    int dir_kernel_is_null;
-    if (fread(&dir_kernel_is_null, sizeof(int), 1, fp) != 1) {
-        free_tensor(t);
-        handle_error("Failed to read dir_kernel null flag in Tensor");
-    }
-    if (!dir_kernel_is_null) {
-        t->dir_kernel = deserialize_vector2d(fp);
-    }
 
     return t;
 }

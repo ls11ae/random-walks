@@ -26,9 +26,11 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 
 	struct stat st;
 	if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+		printf("skip dp calculation, using serialized data from %s\n", tensor_dir);
 		return NULL;
 	}
 
+	printf("Start DP calculation for T=%zd, X=%zd, Y=%zd\n", T, start_x, start_y);
 	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
 
 	// Lade Meta-Infos und überprüfe Konsistenz
@@ -50,6 +52,8 @@ static Tensor** m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap* terrai
 		matrix_set(prev->data[d], start_x, start_y, init_value);
 	}
 	tensor_free(start_kernel); // Nicht mehr benötigt
+
+	printf("Start DP calculation for T=%zd, X=%zd, Y=%zd\n", T, start_x, start_y);
 
 	for (ssize_t t = 1; t < T; t++) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
