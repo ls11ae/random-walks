@@ -299,18 +299,19 @@ void test_serialization(int argc, char **argv) {
 int main(int argc, char **argv) {
     auto csv_path = "../../resources/my_gridded_weather_grid_csvs";
     auto grid_x = 2, grid_y = 2;
-    auto T = 120;
+    auto T = 50;
 
     const char *serialized_path = "../../resources/kernels_maps";
 
 
     const auto start = std::chrono::high_resolution_clock::now();
     auto walk = time_walk_geo(T, csv_path, "../../resources/landcover_baboons123_200.txt",
-                            "../../resources/time_walk_serialized.json", serialized_path, grid_x, grid_y,
-                            (Point2D){40, 40}, (Point2D){130, 100}, true, true);
+                              "../../resources/time_walk_serialized.json", serialized_path, grid_x, grid_y,
+                              (Point2D){30, 40}, (Point2D){70, 70}, true);
 
-    point2d_array_print(walk);
+    //point2d_array_print(walk);
     //tensor_map_terrain_biased_grid(&terrain, grid);
+    point2d_array_free(walk);
     const auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("Time: %f seconds\n", duration.count());

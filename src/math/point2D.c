@@ -9,23 +9,23 @@
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
 
-Point2D* point_2d_new(const ssize_t x, const ssize_t y) {
-    Point2D* result = malloc(sizeof(Point2D));
+Point2D *point_2d_new(const ssize_t x, const ssize_t y) {
+    Point2D *result = malloc(sizeof(Point2D));
     result->x = x;
     result->y = y;
     return result;
 }
 
-void point_2d_free(Point2D* p) {
+void point_2d_free(Point2D *p) {
     free(p);
 }
 
 
-Point2DArray* point_2d_array_new(Point2D* points, size_t length) {
-    Point2DArray* result = (Point2DArray*)malloc(sizeof(Point2DArray));
+Point2DArray *point_2d_array_new(Point2D *points, size_t length) {
+    Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
 
-    result->points = (Point2D*)malloc(length * sizeof(Point2D));
+    result->points = (Point2D *) malloc(length * sizeof(Point2D));
     if (!result->points) {
         free(result);
         return NULL;
@@ -38,11 +38,11 @@ Point2DArray* point_2d_array_new(Point2D* points, size_t length) {
     return result;
 }
 
-Point2DArray* point_2d_array_new_empty(size_t length) {
-    Point2DArray* result = (Point2DArray*)malloc(sizeof(Point2DArray));
+Point2DArray *point_2d_array_new_empty(size_t length) {
+    Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
 
-    result->points = (Point2D*)malloc(length * sizeof(Point2D));
+    result->points = (Point2D *) malloc(length * sizeof(Point2D));
     if (!result->points) {
         free(result);
         return NULL;
@@ -52,18 +52,18 @@ Point2DArray* point_2d_array_new_empty(size_t length) {
     return result;
 }
 
-Point2DArrayGrid* point_2d_array_grid_new(size_t width, size_t height, size_t times) {
-    Point2DArrayGrid* result = (Point2DArrayGrid*)malloc(sizeof(Point2DArrayGrid));
+Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t times) {
+    Point2DArrayGrid *result = (Point2DArrayGrid *) malloc(sizeof(Point2DArrayGrid));
     if (!result) return NULL;
 
-    Point2DArray*** data = (Point2DArray***)malloc(sizeof(Point2DArray**) * height);
+    Point2DArray ***data = (Point2DArray ***) malloc(sizeof(Point2DArray **) * height);
     if (!data) {
         free(result);
         return NULL;
     }
 
     for (size_t i = 0; i < height; i++) {
-        data[i] = (Point2DArray**)malloc(sizeof(Point2DArray*) * width);
+        data[i] = (Point2DArray **) malloc(sizeof(Point2DArray *) * width);
         if (!data[i]) {
             // Cleanup previously allocated memory
             for (size_t k = 0; k < i; k++) {
@@ -101,7 +101,7 @@ Point2DArrayGrid* point_2d_array_grid_new(size_t width, size_t height, size_t ti
 }
 
 // Print all points in the Point2DArray
-void point2d_array_print(const Point2DArray* array) {
+void point2d_array_print(const Point2DArray *array) {
     if (!array || !array->points) {
         printf("Invalid Point2DArray\n");
         fflush(stdout);
@@ -115,14 +115,14 @@ void point2d_array_print(const Point2DArray* array) {
 }
 
 // Free the Point2DArray and its internal points array
-void point2d_array_free(Point2DArray* array) {
+void point2d_array_free(Point2DArray *array) {
     if (array) {
         free(array->points); // Free the points data
         free(array); // Free the struct itself
     }
 }
 
-void point_2d_array_grid_free(Point2DArrayGrid* grid) {
+void point_2d_array_grid_free(Point2DArrayGrid *grid) {
     if (!grid) return;
 
     for (size_t i = 0; i < grid->height; i++) {
@@ -136,15 +136,15 @@ void point_2d_array_grid_free(Point2DArrayGrid* grid) {
     free(grid);
 }
 
-char* read_file_to_string(const char* filename) {
-    FILE* file = fopen(filename, "rb");
+char *read_file_to_string(const char *filename) {
+    FILE *file = fopen(filename, "rb");
     if (!file) return NULL;
 
     fseek(file, 0, SEEK_END);
     long len = ftell(file);
     rewind(file);
 
-    char* buffer = (char*)malloc(len + 1);
+    char *buffer = (char *) malloc(len + 1);
     if (!buffer) {
         fclose(file);
         return NULL;
@@ -156,21 +156,21 @@ char* read_file_to_string(const char* filename) {
     return buffer;
 }
 
-Point2DArray* bias_from_csv(const char* file_content, ssize_t max_bias) {
+Point2DArray *bias_from_csv(const char *file_content, ssize_t max_bias, int times) {
     // Parse CSV content
     int num_entries;
-    WeatherEntry* entries = parse_csv(file_content, &num_entries);
-
-    Point2D* points2 = malloc(sizeof(Point2D) * num_entries);
-    for (int i = 0; i < num_entries; i++) {
+    WeatherEntry *entries = parse_csv(file_content, &num_entries);
+    int limit = num_entries >= times ? times : num_entries;
+    Point2D *points2 = malloc(sizeof(Point2D) * limit);
+    for (int i = 0; i < limit; i++) {
         points2[i] = *weather_entry_to_bias(&entries[i], max_bias);
     }
-    Point2DArray* biases = point_2d_array_new(points2, num_entries);
+    Point2DArray *biases = point_2d_array_new(points2, limit);
     return biases;
 }
 
-Point2DArrayGrid* load_weather_grid(const char* filename_base, int grid_y, int grid_x, int times) {
-    Point2DArrayGrid* grid = point_2d_array_grid_new(grid_y, grid_x, times);
+Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_y, int grid_x, int times) {
+    Point2DArrayGrid *grid = point_2d_array_grid_new(grid_y, grid_x, times);
     if (!grid) return NULL;
 
     char filename[512];
@@ -178,13 +178,13 @@ Point2DArrayGrid* load_weather_grid(const char* filename_base, int grid_y, int g
     for (int i = 0; i < grid_y; ++i) {
         for (int j = 0; j < grid_x; ++j) {
             snprintf(filename, sizeof(filename), "%s/weather_grid_y%d_x%d.csv", filename_base, i, j);
-            char* file_content = read_file_to_string(filename);
+            char *file_content = read_file_to_string(filename);
             if (!file_content) {
                 fprintf(stderr, "Failed to open or read file: %s\n", filename);
                 return NULL;
             }
 
-            Point2DArray* biases = bias_from_csv(file_content, 5);
+            Point2DArray *biases = bias_from_csv(file_content, 5, times);
             free(file_content);
 
             grid->data[i][j] = biases;
