@@ -303,11 +303,16 @@ int main(int argc, char **argv) {
 
     const char *serialized_path = "../../resources/kernels_maps";
 
+    auto p1 = (Point2D){30, 40};
+    auto p2 = (Point2D){70, 70};
+    auto p3 = (Point2D){120, 110};
+    Point2D points[] = {p1, p2, p3};
+    auto steps = point_2d_array_new(points, 3);
 
     const auto start = std::chrono::high_resolution_clock::now();
-    auto walk = time_walk_geo(T, csv_path, "../../resources/landcover_baboons123_200.txt",
-                              "../../resources/time_walk_serialized.json", serialized_path, grid_x, grid_y,
-                              (Point2D){30, 40}, (Point2D){70, 70}, true);
+    auto walk = time_walk_geo_multi(T, csv_path, "../../resources/landcover_baboons123_200.txt",
+                                    "../../resources/time_walk_serialized.json", grid_x, grid_y, steps, true,
+                                    serialized_path);
 
     //point2d_array_print(walk);
     //tensor_map_terrain_biased_grid(&terrain, grid);
