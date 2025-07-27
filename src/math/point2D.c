@@ -1,7 +1,7 @@
 //
 // Created by omar on 24.03.25.
 //
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
