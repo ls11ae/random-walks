@@ -566,6 +566,117 @@ Point2DArray* backtrace(Tensor** DP_Matrix, const ssize_t T, const Tensor* kerne
 	return path;
 }
 
+Point2DArray* backtrace2(Tensor** DP_Matrix, const ssize_t T, const Tensor* kernel, ssize_t end_x, ssize_t end_y, ssize_t dir,
+                        ssize_t D) {
+	Rprintf("backtrace\n");
+	Point2DArray* path = malloc(sizeof(Point2DArray));
+	Point2D* points = malloc(sizeof(Point2D) * T);
+	path->points = points;
+	path->length = T;
+
+
+	const ssize_t kernel_width = (ssize_t)kernel->data[0]->width;
+	const ssize_t S = kernel_width / 2;
+	Vector2D* dir_cell_set = get_dir_kernel(D, kernel_width);
+
+	ssize_t x = end_x;
+	ssize_t y = end_y;
+
+	size_t W = DP_Matrix[0]->data[0]->width;
+	size_t H = DP_Matrix[0]->data[0]->height;
+
+	size_t direction = dir;
+	Tensor* angles_mask = tensor_new(kernel_width, kernel_width, D);
+	compute_overlap_percentages((int)kernel_width, (int)D, angles_mask);
+
+	size_t index = T - 1;
+	for (size_t t = T - 1; t >= 1; --t) {
+		printf("t%zu\n", t);
+		fflush(stdout);
+		const ssize_t max_neighbors = (2 * S + 1) * (2 * S + 1) * D;
+		ssize_t* movements_x = (ssize_t*)malloc(max_neighbors * sizeof(ssize_t));
+		ssize_t* movements_y = (ssize_t*)malloc(max_neighbors * sizeof(ssize_t));
+		double* prev_probs = (double*)malloc(max_neighbors * sizeof(double));
+		int* directions = (int*)malloc(max_neighbors * sizeof(int));
+		path->points[index].x = x;
+		path->points[index].y = y;
+		index--;
+		size_t count = 0;
+
+
+		for (int d = 0; d < D; ++d) {
+			for (int i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+				const ssize_t dx = dir_cell_set->data[direction][i].x;
+				const ssize_t dy = dir_cell_set->data[direction][i].y;
+
+				// Neighbor indices
+				const ssize_t prev_x = x - dx;
+				const ssize_t prev_y = y - dy;
+
+				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
+					continue;
+				}
+
+				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
+
+				// Kernel indices
+				const ssize_t kernel_x = dx + S;
+				const ssize_t kernel_y = dy + S;
+
+				// Validate kernel indices
+				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= kernel_width ||
+					kernel_y >= kernel_width) {
+					continue;
+				}
+
+				Matrix* current_kernel = kernel->data[d];
+				double factor = matrix_get(angles_mask->data[direction], kernel_x, kernel_y);
+				//factor = 1.0;
+				const double p_b_a = matrix_get(current_kernel, kernel_x, kernel_y) * factor;
+
+				movements_x[count] = dx;
+				movements_y[count] = dy;
+				prev_probs[count] = p_b_a * p_b;
+				directions[count] = d;
+				count++;
+			}
+		}
+
+
+		if (count == 0) {
+			free(movements_x);
+			free(movements_y);
+			free(directions);
+			free(prev_probs);
+			free(path->points);
+			free(path);
+			free_Vector2D(dir_cell_set);
+			return NULL;
+		}
+
+		const ssize_t selected = weighted_random_index(prev_probs, count);
+		ssize_t pre_x = movements_x[selected];
+		ssize_t pre_y = movements_y[selected];
+
+		direction = directions[selected];
+
+		x -= pre_x;
+		y -= pre_y;
+
+		free(movements_x);
+		free(movements_y);
+		free(prev_probs);
+		free(directions);
+	}
+
+	free_Vector2D(dir_cell_set);
+
+	path->points[0].x = x;
+	path->points[0].y = y;
+
+	return path;
+}
+
 void dp_calculation_low_ram(ssize_t W, ssize_t H, const Tensor* kernel, const ssize_t T, const ssize_t start_x,
                             const ssize_t start_y, const char* output_folder) {
 	const ssize_t D = (ssize_t)kernel->len;

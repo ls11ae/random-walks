@@ -28,6 +28,9 @@ Point2DArray* backtrace(Tensor** DP_Matrix, ssize_t T, const Tensor* kernel,
                         TerrainMap* terrain, KernelsMap3D* tensor_map, ssize_t end_x, ssize_t end_y, ssize_t dir,
                         ssize_t D);
 
+    Point2DArray* backtrace2(Tensor** DP_Matrix, const ssize_t T, const Tensor* kernel, ssize_t end_x, ssize_t end_y, ssize_t dir,
+                        ssize_t D);
+
 void dp_calculation_low_ram(ssize_t W, ssize_t H, const Tensor* kernel, const ssize_t T, const ssize_t start_x,
                             const ssize_t start_y, const char* output_folder);
 
