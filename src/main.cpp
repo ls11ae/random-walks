@@ -20,10 +20,13 @@
 #include "math/path_finding.h"
 #include "math/kernel_slicing.h"
 #include "parsers/weather_parser.h"
+#include "cuda/cuda_adapter.h"
 #include "parsers/serialization.h"
 
 #include "config.h"
 #include "memory_utils.h"
+#include "cuda/brownian_gpu.h"
+#include "cuda/correlated_gpu.h"
 
 double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
@@ -296,7 +299,7 @@ void test_serialization(int argc, char **argv) {
     printf("Time: %f seconds\n", duration.count());
 }
 
-int main(int argc, char **argv) {
+int test_geo_multi() {
     auto csv_path = "../../resources/my_gridded_weather_grid_csvs";
     auto grid_x = 2, grid_y = 2;
     auto T = 50;
@@ -320,5 +323,117 @@ int main(int argc, char **argv) {
     const auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     printf("Time: %f seconds\n", duration.count());
+    return 0;
+}
+
+int brw_test() {
+    size_t T = 700;
+    size_t W = 2 * T + 1, H = 2 * T + 1;
+    auto kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto dp = brownian_walk_init(T, W, H, T, T, kernel);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    auto wakl = b_walk_backtrace(dp, kernel, NULL, T / 3, T / 3);
+    std::cout << "Brownian walk initialization took " << duration.count() << " seconds\n";
+
+    tensor_free(dp);
+    point2d_array_free(wakl);
+    matrix_free(kernel);
+    return 0;
+}
+
+void brownian_cuda() {
+    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
+    size_t T = 300;
+    size_t W = 2 * T + 1, H = 2 * T + 1;
+
+    auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 30, 20);
+    point2d_array_print(path);
+}
+
+Vector2D *vector2D_new(size_t count) {
+    Vector2D *v = (Vector2D *) malloc(sizeof(Vector2D));
+    v->count = count;
+    v->sizes = (size_t *) malloc(count * sizeof(size_t));
+    v->data = (Point2D **) malloc(count * sizeof(Point2D *));
+    return v;
+}
+
+// Testfunktion
+bool test_dir_kernel_conversion() {
+    // 1. Testdaten erstellen
+    size_t D = 3; // 3 Richtungen
+    Vector2D *kernel = vector2D_new(D);
+    // Richtung 0: 2 Punkte
+    kernel->sizes[0] = 2;
+    kernel->data[0] = (Point2D *) malloc(2 * sizeof(Point2D));
+    kernel->data[0][0] = (Point2D){1, 2};
+    kernel->data[0][1] = (Point2D){3, 4};
+    // Richtung 1: 1 Punkt
+    kernel->sizes[1] = 1;
+    kernel->data[1] = (Point2D *) malloc(1 * sizeof(Point2D));
+    kernel->data[1][0] = (Point2D){5, 6};
+    // Richtung 2: 3 Punkte
+    kernel->sizes[2] = 3;
+    kernel->data[2] = (Point2D *) malloc(3 * sizeof(Point2D));
+    kernel->data[2][0] = (Point2D){7, 8};
+    kernel->data[2][1] = (Point2D){9, 10};
+    kernel->data[2][2] = (Point2D){11, 12};
+
+    // 2. Konvertierung durchführen
+    int2 *offsets;
+    int *sizes;
+    size_t out_D;
+    dir_kernel_to_cuda(kernel, &offsets, &sizes, &out_D);
+
+    // 3. Ergebnisse überprüfen
+    bool success = true;
+    // 3a. Dimension prüfen
+    if (out_D != D) {
+        printf("Fehler: out_D = %zu, erwartet %zu\n", out_D, D);
+        success = false;
+    }
+    // 3b. Größen prüfen
+    for (size_t d = 0; d < D; d++) {
+        if (sizes[d] != (int) kernel->sizes[d]) {
+            printf("Fehler in sizes[%zu]: %d != %zu\n", d, sizes[d], kernel->sizes[d]);
+            success = false;
+        }
+    }
+    // 3c. Offsets prüfen
+    int index = 0;
+    for (size_t d = 0; d < D; d++) {
+        for (size_t i = 0; i < kernel->sizes[d]; i++) {
+            if (offsets[index].x != kernel->data[d][i].x ||
+                offsets[index].y != kernel->data[d][i].y) {
+                printf("Fehler in offsets[%d]: (%d, %d) != (%d, %d)\n",
+                       index, offsets[index].x, offsets[index].y,
+                       kernel->data[d][i].x, kernel->data[d][i].y);
+                success = false;
+            }
+            index++;
+        }
+    }
+
+    // 4. Speicher freigeben
+    free(offsets);
+    free(sizes);
+
+    return success;
+}
+
+int main(int argc, char **argv) {
+    int T = 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    int kernel_width = 2 * S + 1;
+    int start_x = T, start_y = T;
+    int end_x = 20, end_y = 20;
+    Tensor *kernels = generate_kernels(D, kernel_width);
+    Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
+    Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
+    compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+    auto walk = run_gpu_dp_tensor(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
+    point2d_array_print(walk);
+    point2d_array_free(walk);
     return 0;
 }

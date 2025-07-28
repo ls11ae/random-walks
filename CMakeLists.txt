@@ -1,17 +1,24 @@
-cmake_minimum_required(VERSION 3.15)
-project(random_walk LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.18)  # besser >= 3.18 für gutes CUDA-Support
+project(random_walk LANGUAGES C CXX CUDA)
 
-# Standard settings
+# C & C++ Standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# CUDA Standard
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 # Optimization flags
-set(CMAKE_C_FLAGS_RELEASE "-O0 -g3")
-set(CMAKE_CXX_FLAGS_RELEASE "-O0 -g3")
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3")
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
+
+set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
 
 # Output directories
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
@@ -24,13 +31,14 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/src
 )
 
-# Find OpenMP
+# OpenMP
 find_package(OpenMP REQUIRED)
 
-# Gather sources
+# Source files
 file(GLOB_RECURSE SOURCES
         "${PROJECT_SOURCE_DIR}/src/*.c"
         "${PROJECT_SOURCE_DIR}/src/*.cpp"
+        "${PROJECT_SOURCE_DIR}/src/*.cu"    # CUDA-Dateien hinzufügen
 )
 
 file(GLOB_RECURSE HEADERS
@@ -46,9 +54,17 @@ target_link_libraries(${PROJECT_NAME}
         ${R_LIBRARIES}
 )
 
-# Executable (if needed)
+# CUDA-spezifisch: Position Independent Code (für .so) aktivieren
+set_target_properties(${PROJECT_NAME} PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
+
+# Executable (optional)
 add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
+
+# CUDA-Architektur (optional, aber empfohlen – hier z.B. für Ampere)
+#set(CMAKE_CUDA_ARCHITECTURES 86)
 
 # Tests
 enable_testing()

@@ -1,59 +1,17 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
+#include "cuda/brownian_gpu.h"
 #include <cuda_runtime.h>
 
+#include "math/math_utils.h"
 
-ssize_t weighted_random_index(const double* array, size_t len) {
-    // Seed the random number generator with the current time
-    static int seeded = 0;
-    if (!seeded) {
-        srand(((unsigned int)time(NULL))); // Seed only once
-        seeded = 1;
-    }
-
-    const ssize_t length = (ssize_t)len;
-
-    // Calculate the total weight (CDF)
-    double total_weight = 0.0;
-    for (size_t i = 0; i < length; i++) {
-        total_weight += array[i];
-    }
-
-    // Generate a random value between 0 and total_weight
-    double random_value = (rand() / (double)RAND_MAX) * total_weight;
-
-    // Find the index where the cumulative sum exceeds the random value
-    double cumulative_sum = 0.0;
-    for (ssize_t i = 0; i < length; i++) {
-        cumulative_sum += array[i];
-        if (cumulative_sum >= random_value) {
-            return i; // Return the index
-        }
-    }
-
-    // If no index is found, return the last index (in case of very small values)
-    return length - 1;
-}
-
-typedef struct {
-    int x, y;
-} Point2D;
-
-typedef struct {
-    Point2D* points;
-    size_t length;
-} Point2DArray;
-
-Point2DArray* b_walk_backtrace_flat(
-    const double* tensor_flat, // Tensor: [T][H][W] linearisiert → [T * H * W]
-    const double* kernel,      // ebenfalls flach
-    int T, int H, int W, int S,
-    int start_x, int start_y
+Point2DArray *b_walk_backtrace_flat(
+    const double *tensor_flat, // Tensor: [T][H][W] linearisiert → [T * H * W]
+    const double *kernel, // ebenfalls flach
+    size_t T, size_t H, size_t W, ssize_t S,
+    ssize_t start_x, ssize_t start_y
 ) {
-    Point2DArray* result = (Point2DArray*)malloc(sizeof(Point2DArray));
+    Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
-    result->points = (Point2D*)malloc(T * sizeof(Point2D));
+    result->points = (Point2D *) malloc(T * sizeof(Point2D));
     if (!result->points) {
         free(result);
         return NULL;
@@ -65,8 +23,8 @@ Point2DArray* b_walk_backtrace_flat(
     result->points[0].x = x;
     result->points[0].y = y;
 
-    for (int t = T - 1; t >= 1; --t) {
-        const int max_neighbors = (2 * S + 1) * (2 * S + 1);
+    for (size_t t = T - 1; t >= 1; --t) {
+        const size_t max_neighbors = (2 * S + 1) * (2 * S + 1);
         Point2D neighbors[max_neighbors];
         double probabilities[max_neighbors];
         int count = 0;
@@ -95,7 +53,7 @@ Point2DArray* b_walk_backtrace_flat(
             return NULL;
         }
 
-        int selected = weighted_random_index(probabilities, count);
+        const ssize_t selected = weighted_random_index(probabilities, count);
         x = neighbors[selected].x;
         y = neighbors[selected].y;
 
@@ -117,9 +75,9 @@ Point2DArray* b_walk_backtrace_flat(
 
 // CUDA Kernel
 __global__ void convolve_kernel_step(
-    const double* prev,
-    double* curr,
-    const double* kernel,
+    const double *prev,
+    double *curr,
+    const double *kernel,
     int W, int H, int S
 ) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -144,9 +102,10 @@ __global__ void convolve_kernel_step(
 }
 
 // GPU Wrapper
-void gpu_tensor_walk(double* host_tensor, const double* host_kernel, int T, int H, int W, int S) {
-    int size_2d = H * W;
-    int kernel_size = (2 * S + 1) * (2 * S + 1);
+void gpu_tensor_walk(double *host_tensor, const double *host_kernel, const size_t T, const size_t H, const size_t W,
+                     const size_t S) {
+    size_t size_2d = H * W;
+    size_t kernel_size = (2 * S + 1) * (2 * S + 1);
 
     double *d_kernel, *d_prev, *d_curr;
     cudaMalloc(&d_kernel, kernel_size * sizeof(double));
@@ -161,14 +120,14 @@ void gpu_tensor_walk(double* host_tensor, const double* host_kernel, int T, int 
     dim3 blockDim(16, 16);
     dim3 gridDim((W + 15) / 16, (H + 15) / 16);
 
-    for (int t = 1; t < T; ++t) {
+    for (size_t t = 1; t < T; ++t) {
         convolve_kernel_step<<<gridDim, blockDim>>>(d_prev, d_curr, d_kernel, W, H, S);
         cudaDeviceSynchronize();
 
         cudaMemcpy(host_tensor + t * size_2d, d_curr, size_2d * sizeof(double), cudaMemcpyDeviceToHost);
 
         // Swap
-        double* tmp = d_prev;
+        double *tmp = d_prev;
         d_prev = d_curr;
         d_curr = tmp;
     }
@@ -180,32 +139,17 @@ void gpu_tensor_walk(double* host_tensor, const double* host_kernel, int T, int 
 
 
 // Testfunktion
-int main() {
+Point2DArray *gpu_brownian_walk(Matrix *kernel_matrix, size_t T, size_t W, size_t H, size_t start_x, size_t start_y,
+                                size_t end_x,
+                                size_t end_y) {
     printf("start\n");
-    const size_t T = 300;
-    const size_t W = 2 * T;
-    const size_t H = 2 * T;
-    const size_t S = 7;
-    int start_x = 170, start_y = 170;
-
+    ssize_t S = kernel_matrix->width / 2;
     size_t size_2d = W * H;
-    int kernel_size = (2*S + 1)*(2*S + 1);
 
-    double* tensor = (double*)calloc(T * size_2d, sizeof(double));
-    double* kernel = (double*)calloc(kernel_size, sizeof(double));
+    double *tensor = (double *) calloc(T * size_2d, sizeof(double));
+    double *kernel = kernel_matrix->data;
 
-    tensor[H/2 * W + W/2] = 1.0;
-    int index = 0;
-    double sigma = 3.0;
-
-    for (ssize_t y = 0; y < 2 * S + 1; y++) {
-        for (ssize_t x = 0; x < 2 * S + 1; x++) {
-            const double distance_squared = x * x + y * y;
-            const double gaussian_value = exp(-distance_squared / (2 * pow(sigma, 2)));
-            kernel[index++] = gaussian_value;
-        }
-    }
-
+    tensor[start_y * W + start_x] = 1.0;
 
     // time code
     cudaEvent_t start, stop;
@@ -224,15 +168,11 @@ int main() {
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
-
-    Point2DArray* path = b_walk_backtrace_flat(tensor, kernel, T, H, W, S, start_x, start_y);
-    for (size_t i = 0; i < path->length; ++i) {
-        printf("Step %zu: (%zd, %zd)\n", i, path->points[i].x, path->points[i].y);
-    }
+    Point2DArray *path = b_walk_backtrace_flat(tensor, kernel, T, H, W, S, end_x, end_y);
 
     printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
 
     free(tensor);
     free(kernel);
-    return 0;
+    return path;
 }
