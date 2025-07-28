@@ -27,8 +27,6 @@ __global__ void dp_step_kernel(
     int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
     int size = sizes[d];
 
-    // 3D-Index Makro (ohne Zeit)
-
     for (int i = 0; i < size; ++i) {
         int dx = offsets[d * max_neighbors + i].x;
         int dy = offsets[d * max_neighbors + i].y;
@@ -77,7 +75,7 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     int *h_sizes;
     dir_kernel_to_cuda(dir_kernel_data, &h_offsets, &h_sizes, &actual_D);
 
-    // Erweitere Offsets-Array auf max_neighbors pro Richtung
+    // Initialize offsets array
     int2 *h_offsets_expanded = (int2 *) malloc(D * max_neighbors * sizeof(int2));
     memset(h_offsets_expanded, 0, D * max_neighbors * sizeof(int2));
 
@@ -102,13 +100,15 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     cudaMemcpy(d_offsets, h_offsets_expanded, offset_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_sizes, h_sizes, D * sizeof(int), cudaMemcpyHostToDevice);
 
+    free(h_offsets);
+    free(h_sizes);
     // Allocate DP matrix
     double *d_dp_prev, *d_dp_current;
     size_t dp_layer_size = D * H * W * sizeof(double);
     cudaMalloc(&d_dp_prev, dp_layer_size);
     cudaMalloc(&d_dp_current, dp_layer_size);
 
-    // Host-Puffer für gesamten DP-Tensor
+    // Host-Puffer for the entire DP-Tensor
     double *h_dp_flat = (double *) malloc(T * D * H * W * sizeof(double));
     // Initialisiere t=0 auf Host und kopiere auf GPU
     for (int d = 0; d < D; d++) {
@@ -116,7 +116,7 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     }
     cudaMemcpy(d_dp_prev, h_dp_flat, dp_layer_size, cudaMemcpyHostToDevice);
 
-    // Kernel-Konfiguration
+    // Kernel-configuration
     dim3 block(8, 8, 4);
     dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (D + block.z - 1) / block.z);
 
@@ -132,10 +132,10 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
                                         d_offsets, d_sizes, D, H, W, S);
         cudaMemcpy(h_dp_flat + t * D * H * W, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
 
-        // Tausche Puffer für nächsten Schritt
+        // swap buffers
         std::swap(d_dp_prev, d_dp_current);
 
-        // Fehlerbehandlung
+        // error handling
         cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {
             fprintf(stderr, "Kernel error at t=%d: %s\n", t, cudaGetErrorString(err));
@@ -160,8 +160,6 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     cudaFree(d_sizes);
     free(h_kernel);
     free(h_mask);
-    free(h_offsets);
-    free(h_sizes);
     free(h_offsets_expanded);
 
     Tensor **DP_Matrix = convert_dp_host_to_tensor(h_dp_flat, T, D, H, W);
@@ -169,6 +167,7 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
 
     Point2DArray *path = backtrace2(DP_Matrix, T, kernel_tensor, end_x, end_y, 0, D);
     tensor4D_free(DP_Matrix, T);
+    cudaDeviceReset();
 
     printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
     return path;

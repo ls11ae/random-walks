@@ -558,6 +558,7 @@ Point2DArray *backtrace(Tensor **DP_Matrix, const ssize_t T, const Tensor *kerne
 	}
 
 	free_Vector2D(dir_cell_set);
+	tensor_free(angles_mask);
 
 	path->points[0].x = x;
 	path->points[0].y = y;
@@ -666,6 +667,7 @@ Point2DArray *backtrace2(Tensor **DP_Matrix, const ssize_t T, const Tensor *kern
 		free(directions);
 	}
 
+	tensor_free(angles_mask);
 	free_Vector2D(dir_cell_set);
 
 	path->points[0].x = x;

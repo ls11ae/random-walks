@@ -345,7 +345,7 @@ int brw_test() {
 
 void brownian_cuda() {
     Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
-    size_t T = 300;
+    size_t T = 500;
     size_t W = 2 * T + 1, H = 2 * T + 1;
 
     auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 30, 20);
@@ -360,71 +360,11 @@ Vector2D *vector2D_new(size_t count) {
     return v;
 }
 
-// Testfunktion
-bool test_dir_kernel_conversion() {
-    // 1. Testdaten erstellen
-    size_t D = 3; // 3 Richtungen
-    Vector2D *kernel = vector2D_new(D);
-    // Richtung 0: 2 Punkte
-    kernel->sizes[0] = 2;
-    kernel->data[0] = (Point2D *) malloc(2 * sizeof(Point2D));
-    kernel->data[0][0] = (Point2D){1, 2};
-    kernel->data[0][1] = (Point2D){3, 4};
-    // Richtung 1: 1 Punkt
-    kernel->sizes[1] = 1;
-    kernel->data[1] = (Point2D *) malloc(1 * sizeof(Point2D));
-    kernel->data[1][0] = (Point2D){5, 6};
-    // Richtung 2: 3 Punkte
-    kernel->sizes[2] = 3;
-    kernel->data[2] = (Point2D *) malloc(3 * sizeof(Point2D));
-    kernel->data[2][0] = (Point2D){7, 8};
-    kernel->data[2][1] = (Point2D){9, 10};
-    kernel->data[2][2] = (Point2D){11, 12};
-
-    // 2. Konvertierung durchführen
-    int2 *offsets;
-    int *sizes;
-    size_t out_D;
-    dir_kernel_to_cuda(kernel, &offsets, &sizes, &out_D);
-
-    // 3. Ergebnisse überprüfen
-    bool success = true;
-    // 3a. Dimension prüfen
-    if (out_D != D) {
-        printf("Fehler: out_D = %zu, erwartet %zu\n", out_D, D);
-        success = false;
-    }
-    // 3b. Größen prüfen
-    for (size_t d = 0; d < D; d++) {
-        if (sizes[d] != (int) kernel->sizes[d]) {
-            printf("Fehler in sizes[%zu]: %d != %zu\n", d, sizes[d], kernel->sizes[d]);
-            success = false;
-        }
-    }
-    // 3c. Offsets prüfen
-    int index = 0;
-    for (size_t d = 0; d < D; d++) {
-        for (size_t i = 0; i < kernel->sizes[d]; i++) {
-            if (offsets[index].x != kernel->data[d][i].x ||
-                offsets[index].y != kernel->data[d][i].y) {
-                printf("Fehler in offsets[%d]: (%d, %d) != (%d, %d)\n",
-                       index, offsets[index].x, offsets[index].y,
-                       kernel->data[d][i].x, kernel->data[d][i].y);
-                success = false;
-            }
-            index++;
-        }
-    }
-
-    // 4. Speicher freigeben
-    free(offsets);
-    free(sizes);
-
-    return success;
-}
 
 int main(int argc, char **argv) {
-    int T = 250, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    brownian_cuda();
+    return 0;
+    int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
     int end_x = 20, end_y = 20;
@@ -434,9 +374,21 @@ int main(int argc, char **argv) {
     compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
     auto start = std::chrono::high_resolution_clock::now();
     auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
+    //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
     auto end = std::chrono::high_resolution_clock::now();
-    //point2d_array_print(walk);
+    point2d_array_print(walk);
+    Point2D steps[2];
+    steps[0] = (Point2D){start_x, start_y};
+    steps[1] = (Point2D){end_x, end_y};
+    Point2DArray *stepsarr = point_2d_array_new(steps, 2);
+    TerrainMap *terrain = terrain_map_new(W, H);
+    save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
+    //tensor4D_free(walk, T);
     point2d_array_free(walk);
+    point2d_array_free(stepsarr);
+    tensor_free(kernels);
+    tensor_free(angles_mask);
+    free_vector2d(dir_kernel);
     std::chrono::duration<double> duration = end - start;
     std::cout << duration.count() << "\n";
     return 0;
