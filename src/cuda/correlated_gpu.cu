@@ -9,12 +9,13 @@
 
 
 __global__ void dp_step_kernel(
-    double *dp, // 4D: [T][D][H][W]
-    const double *kernel_data, // Kernel-Daten
-    const double *angle_mask, // Winkelmaske
-    const int2 *offsets, // Offset-Daten
-    const int *sizes, // Größen-Array
-    int D, int H, int W, int S, int t // Aktueller Zeitschritt
+    double *dp_prev, // [D][H][W] für t-1
+    double *dp_current, // [D][H][W] für t
+    const double *kernel_data,
+    const double *angle_mask,
+    const int2 *offsets,
+    const int *sizes,
+    int D, int H, int W, int S
 ) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -24,8 +25,9 @@ __global__ void dp_step_kernel(
     double sum = 0.0;
     int KERNEL_WIDTH = 2 * S + 1;
     int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
-
     int size = sizes[d];
+
+    // 3D-Index Makro (ohne Zeit)
 
     for (int i = 0; i < size; ++i) {
         int dx = offsets[d * max_neighbors + i].x;
@@ -35,13 +37,11 @@ __global__ void dp_step_kernel(
 
         if (px < 0 || px >= W || py < 0 || py >= H) continue;
 
-        // WICHTIG: Schleife über alle Richtungen di
         for (int di = 0; di < D; ++di) {
             int kx = dx + S;
             int ky = dy + S;
 
-            // Korrekte Indizierung mit t-1
-            double a = dp[INDEX(t-1, di, py, px)];
+            double a = dp_prev[INDEX_3D(di, py, px)];
             double b = kernel_data[KERNEL_INDEX(di, ky, kx, KERNEL_WIDTH)];
             double f = angle_mask[KERNEL_INDEX(d, ky, kx, KERNEL_WIDTH)];
 
@@ -49,12 +49,12 @@ __global__ void dp_step_kernel(
         }
     }
 
-    dp[INDEX(t, d, y, x)] = sum;
+    dp_current[INDEX_3D(d, y, x)] = sum;
 }
 
-Point2DArray *run_gpu_dp_tensor(int T, const int W, const int H, int start_x, int start_y, int end_x, int end_y,
-                                const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
-                                const Vector2D *dir_kernel_data) {
+Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, int start_y, int end_x, int end_y,
+                                  const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
+                                  const Vector2D *dir_kernel_data) {
     double *d_kernel, *d_mask;
     int2 *d_offsets;
     int *d_sizes;
@@ -103,47 +103,45 @@ Point2DArray *run_gpu_dp_tensor(int T, const int W, const int H, int start_x, in
     cudaMemcpy(d_sizes, h_sizes, D * sizeof(int), cudaMemcpyHostToDevice);
 
     // Allocate DP matrix
-    size_t dp_full_size = T * D * H * W * sizeof(double);
-    double *d_dp;
-    cudaMalloc(&d_dp, dp_full_size);
-    cudaMemset(d_dp, 0, dp_full_size);
+    double *d_dp_prev, *d_dp_current;
+    size_t dp_layer_size = D * H * W * sizeof(double);
+    cudaMalloc(&d_dp_prev, dp_layer_size);
+    cudaMalloc(&d_dp_current, dp_layer_size);
 
-    // Initialize start position t = 0, all dirs
-    double *h_dp0 = (double *) calloc(D * H * W, sizeof(double));
+    // Host-Puffer für gesamten DP-Tensor
+    double *h_dp_flat = (double *) malloc(T * D * H * W * sizeof(double));
+    // Initialisiere t=0 auf Host und kopiere auf GPU
     for (int d = 0; d < D; d++) {
-        h_dp0[d * H * W + start_y * W + start_x] = 1.0 / D;
+        h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0 / D;
     }
-    cudaMemcpy(d_dp, h_dp0, D * H * W * sizeof(double), cudaMemcpyHostToDevice);
-    free(h_dp0);
+    cudaMemcpy(d_dp_prev, h_dp_flat, dp_layer_size, cudaMemcpyHostToDevice);
 
-    // Kernel configuration
+    // Kernel-Konfiguration
     dim3 block(8, 8, 4);
     dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (D + block.z - 1) / block.z);
 
-
-    // time code
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
+
     // Run kernel for each time step
     for (int t = 1; t < T; t++) {
-        dp_step_kernel<<<grid, block>>>(d_dp, d_kernel, d_mask, d_offsets,
-                                        d_sizes, D, H, W, S, t);
-        cudaDeviceSynchronize();
+        dp_step_kernel<<<grid, block>>>(d_dp_prev, d_dp_current, d_kernel, d_mask,
+                                        d_offsets, d_sizes, D, H, W, S);
+        cudaMemcpy(h_dp_flat + t * D * H * W, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
 
-        // Error checking
+        // Tausche Puffer für nächsten Schritt
+        std::swap(d_dp_prev, d_dp_current);
+
+        // Fehlerbehandlung
         cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {
             fprintf(stderr, "Kernel error at t=%d: %s\n", t, cudaGetErrorString(err));
             exit(EXIT_FAILURE);
         }
     }
-
-    // Copy results back
-    double *h_dp_flat = (double *) malloc(dp_full_size);
-    cudaMemcpy(h_dp_flat, d_dp, dp_full_size, cudaMemcpyDeviceToHost);
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -154,7 +152,8 @@ Point2DArray *run_gpu_dp_tensor(int T, const int W, const int H, int start_x, in
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     // Cleanup
-    cudaFree(d_dp);
+    cudaFree(d_dp_prev);
+    cudaFree(d_dp_current);
     cudaFree(d_kernel);
     cudaFree(d_mask);
     cudaFree(d_offsets);

@@ -424,7 +424,7 @@ bool test_dir_kernel_conversion() {
 }
 
 int main(int argc, char **argv) {
-    int T = 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    int T = 250, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
     int end_x = 20, end_y = 20;
@@ -432,8 +432,12 @@ int main(int argc, char **argv) {
     Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
     Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
     compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
-    auto walk = run_gpu_dp_tensor(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
-    point2d_array_print(walk);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
+    auto end = std::chrono::high_resolution_clock::now();
+    //point2d_array_print(walk);
     point2d_array_free(walk);
+    std::chrono::duration<double> duration = end - start;
+    std::cout << duration.count() << "\n";
     return 0;
 }
