@@ -4,10 +4,10 @@
 #include "math/math_utils.h"
 
 Point2DArray *b_walk_backtrace_flat(
-    const double *tensor_flat, // Tensor: [T][H][W] linearisiert → [T * H * W]
-    const double *kernel, // ebenfalls flach
-    size_t T, size_t H, size_t W, ssize_t S,
-    ssize_t start_x, ssize_t start_y
+    const float *tensor_flat, // Tensor: [T][H][W] linearisiert → [T * H * W]
+    const float *kernel, // ebenfalls flach
+    uint32_t T, uint32_t H, uint32_t W, int32_t S,
+    int32_t start_x, int32_t start_y
 ) {
     Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
@@ -23,10 +23,10 @@ Point2DArray *b_walk_backtrace_flat(
     result->points[0].x = x;
     result->points[0].y = y;
 
-    for (size_t t = T - 1; t >= 1; --t) {
-        const size_t max_neighbors = (2 * S + 1) * (2 * S + 1);
+    for (uint32_t t = T - 1; t >= 1; --t) {
+        const uint32_t max_neighbors = (2 * S + 1) * (2 * S + 1);
         Point2D neighbors[max_neighbors];
-        double probabilities[max_neighbors];
+        float probabilities[max_neighbors];
         int count = 0;
 
         for (int dy = -S; dy <= S; ++dy) {
@@ -36,9 +36,9 @@ Point2DArray *b_walk_backtrace_flat(
                 int nx = x + dx;
                 if (nx < 0 || nx >= W) continue;
 
-                double dp_prev = tensor_flat[(t - 1) * H * W + ny * W + nx];
-                double kernel_val = kernel[(dy + S) * (2 * S + 1) + (dx + S)];
-                double prob = dp_prev * kernel_val;
+                float dp_prev = tensor_flat[(t - 1) * H * W + ny * W + nx];
+                float kernel_val = kernel[(dy + S) * (2 * S + 1) + (dx + S)];
+                float prob = dp_prev * kernel_val;
 
                 neighbors[count].x = nx;
                 neighbors[count].y = ny;
@@ -53,11 +53,11 @@ Point2DArray *b_walk_backtrace_flat(
             return NULL;
         }
 
-        const ssize_t selected = weighted_random_index(probabilities, count);
+        const int32_t selected = weighted_random_index(probabilities, count);
         x = neighbors[selected].x;
         y = neighbors[selected].y;
 
-        int index = T - t;
+        u_int32_t index = T - t;
         result->points[index].x = x;
         result->points[index].y = y;
     }
@@ -75,17 +75,17 @@ Point2DArray *b_walk_backtrace_flat(
 
 // CUDA Kernel
 __global__ void convolve_kernel_step(
-    const double *prev,
-    double *curr,
-    const double *kernel,
+    const float *prev,
+    float *curr,
+    const float *kernel,
     int W, int H, int S
 ) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x >= W || y >= H) return;
 
-    double sum = 0.0;
+    float sum = 0.0;
     for (int i = -S; i <= S; ++i) {
         int yy = y + i;
         if (yy < 0 || yy >= H) continue;
@@ -93,8 +93,8 @@ __global__ void convolve_kernel_step(
             int xx = x + j;
             if (xx < 0 || xx >= W) continue;
 
-            double val = prev[yy * W + xx];
-            double k = kernel[(i + S) * (2 * S + 1) + (j + S)];
+            float val = prev[yy * W + xx];
+            float k = kernel[(i + S) * (2 * S + 1) + (j + S)];
             sum += val * k;
         }
     }
@@ -102,32 +102,32 @@ __global__ void convolve_kernel_step(
 }
 
 // GPU Wrapper
-void gpu_tensor_walk(double *host_tensor, const double *host_kernel, const size_t T, const size_t H, const size_t W,
-                     const size_t S) {
-    size_t size_2d = H * W;
-    size_t kernel_size = (2 * S + 1) * (2 * S + 1);
+void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_t T, const uint32_t H, const uint32_t W,
+                     const uint32_t S) {
+    uint32_t size_2d = H * W;
+    uint32_t kernel_size = (2 * S + 1) * (2 * S + 1);
 
-    double *d_kernel, *d_prev, *d_curr;
-    cudaMalloc(&d_kernel, kernel_size * sizeof(double));
-    cudaMemcpy(d_kernel, host_kernel, kernel_size * sizeof(double), cudaMemcpyHostToDevice);
+    float *d_kernel, *d_prev, *d_curr;
+    cudaMalloc(&d_kernel, kernel_size * sizeof(float));
+    cudaMemcpy(d_kernel, host_kernel, kernel_size * sizeof(float), cudaMemcpyHostToDevice);
 
-    cudaMalloc(&d_prev, size_2d * sizeof(double));
-    cudaMalloc(&d_curr, size_2d * sizeof(double));
+    cudaMalloc(&d_prev, size_2d * sizeof(float));
+    cudaMalloc(&d_curr, size_2d * sizeof(float));
 
     // Initial copy
-    cudaMemcpy(d_prev, host_tensor, size_2d * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_prev, host_tensor, size_2d * sizeof(float), cudaMemcpyHostToDevice);
 
     dim3 blockDim(16, 16);
     dim3 gridDim((W + 15) / 16, (H + 15) / 16);
 
-    for (size_t t = 1; t < T; ++t) {
+    for (uint32_t t = 1; t < T; ++t) {
         convolve_kernel_step<<<gridDim, blockDim>>>(d_prev, d_curr, d_kernel, W, H, S);
         cudaDeviceSynchronize();
 
-        cudaMemcpy(host_tensor + t * size_2d, d_curr, size_2d * sizeof(double), cudaMemcpyDeviceToHost);
+        cudaMemcpy(host_tensor + t * size_2d, d_curr, size_2d * sizeof(float), cudaMemcpyDeviceToHost);
 
         // Swap
-        double *tmp = d_prev;
+        float *tmp = d_prev;
         d_prev = d_curr;
         d_curr = tmp;
     }
@@ -139,15 +139,16 @@ void gpu_tensor_walk(double *host_tensor, const double *host_kernel, const size_
 
 
 // Testfunktion
-Point2DArray *gpu_brownian_walk(Matrix *kernel_matrix, size_t T, size_t W, size_t H, size_t start_x, size_t start_y,
-                                size_t end_x,
-                                size_t end_y) {
+Point2DArray *gpu_brownian_walk(Matrix *kernel_matrix, uint32_t T, uint32_t W, uint32_t H, uint32_t start_x,
+                                uint32_t start_y,
+                                uint32_t end_x,
+                                uint32_t end_y) {
     printf("start\n");
-    ssize_t S = kernel_matrix->width / 2;
-    size_t size_2d = W * H;
+    int32_t S = kernel_matrix->width / 2;
+    uint32_t size_2d = W * H;
 
-    double *tensor = (double *) calloc(T * size_2d, sizeof(double));
-    double *kernel = kernel_matrix->data;
+    float *tensor = (float *) calloc(T * size_2d, sizeof(float));
+    float *kernel = kernel_matrix->data;
 
     tensor[start_y * W + start_x] = 1.0;
 

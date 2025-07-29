@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 
-Matrix *get_reachability_kernel(ssize_t x, ssize_t y, ssize_t kernel_size, const TerrainMap *terrain);
+Matrix *get_reachability_kernel(int32_t x, int32_t y, int32_t kernel_size, const TerrainMap *terrain);
 
 #ifdef __cplusplus
 }

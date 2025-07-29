@@ -32,15 +32,15 @@ KernelParameters* kernel_parameters_new(int terrain_value, WeatherEntry* weather
 
 Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char* animal_id);
 
-Coordinate_array* coordinate_array_new(Coordinate* coordinates, size_t length);
+Coordinate_array* coordinate_array_new(Coordinate* coordinates, uint32_t length);
 
-Point2DArray* getNormalizedLocations(const Coordinate_array* path, size_t W, size_t H);
+Point2DArray* getNormalizedLocations(const Coordinate_array* path, uint32_t W, uint32_t H);
 
-Point2DArray* extractSteps(Point2DArray* path, size_t step_count);
+Point2DArray* extractSteps(Point2DArray* path, uint32_t step_count);
 
 void coordinate_array_free(Coordinate_array* coordinate_array);
 
-Point2D* weather_entry_to_bias(WeatherEntry* entry, ssize_t max_bias);
+Point2D* weather_entry_to_bias(WeatherEntry* entry, int32_t max_bias);
 
 void weather_entry_free(WeatherEntry* entry);
 

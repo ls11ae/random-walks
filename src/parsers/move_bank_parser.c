@@ -8,7 +8,7 @@
 #include <math.h>
 
 
-Coordinate_array* coordinate_array_new(Coordinate* coordinates, size_t length) {
+Coordinate_array* coordinate_array_new(Coordinate* coordinates, uint32_t length) {
     Coordinate_array* result = (Coordinate_array*)malloc(sizeof(Coordinate_array));
     if (!result) return NULL;
 
@@ -40,8 +40,8 @@ Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char*
     }
 
     Coordinate* points = NULL;
-    size_t capacity = 0;
-    size_t count = 0;
+    uint32_t capacity = 0;
+    uint32_t count = 0;
 
     while (fgets(line, sizeof(line), file)) {
         Coordinate point = {0, 0}; // Initialize to zero
@@ -55,7 +55,7 @@ Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char*
             if (column == 3 || column == 4) {
                 char* endptr;
                 errno = 0;
-                double val = strtod(token, &endptr);
+                float val = strtod(token, &endptr);
 
                 if (endptr != token && errno != ERANGE) {
                     if (column == 3) {
@@ -73,7 +73,7 @@ Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char*
 
         // Add point to dynamic array
         if (count >= capacity) {
-            size_t new_capacity = (capacity == 0) ? 16 : capacity * 2;
+            uint32_t new_capacity = (capacity == 0) ? 16 : capacity * 2;
             Coordinate* new_points = (Coordinate*)realloc(points, new_capacity * sizeof(Coordinate));
             if (!new_points) {
                 free(points);
@@ -96,16 +96,16 @@ Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char*
     return result;
 }
 
-Point2DArray* getNormalizedLocations(const Coordinate_array* path, const size_t W, const size_t H) {
+Point2DArray* getNormalizedLocations(const Coordinate_array* path, const uint32_t W, const uint32_t H) {
     if (path->length == 0) return NULL;
     printf("normalizing locations\n");
 
     // Find the min and max values for x and y
-    double minX = path->points[0].x, maxX = path->points[0].x;
-    double minY = path->points[0].y, maxY = path->points[0].y;
+    float minX = path->points[0].x, maxX = path->points[0].x;
+    float minY = path->points[0].y, maxY = path->points[0].y;
 
-    for (size_t i = 0; i < path->length; ++i) {
-        const double x = path->points[i].x, y = path->points[i].y;
+    for (uint32_t i = 0; i < path->length; ++i) {
+        const float x = path->points[i].x, y = path->points[i].y;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -118,12 +118,12 @@ Point2DArray* getNormalizedLocations(const Coordinate_array* path, const size_t 
     normalizedPath->points = points;
     normalizedPath->length = path->length;
 
-    for (size_t i = 0; i < path->length; ++i) {
-        const double x = path->points[i].x;
-        const double y = path->points[i].y;
+    for (uint32_t i = 0; i < path->length; ++i) {
+        const float x = path->points[i].x;
+        const float y = path->points[i].y;
 
-        const ssize_t normalizedX = (ssize_t)((x - minX) / (maxX - minX) * (double)W);
-        const ssize_t normalizedY = (ssize_t)((y - minY) / (maxY - minY) * (double)H);
+        const int32_t normalizedX = (int32_t)((x - minX) / (maxX - minX) * (float)W);
+        const int32_t normalizedY = (int32_t)((y - minY) / (maxY - minY) * (float)H);
 
         const Point2D normalizedPoint = {normalizedX, normalizedY};
         normalizedPath->points[i] = normalizedPoint;
@@ -132,8 +132,8 @@ Point2DArray* getNormalizedLocations(const Coordinate_array* path, const size_t 
     return normalizedPath;
 }
 
-Point2DArray* extractSteps(Point2DArray* path, const size_t step_count) {
-    const size_t delta = (path->length - 1) / step_count;
+Point2DArray* extractSteps(Point2DArray* path, const uint32_t step_count) {
+    const uint32_t delta = (path->length - 1) / step_count;
     Point2DArray* gap_path = (Point2DArray*)malloc(sizeof(Point2DArray));
     gap_path->points = (Point2D*)malloc(step_count * sizeof(Point2D));
     gap_path->length = step_count;
@@ -236,7 +236,7 @@ KernelParameters* kernel_parameters_new(int terrain_value, WeatherEntry* weather
     // // Calculate final step size
     // float initial_base_step = 3.0f; // An initial reference step size before terrain modification
     // float calculated_step = initial_base_step * base_step_multiplier;
-    // params->S = (ssize_t)fmaxf(roundf(calculated_step), 3.0f); // Ensure step size is at least 3
+    // params->S = (int32_t)fmaxf(roundf(calculated_step), 3.0f); // Ensure step size is at least 3
     //
     // // 6. Calculate wind-driven bias (corrected coordinate system)
     // const float wind_dir_rad = weather_entry->wind_direction * (M_PI / 180.0f);
@@ -244,11 +244,11 @@ KernelParameters* kernel_parameters_new(int terrain_value, WeatherEntry* weather
     // const float bias_y = weather_entry->wind_speed * cosf(wind_dir_rad);
     //
     // // Kernel dimensions (assuming kernel is square, adjust if rectangular)
-    // const ssize_t kernel_radius = (params->S - 1) / 2;
+    // const int32_t kernel_radius = (params->S - 1) / 2;
     // const float max_bias = (float)kernel_radius / 4;
     //
-    // params->bias_x = (ssize_t)fmaxf(-max_bias, fminf(bias_x, max_bias));
-    // params->bias_y = (ssize_t)fmaxf(-max_bias, fminf(bias_y, max_bias));
+    // params->bias_x = (int32_t)fmaxf(-max_bias, fminf(bias_x, max_bias));
+    // params->bias_y = (int32_t)fmaxf(-max_bias, fminf(bias_y, max_bias));
     //
     // return params;
     KernelParameters* params = malloc(sizeof(KernelParameters));
@@ -339,14 +339,14 @@ KernelParameters* kernel_parameters_new(int terrain_value, WeatherEntry* weather
     const float bias_x = weather_entry->wind_speed * sinf(wind_dir_rad);
     const float bias_y = weather_entry->wind_speed * cosf(wind_dir_rad);
     // Kernel dimensions (assuming kernel is square, adjust if rectangular)
-    const ssize_t kernel_radius = (params->S - 1) / 2;
+    const int32_t kernel_radius = (params->S - 1) / 2;
     const float max_bias = (float)kernel_radius / 2;
-    params->bias_x = (ssize_t)fmax(-max_bias, fmin(bias_x, max_bias));
-    params->bias_y = (ssize_t)fmax(-max_bias, fmin(bias_y, max_bias));
-    // params->bias_x = 0; //(ssize_t)fmax(-max_bias, fmin(bias_x, max_bias));
-    // params->bias_y = 0; //(ssize_t)fmax(-max_bias, fmin(bias_y, max_bias));
+    params->bias_x = (int32_t)fmax(-max_bias, fmin(bias_x, max_bias));
+    params->bias_y = (int32_t)fmax(-max_bias, fmin(bias_y, max_bias));
+    // params->bias_x = 0; //(int32_t)fmax(-max_bias, fmin(bias_x, max_bias));
+    // params->bias_y = 0; //(int32_t)fmax(-max_bias, fmin(bias_y, max_bias));
 
-    params->S = (ssize_t)(base_step * base_step_multiplier);
+    params->S = (int32_t)(base_step * base_step_multiplier);
 
     // 7. Handle extreme weather conditions (optional)
     // if (weather_entry->weather_code >= 95) {
@@ -447,7 +447,7 @@ KernelParameters* kernel_parameters_terrain(int terrain_value) {
     // Calculate final step size
     float initial_base_step = 9.0f; // An initial reference step size before terrain modification
     float calculated_step = initial_base_step * base_step_multiplier;
-    params->S = (ssize_t)fmaxf(roundf(calculated_step), 3.0f); // Ensure step size is at least 1
+    params->S = (int32_t)fmaxf(roundf(calculated_step), 3.0f); // Ensure step size is at least 1
 
     // Bias parameters are ignored for now, can be set to 0 if needed by other parts of code.
     params->bias_x = 0;
@@ -465,19 +465,19 @@ KernelParameters* kernel_parameters_biased(const int terrain_value, Point2D* bia
 
 
 KernelParametersTerrain* get_kernels_terrain(TerrainMap* terrain) {
-    size_t width = terrain->width;
-    size_t height = terrain->height;
+    uint32_t width = terrain->width;
+    uint32_t height = terrain->height;
     KernelParametersTerrain* kernel_parameters = malloc(sizeof(KernelParametersTerrain));
     kernel_parameters->width = width;
     kernel_parameters->height = height;
     KernelParameters*** kernel_parameters_per_cell = malloc(sizeof(KernelParameters**) * height);
-    for (size_t i = 0; i < height; i++) {
+    for (uint32_t i = 0; i < height; i++) {
         kernel_parameters_per_cell[i] = (KernelParameters**)malloc(sizeof(KernelParameters*) * width);
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
             KernelParameters* parameters = kernel_parameters_terrain(terrain_value);
             kernel_parameters_per_cell[y][x] = parameters;
@@ -487,41 +487,41 @@ KernelParametersTerrain* get_kernels_terrain(TerrainMap* terrain) {
 }
 
 KernelParametersTerrainWeather* get_kernels_terrain_weather(const TerrainMap* terrain, const WeatherGrid* weather) {
-    const size_t width = terrain->width;
-    const size_t height = terrain->height;
-    const size_t times = weather->entries[0][0]->length;
+    const uint32_t width = terrain->width;
+    const uint32_t height = terrain->height;
+    const uint32_t times = weather->entries[0][0]->length;
 
     KernelParametersTerrainWeather* kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
     kernel_parameters->height = height;
     kernel_parameters->time = times;
     KernelParameters**** kernel_parameters_per_cell = malloc(sizeof(KernelParameters***) * height);
-    for (size_t h = 0; h < height; h++) {
+    for (uint32_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = (KernelParameters***)malloc(sizeof(KernelParameters**) * width);
-        for (size_t w = 0; w < width; w++) {
+        for (uint32_t w = 0; w < width; w++) {
             kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters*) * times);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    size_t delta_x = width / weather->width;
-    size_t delta_y = width / weather->height;
+    uint32_t delta_x = width / weather->width;
+    uint32_t delta_y = width / weather->height;
 
     assert(delta_x > 0);
     assert(delta_y > 0);
 
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
             // weather indices to terrain grid
-            size_t weather_x = (x * weather->width) / terrain->width;
-            size_t weather_y = (y * weather->height) / terrain->height;
+            uint32_t weather_x = (x * weather->width) / terrain->width;
+            uint32_t weather_y = (y * weather->height) / terrain->height;
 
             // paranoia-check (clamping)
             if (weather_x >= weather->width) weather_x = weather->width - 1;
             if (weather_y >= weather->height) weather_y = weather->height - 1;
 
-            for (size_t t = 0; t < times; t++) {
+            for (uint32_t t = 0; t < times; t++) {
                 WeatherEntry* weather_entry = weather->entries[weather_y][weather_x]->data[t];
                 KernelParameters* parameters = kernel_parameters_new(terrain_value, weather_entry);
                 kernel_parameters_per_cell[y][x][t] = parameters;
@@ -532,9 +532,9 @@ KernelParametersTerrainWeather* get_kernels_terrain_weather(const TerrainMap* te
 }
 
 KernelParametersTerrainWeather* get_kernels_terrain_biased(const TerrainMap* terrain, const Point2DArray* biases) {
-    const size_t width = terrain->width;
-    const size_t height = terrain->height;
-    const size_t times = biases->length;
+    const uint32_t width = terrain->width;
+    const uint32_t height = terrain->height;
+    const uint32_t times = biases->length;
 
     KernelParametersTerrainWeather* kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
@@ -542,19 +542,19 @@ KernelParametersTerrainWeather* get_kernels_terrain_biased(const TerrainMap* ter
     kernel_parameters->time = times;
 
     KernelParameters**** kernel_parameters_per_cell = malloc(sizeof(KernelParameters***) * height);
-    for (size_t h = 0; h < height; h++) {
+    for (uint32_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = (KernelParameters***)malloc(sizeof(KernelParameters**) * width);
-        for (size_t w = 0; w < width; w++) {
+        for (uint32_t w = 0; w < width; w++) {
             kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters*) * times);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
 
-            for (size_t t = 0; t < times; t++) {
+            for (uint32_t t = 0; t < times; t++) {
                 Point2D* bias = &biases->points[t];
                 KernelParameters* parameters = kernel_parameters_biased(terrain_value, bias);
                 kernel_parameters_per_cell[y][x][t] = parameters;
@@ -566,12 +566,12 @@ KernelParametersTerrainWeather* get_kernels_terrain_biased(const TerrainMap* ter
 
 KernelParametersTerrainWeather*
 get_kernels_terrain_biased_grid(const TerrainMap* terrain, Point2DArrayGrid* biases) {
-    const size_t width = terrain->width;
-    const size_t height = terrain->height;
-    const size_t times = biases->data[0][0]->length;
+    const uint32_t width = terrain->width;
+    const uint32_t height = terrain->height;
+    const uint32_t times = biases->data[0][0]->length;
 
-    const size_t bias_grid_width = biases->width;
-    const size_t bias_grid_height = biases->height;
+    const uint32_t bias_grid_width = biases->width;
+    const uint32_t bias_grid_height = biases->height;
 
     KernelParametersTerrainWeather* kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
@@ -579,19 +579,19 @@ get_kernels_terrain_biased_grid(const TerrainMap* terrain, Point2DArrayGrid* bia
     kernel_parameters->time = times;
 
     KernelParameters**** kernel_parameters_per_cell = malloc(sizeof(KernelParameters***) * height);
-    for (size_t h = 0; h < height; h++) {
+    for (uint32_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = malloc(sizeof(KernelParameters**) * width);
-        for (size_t w = 0; w < width; w++) {
+        for (uint32_t w = 0; w < width; w++) {
             kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters*) * times);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
             // Mapping terrain cell (x, y) to grid cell (gx, gy)
-            size_t gx = x * bias_grid_width / width;
-            size_t gy = y * bias_grid_height / height;
+            uint32_t gx = x * bias_grid_width / width;
+            uint32_t gy = y * bias_grid_height / height;
 
             // Clamp to ensure in bounds due to possible rounding
             if (gx >= bias_grid_width) gx = bias_grid_width - 1;
@@ -599,7 +599,7 @@ get_kernels_terrain_biased_grid(const TerrainMap* terrain, Point2DArrayGrid* bia
 
             const int terrain_value = terrain->data[y][x];
 
-            for (size_t t = 0; t < times; t++) {
+            for (uint32_t t = 0; t < times; t++) {
                 Point2D* bias = &biases->data[gy][gx]->points[t];
                 KernelParameters* parameters = kernel_parameters_biased(terrain_value, bias);
                 kernel_parameters_per_cell[y][x][t] = parameters;
@@ -715,11 +715,11 @@ WeatherEntry* parse_csv(const char* csv_data, int* num_entries) {
 
 
 void kernel_parameters_terrain_free(KernelParametersTerrain* kernel_parameters_terrain) {
-    size_t width = kernel_parameters_terrain->width;
-    size_t height = kernel_parameters_terrain->height;
+    uint32_t width = kernel_parameters_terrain->width;
+    uint32_t height = kernel_parameters_terrain->height;
     KernelParameters*** kernel_parameters_per_cell = kernel_parameters_terrain->data;
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
             free(kernel_parameters_per_cell[y][x]);
         }
         free(kernel_parameters_per_cell[y]);
@@ -729,13 +729,13 @@ void kernel_parameters_terrain_free(KernelParametersTerrain* kernel_parameters_t
 }
 
 void kernel_parameters_mixed_free(KernelParametersTerrainWeather* kernel_parameters_terrain) {
-    size_t width = kernel_parameters_terrain->width;
-    size_t height = kernel_parameters_terrain->height;
-    size_t times = kernel_parameters_terrain->time;
+    uint32_t width = kernel_parameters_terrain->width;
+    uint32_t height = kernel_parameters_terrain->height;
+    uint32_t times = kernel_parameters_terrain->time;
     KernelParameters**** kernel_parameters_per_cell = kernel_parameters_terrain->data;
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
-            for (size_t z = 0; z < times; z++) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            for (uint32_t z = 0; z < times; z++) {
                 free(kernel_parameters_per_cell[y][x][z]);
             }
             free(kernel_parameters_per_cell[y][x]);
@@ -746,32 +746,32 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather* kernel_paramet
 }
 
 
-Point2D* weather_entry_to_bias(WeatherEntry* entry, ssize_t max_bias) {
+Point2D* weather_entry_to_bias(WeatherEntry* entry, int32_t max_bias) {
     if (entry == NULL) return NULL;
     // Adjust these parameters based on your data range
-    const double MAX_WIND_SPEED = 20.0; // Reduced from 40 since your winds are weaker
-    const double MIN_BIAS_THRESHOLD = 0.3; // Minimum bias magnitude to consider
-    double wind_speed = entry->wind_speed;
-    double wind_direction = entry->wind_direction;
+    const float MAX_WIND_SPEED = 20.0; // Reduced from 40 since your winds are weaker
+    const float MIN_BIAS_THRESHOLD = 0.3; // Minimum bias magnitude to consider
+    float wind_speed = entry->wind_speed;
+    float wind_direction = entry->wind_direction;
     // Normalize wind speed to 0-5 range based on MAX_WIND_SPEED
-    double normalized_magnitude = 2 * 4 * (wind_speed * (double)max_bias) / MAX_WIND_SPEED;
+    float normalized_magnitude = 2 * 4 * (wind_speed * (float)max_bias) / MAX_WIND_SPEED;
     // Apply threshold - ignore very small biases
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
         return point_2d_new(0, 0);
     }
     // Cap at maximum bias
-    if (normalized_magnitude > (double)max_bias) {
-        normalized_magnitude = (double)max_bias;
+    if (normalized_magnitude > (float)max_bias) {
+        normalized_magnitude = (float)max_bias;
     }
     // Convert direction to radians (meteorological convention)
-    double radians = (270.0 - wind_direction) * M_PI / 180.0; // Convert to math convention
+    float radians = (270.0 - wind_direction) * M_PI / 180.0; // Convert to math convention
     // Calculate components
-    double bias_x = normalized_magnitude * cos(radians);
-    double bias_y = normalized_magnitude * sin(radians);
+    float bias_x = normalized_magnitude * cos(radians);
+    float bias_y = normalized_magnitude * sin(radians);
 
     // Round to nearest integers
-    ssize_t x = (ssize_t)round(bias_x);
-    ssize_t y = (ssize_t)round(bias_y);
+    int32_t x = (int32_t)round(bias_x);
+    int32_t y = (int32_t)round(bias_y);
 
     return point_2d_new(x, y);
 }

@@ -17,11 +17,11 @@ void save_walk_to_json_nosteps(const Point2DArray *walk, const TerrainMap *terra
                                const char *filename);
 
 // Without terrain
-void save_walk_to_json_noterrain(const Point2DArray *steps, const Point2DArray *walk, size_t W, size_t H,
+void save_walk_to_json_noterrain(const Point2DArray *steps, const Point2DArray *walk, uint32_t W, uint32_t H,
                                  const char *filename);
 
 // Without steps and terrain
-void save_walk_to_json_onlywalk(const Point2DArray *walk, size_t W, size_t H, const char *filename);
+void save_walk_to_json_onlywalk(const Point2DArray *walk, uint32_t W, uint32_t H, const char *filename);
 
 void load_full_walk(const char *filename, Point2DArray *steps, Point2DArray *walk, TerrainMap *terrain);
 

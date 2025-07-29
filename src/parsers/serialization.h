@@ -19,10 +19,10 @@ extern "C" {
 #include "parsers/types.h"
 
 typedef struct {
-    ssize_t width;
-    ssize_t height;
-    ssize_t timesteps;
-    size_t max_D;
+    int32_t width;
+    int32_t height;
+    int32_t timesteps;
+    uint32_t max_D;
 } KernelMapMeta;
 
 KernelMapMeta read_kernel_map_meta(const char* path);
@@ -32,12 +32,12 @@ void write_kernel_map_meta(const char* path, KernelMapMeta* meta);
 void ensure_dir_exists_for(const char* filepath);
 
 // Serialization functions
-size_t serialize_point2d(FILE* fp, const Point2D* p);
-size_t serialize_matrix(FILE* fp, const Matrix* m);
-size_t serialize_vector2d(FILE* fp, const Vector2D* v);
-size_t serialize_tensor(FILE* fp, const Tensor* t);
-size_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km);
-size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
+uint32_t serialize_point2d(FILE* fp, const Point2D* p);
+uint32_t serialize_matrix(FILE* fp, const Matrix* m);
+uint32_t serialize_vector2d(FILE* fp, const Vector2D* v);
+uint32_t serialize_tensor(FILE* fp, const Tensor* t);
+uint32_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km);
+uint32_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
 // Deserialization functions
 Point2D* deserialize_point2d(FILE* fp);

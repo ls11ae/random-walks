@@ -17,9 +17,9 @@ WeatherEntry* weather_entry_new(float temperature,
                                 int weather_code,
                                 int cloud_cover);
 
-WeatherTimeline* weather_timeline_new(size_t time);
+WeatherTimeline* weather_timeline_new(uint32_t time);
 
-WeatherGrid* weather_grid_new(size_t height, size_t width);
+WeatherGrid* weather_grid_new(uint32_t height, uint32_t width);
 
 void weather_entry_print(const WeatherEntry* entry);
 

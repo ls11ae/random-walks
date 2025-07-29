@@ -9,10 +9,10 @@
 
 
 __global__ void dp_step_kernel(
-    double *dp_prev, // [D][H][W] für t-1
-    double *dp_current, // [D][H][W] für t
-    const double *kernel_data,
-    const double *angle_mask,
+    float *dp_prev, // [D][H][W] für t-1
+    float *dp_current, // [D][H][W] für t
+    const float *kernel_data,
+    const float *angle_mask,
     const int2 *offsets,
     const int *sizes,
     int D, int H, int W, int S
@@ -22,7 +22,7 @@ __global__ void dp_step_kernel(
     int d = blockIdx.z * blockDim.z + threadIdx.z;
     if (x >= W || y >= H || d >= D) return;
 
-    double sum = 0.0;
+    float sum = 0.0;
     int KERNEL_WIDTH = 2 * S + 1;
     int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
     int size = sizes[d];
@@ -39,9 +39,9 @@ __global__ void dp_step_kernel(
             int kx = dx + S;
             int ky = dy + S;
 
-            double a = dp_prev[INDEX_3D(di, py, px)];
-            double b = kernel_data[KERNEL_INDEX(di, ky, kx, KERNEL_WIDTH)];
-            double f = angle_mask[KERNEL_INDEX(d, ky, kx, KERNEL_WIDTH)];
+            float a = dp_prev[INDEX_3D(di, py, px)];
+            float b = kernel_data[KERNEL_INDEX(di, ky, kx, KERNEL_WIDTH)];
+            float f = angle_mask[KERNEL_INDEX(d, ky, kx, KERNEL_WIDTH)];
 
             sum += a * b * f;
         }
@@ -53,13 +53,13 @@ __global__ void dp_step_kernel(
 Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, int start_y, int end_x, int end_y,
                                   const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
                                   const Vector2D *dir_kernel_data) {
-    double *d_kernel, *d_mask;
+    float *d_kernel, *d_mask;
     int2 *d_offsets;
     int *d_sizes;
 
     int tensor_width = kernel_tensor->data[0]->width; // Korrektur: width statt len
-    double *h_kernel = (double *) malloc(kernel_tensor->len * tensor_width * tensor_width * sizeof(double));
-    double *h_mask = (double *) malloc(angle_mask_tensor->len * tensor_width * tensor_width * sizeof(double));
+    float *h_kernel = (float *) malloc(kernel_tensor->len * tensor_width * tensor_width * sizeof(float));
+    float *h_mask = (float *) malloc(angle_mask_tensor->len * tensor_width * tensor_width * sizeof(float));
 
     tensor_flat(kernel_tensor, h_kernel);
     tensor_flat(angle_mask_tensor, h_mask);
@@ -70,7 +70,7 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
 
     // Extract directional kernel
-    size_t actual_D = 0;
+    uint32_t actual_D = 0;
     int2 *h_offsets;
     int *h_sizes;
     dir_kernel_to_cuda(dir_kernel_data, &h_offsets, &h_sizes, &actual_D);
@@ -87,8 +87,8 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
         }
     }
 
-    size_t kernel_size = D * KERNEL_WIDTH * KERNEL_WIDTH * sizeof(double);
-    size_t offset_size = D * max_neighbors * sizeof(int2);
+    uint32_t kernel_size = D * KERNEL_WIDTH * KERNEL_WIDTH * sizeof(float);
+    uint32_t offset_size = D * max_neighbors * sizeof(int2);
 
     cudaMalloc(&d_kernel, kernel_size);
     cudaMalloc(&d_mask, kernel_size);
@@ -103,13 +103,13 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     free(h_offsets);
     free(h_sizes);
     // Allocate DP matrix
-    double *d_dp_prev, *d_dp_current;
-    size_t dp_layer_size = D * H * W * sizeof(double);
+    float *d_dp_prev, *d_dp_current;
+    uint32_t dp_layer_size = D * H * W * sizeof(float);
     cudaMalloc(&d_dp_prev, dp_layer_size);
     cudaMalloc(&d_dp_current, dp_layer_size);
 
     // Host-Puffer for the entire DP-Tensor
-    double *h_dp_flat = (double *) malloc(T * D * H * W * sizeof(double));
+    float *h_dp_flat = (float *) malloc(T * D * H * W * sizeof(float));
     // Initialisiere t=0 auf Host und kopiere auf GPU
     for (int d = 0; d < D; d++) {
         h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0 / D;

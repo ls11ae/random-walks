@@ -36,21 +36,22 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>  // Für malloc, free, NULL
 
 
-    typedef struct {
-        double value;
-        size_t index;
-    } ScalarMapping;
+typedef struct {
+    float value;
+    uint32_t index;
+} ScalarMapping;
 
-    typedef ScalarMapping *scalar_mappingRef;
+typedef ScalarMapping *scalar_mappingRef;
 
-    ScalarMapping *scalar_mapping_new(double x, size_t y);
+ScalarMapping *scalar_mapping_new(float x, uint32_t y);
 
-    void set_values(ScalarMapping *point, double x, size_t y);
+void set_values(ScalarMapping *point, float x, uint32_t y);
 
-    void scalar_mapping_delete(ScalarMapping *self);
+void scalar_mapping_delete(ScalarMapping *self);
 
 #ifdef __cplusplus
 }
