@@ -336,9 +336,8 @@ int brw_test() {
     return 0;
 }
 
-void brownian_cuda() {
+void brownian_cuda(uint32_t T) {
     Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 3, 1, 0, 0);
-    uint32_t T = 700;
     uint32_t W = 2 * T + 1, H = 2 * T + 1;
 
     auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 230, 220);
@@ -355,7 +354,9 @@ Vector2D *vector2D_new(uint32_t count) {
 
 
 int main(int argc, char **argv) {
-    int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    // brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
+    // return 0;
+    int T = argc > 1 ? atoi(argv[1]) : 400, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
     int end_x = 20, end_y = 20;
@@ -367,7 +368,8 @@ int main(int argc, char **argv) {
     auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
     //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
     auto end = std::chrono::high_resolution_clock::now();
-    point2d_array_print(walk);
+    //return 0;
+    //point2d_array_print(walk);
     Point2D steps[2];
     steps[0] = (Point2D){start_x, start_y};
     steps[1] = (Point2D){end_x, end_y};

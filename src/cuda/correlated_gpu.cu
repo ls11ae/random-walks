@@ -109,10 +109,15 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
     cudaMalloc(&d_dp_current, dp_layer_size);
 
     // Host-Puffer for the entire DP-Tensor
-    float *h_dp_flat = (float *) malloc(T * D * H * W * sizeof(float));
+    size_t elements = (size_t) T * D * H * W * sizeof(float);
+    printf("DP in bytes %zu \n", elements);
+    float *h_dp_flat = (float *) malloc(elements);
+    if (!h_dp_flat) {
+        perror("malloc dp_flat failed");
+    }
     // Initialisiere t=0 auf Host und kopiere auf GPU
     for (int d = 0; d < D; d++) {
-        h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0 / D;
+        h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0f / D;
     }
     cudaMemcpy(d_dp_prev, h_dp_flat, dp_layer_size, cudaMemcpyHostToDevice);
 
