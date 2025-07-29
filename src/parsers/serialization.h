@@ -25,33 +25,50 @@ typedef struct {
     uint32_t max_D;
 } KernelMapMeta;
 
-KernelMapMeta read_kernel_map_meta(const char* path);
+KernelMapMeta read_kernel_map_meta(const char *path);
 
-void write_kernel_map_meta(const char* path, KernelMapMeta* meta);
+void write_kernel_map_meta(const char *path, KernelMapMeta *meta);
 
-void ensure_dir_exists_for(const char* filepath);
+void ensure_dir_exists_for(const char *filepath);
 
 // Serialization functions
-uint32_t serialize_point2d(FILE* fp, const Point2D* p);
-uint32_t serialize_matrix(FILE* fp, const Matrix* m);
-uint32_t serialize_vector2d(FILE* fp, const Vector2D* v);
-uint32_t serialize_tensor(FILE* fp, const Tensor* t);
-uint32_t serialize_kernels_map_4d(FILE* fp, const KernelsMap4D* km);
+uint32_t serialize_point2d(FILE *fp, const Point2D *p);
+
+uint32_t serialize_matrix(FILE *fp, const Matrix *m);
+
+uint32_t serialize_vector2d(FILE *fp, const Vector2D *v);
+
+uint32_t serialize_tensor(FILE *fp, const Tensor *t);
+
+uint32_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km);
+
 uint32_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
+uint64_t serialize_array(FILE *fp, float *values, uint64_t size);
+
 // Deserialization functions
-Point2D* deserialize_point2d(FILE* fp);
-Matrix* deserialize_matrix(FILE* fp);
-Vector2D* deserialize_vector2d(FILE* fp);
-Tensor* deserialize_tensor(FILE* fp);
-KernelsMap4D* deserialize_kernels_map_4d(FILE* fp);
-KernelsMap3D* deserialize_kernels_map_3d(const char* filename);
+Point2D *deserialize_point2d(FILE *fp);
+
+Matrix *deserialize_matrix(FILE *fp);
+
+Vector2D *deserialize_vector2d(FILE *fp);
+
+Tensor *deserialize_tensor(FILE *fp);
+
+KernelsMap4D *deserialize_kernels_map_4d(FILE *fp);
+
+KernelsMap3D *deserialize_kernels_map_3d(const char *filename);
+
+float *deserialize_array(FILE *fp);
 
 // Free functions (important for memory management)
-void free_matrix(Matrix* m);
-void free_vector2d(Vector2D* v);
-void free_tensor(Tensor* t);
-void free_kernels_map_4d(KernelsMap4D* km);
+void free_matrix(Matrix *m);
+
+void free_vector2d(Vector2D *v);
+
+void free_tensor(Tensor *t);
+
+void free_kernels_map_4d(KernelsMap4D *km);
 
 #ifdef __cplusplus
 }

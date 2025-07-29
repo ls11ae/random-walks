@@ -356,28 +356,32 @@ Vector2D *vector2D_new(uint32_t count) {
 int main(int argc, char **argv) {
     // brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
     // return 0;
-    int T = argc > 1 ? atoi(argv[1]) : 500, W = 2 * T + 1, H = 2 * T + 1, D = 8, S = 7;
+    int T = argc > 1 ? atoi(argv[1]) : 100, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
     int end_x = 100, end_y = 100;
+
+    bool serialize = true;
+    const char *serialization_path = "../../resources/cuda";
+    ensure_dir_exists_for(serialization_path);
     Tensor *kernels = generate_kernels(D, kernel_width);
     Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
     Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
     compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
     auto start = std::chrono::high_resolution_clock::now();
-    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
-    point2d_array_print(walk);
+    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel,
+                                    serialize, serialization_path);
     //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
     auto end = std::chrono::high_resolution_clock::now();
-    //return 0;
     //point2d_array_print(walk);
+
     Point2D steps[2];
     steps[0] = (Point2D){start_x, start_y};
     steps[1] = (Point2D){end_x, end_y};
     Point2DArray *stepsarr = point_2d_array_new(steps, 2);
     TerrainMap *terrain = terrain_map_new(W, H);
     save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
-    //tensor4D_free(walk, T);
+
     point2d_array_free(walk);
     point2d_array_free(stepsarr);
     tensor_free(kernels);

@@ -52,13 +52,15 @@ __global__ void dp_step_kernel(
 	dp_current[INDEX_3D(d, y, x)] = sum;
 }
 
+
 Point2DArray *backtrace_correlated_gpu(float *DP_Matrix, const float *angle_mask,
                                        const int2 *offsets,
                                        const int *sizes,
                                        const int64_t T,
                                        const int32_t S,
                                        const uint32_t W, const uint32_t H, const float *kernel,
-                                       int32_t end_x, int32_t end_y, int32_t dir, int32_t D) {
+                                       int32_t end_x, int32_t end_y, int32_t dir, int32_t D, const char *dp_path,
+                                       bool is_serialized) {
 	Point2DArray *path = (Point2DArray *) malloc(sizeof(Point2DArray));
 	Point2D *points = (Point2D *) malloc(sizeof(Point2D) * T);
 	path->points = points;
@@ -66,14 +68,21 @@ Point2DArray *backtrace_correlated_gpu(float *DP_Matrix, const float *angle_mask
 
 	int32_t x = end_x;
 	int32_t y = end_y;
-	FILE *fptr;
-	fptr = fopen("correlated_gpu.txt", "w");
-	fprintf(fptr, "bt\n");
 
 	uint32_t direction = dir;
 	int32_t kernel_width = 2 * S + 1;
 	uint32_t index = T - 1;
 	for (int64_t t = T - 1; t >= 1; --t) {
+		//if (is_serialized) printf(">> %lu >>\n", t);
+
+		float *current_layer = nullptr;
+		if (is_serialized) {
+			char fpath[1024];
+			snprintf(fpath, 1024, "%s/t%04lu.dat", dp_path, t - 1);
+			FILE *f = fopen(fpath, "rb");
+			current_layer = deserialize_array(f);
+			fclose(f);
+		}
 		const uint32_t max_offsets = kernel_width * kernel_width;
 		const uint32_t max_neighbors = D * max_offsets;
 		auto *movements_x = (int32_t *) malloc(max_neighbors * sizeof(int32_t));
@@ -91,15 +100,16 @@ Point2DArray *backtrace_correlated_gpu(float *DP_Matrix, const float *angle_mask
 			for (int i = 0; i < size; ++i) {
 				int dx = offsets[direction * max_offsets + i].x;
 				int dy = offsets[direction * max_offsets + i].y;
-				fprintf(fptr, "%d, %d\n", dx, dy);
 
 				int px = x - dx;
 				int py = y - dy;
 
 				if (px < 0 || px >= W || py < 0 || py >= H) continue;
 
-				const uint64_t dp_index = (t - 1) * D * H * W + d * H * W + py * W + px;
-				const float p_b = DP_Matrix[dp_index];
+				const uint64_t dp_index = is_serialized
+					                          ? INDEX_3D(d, py, px)
+					                          : (t - 1) * D * H * W + d * H * W + py * W + px;
+				const float p_b = is_serialized ? current_layer[dp_index] : DP_Matrix[dp_index];
 
 				const int32_t kernel_x = dx + S;
 				const int32_t kernel_y = dy + S;
@@ -146,17 +156,29 @@ Point2DArray *backtrace_correlated_gpu(float *DP_Matrix, const float *angle_mask
 		free(movements_y);
 		free(prev_probs);
 		free(directions);
+		if (is_serialized)
+			free(current_layer);
 	}
 
 	path->points[0].x = x;
 	path->points[0].y = y;
-	fclose(fptr);
 	return path;
+}
+
+Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const float *angle_mask,
+                                                  const int2 *offsets,
+                                                  const int *sizes,
+                                                  const int64_t T,
+                                                  const int32_t S,
+                                                  const uint32_t W, const uint32_t H, const float *kernel,
+                                                  int32_t end_x, int32_t end_y, int32_t dir, int32_t D) {
+	return backtrace_correlated_gpu(nullptr, angle_mask, offsets, sizes, T, S, W, H, kernel, end_x, end_y, dir, D,
+	                                dp_path, true);
 }
 
 Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, int start_y, int end_x, int end_y,
                                   const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
-                                  const Vector2D *dir_kernel_data) {
+                                  const Vector2D *dir_kernel_data, bool serialize, const char *serialization_path) {
 	float *d_kernel, *d_mask;
 	int2 *d_offsets;
 	int *d_sizes;
@@ -211,7 +233,7 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
 	cudaMalloc(&d_dp_current, dp_layer_size);
 
 	// Host buffer for the entire DP-Tensor
-	size_t elements = (size_t) T * D * H * W * sizeof(float);
+	size_t elements = (size_t) (serialize ? 1 : T) * D * H * W * sizeof(float);
 	printf("DP in bytes %zu \n", elements);
 	float *h_dp_flat = (float *) malloc(elements);
 	if (!h_dp_flat) {
@@ -222,6 +244,20 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
 		h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0f / (float) D;
 	}
 	cudaMemcpy(d_dp_prev, h_dp_flat, dp_layer_size, cudaMemcpyHostToDevice);
+
+	if (serialize) {
+		char fpath[1024];
+		snprintf(fpath, 1024, "%s/t%04lu.dat", serialization_path, 0UL);
+		ensure_dir_exists_for(fpath);
+		FILE *fp = fopen(fpath, "wb");
+		if (!fp) {
+			perror("fopen failed");
+			exit(EXIT_FAILURE);
+		}
+		serialize_array(fp, h_dp_flat, D * H * W);
+		fclose(fp);
+		free(h_dp_flat);
+	}
 
 	// Kernel-configuration
 	dim3 block(8, 8, 4);
@@ -234,19 +270,33 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
 
 	// Run kernel for each time step
 	for (int t = 1; t < T; t++) {
+		//printf("<< %d / %d >>\n", t, T);
 		dp_step_kernel<<<grid, block>>>(d_dp_prev, d_dp_current, d_kernel, d_mask,
 		                                d_offsets, d_sizes, D, H, W, S);
-		cudaMemcpy(h_dp_flat + t * D * H * W, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
-
-		// swap buffers
-		std::swap(d_dp_prev, d_dp_current);
-
 		// error handling
 		cudaError_t err = cudaGetLastError();
 		if (err != cudaSuccess) {
 			fprintf(stderr, "Kernel error at t=%d: %s\n", t, cudaGetErrorString(err));
 			exit(EXIT_FAILURE);
 		}
+		if (serialize) {
+			float *temp_host_layer = (float *) malloc(dp_layer_size);
+			if (!temp_host_layer) {
+				perror("malloc temp_host_layer failed");
+			}
+			cudaMemcpy(temp_host_layer, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
+
+			char fpath[1024];
+			snprintf(fpath, 1024, "%s/t%04d.dat", serialization_path, t);
+			ensure_dir_exists_for(fpath);
+			FILE *fp = fopen(fpath, "wb");
+			serialize_array(fp, temp_host_layer, dp_layer_size);
+			fclose(fp);
+			free(temp_host_layer);
+		} else
+			cudaMemcpy(h_dp_flat + t * D * H * W, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
+		// swap buffers
+		std::swap(d_dp_prev, d_dp_current);
 	}
 
 	cudaEventRecord(stop, 0);
@@ -261,13 +311,14 @@ Point2DArray *gpu_correlated_walk(int T, const int W, const int H, int start_x, 
 	printf("start backtracing \n");
 	const auto start_time = std::chrono::high_resolution_clock::now();
 	Point2DArray *path_gpu = backtrace_correlated_gpu(h_dp_flat, h_mask, h_offsets_expanded, h_sizes, T, S, W, H,
-	                                                  h_kernel, end_x, end_y, 0, (int32_t) D);
+	                                                  h_kernel, end_x, end_y, 0, (int32_t) D, serialization_path,
+	                                                  serialize);
 	auto end_time = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 	printf("DP calculation took %.3f ms\n", milliseconds);
 	printf("Backtracking took %3f ms\n", (float) duration.count() / 1000.0f);
 	// Cleanup
-	free(h_dp_flat);
+	if (!serialize) free(h_dp_flat);
 	free(h_offsets);
 	free(h_sizes);
 	free(h_kernel);

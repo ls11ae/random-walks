@@ -165,16 +165,29 @@ uint32_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
                     bytes_written += serialize_tensor(fp, km->kernels[y][x]);
                 }
             }
-            
-        }   
-            
+        }
     }
     rewind(fp);
 
     return bytes_written;
 }
 
+uint64_t serialize_array(FILE *fp, float *values, const uint64_t size) {
+    uint64_t bytes_written = 0;
+    bytes_written += fwrite(&size, sizeof(uint64_t), 1, fp);
+    bytes_written += fwrite(values, sizeof(float), size, fp);
+    return bytes_written;
+}
+
 // --- Deserialization Functions ---
+
+float *deserialize_array(FILE *fp) {
+    uint64_t size = 0;
+    size += fread(&size, sizeof(uint64_t), 1, fp);
+    float *values = (float *) malloc(size * sizeof(float));
+    fread(values, sizeof(float), size, fp);
+    return values;
+}
 
 Point2D *deserialize_point2d(FILE *fp) {
     Point2D *p = (Point2D *) malloc(sizeof(Point2D));
@@ -423,15 +436,15 @@ KernelsMap4D *deserialize_kernels_map_4d(FILE *fp) {
 }
 
 
-KernelsMap3D* deserialize_kernels_map_3d(const char* filename) {
-    FILE* fp = fopen(filename, "rb");
+KernelsMap3D *deserialize_kernels_map_3d(const char *filename) {
+    FILE *fp = fopen(filename, "rb");
     if (!fp) {
         perror("Failed to open file for deserialization");
         return NULL;
     }
 
     // Allocate memory for the map structure
-    KernelsMap3D* kmap = malloc(sizeof(KernelsMap3D));
+    KernelsMap3D *kmap = malloc(sizeof(KernelsMap3D));
     if (!kmap) {
         fclose(fp);
         return NULL;
@@ -450,7 +463,7 @@ KernelsMap3D* deserialize_kernels_map_3d(const char* filename) {
     kmap->cache = NULL;
 
     // Allocate memory for the kernels 3D array
-    kmap->kernels = malloc(kmap->height * sizeof(Tensor**));
+    kmap->kernels = malloc(kmap->height * sizeof(Tensor **));
     if (!kmap->kernels) {
         free(kmap);
         fclose(fp);
@@ -458,7 +471,7 @@ KernelsMap3D* deserialize_kernels_map_3d(const char* filename) {
     }
 
     for (int32_t y = 0; y < kmap->height; y++) {
-        kmap->kernels[y] = malloc(kmap->width * sizeof(Tensor*));
+        kmap->kernels[y] = malloc(kmap->width * sizeof(Tensor *));
         if (!kmap->kernels[y]) {
             // Cleanup already allocated memory
             for (int32_t i = 0; i < y; i++) {
