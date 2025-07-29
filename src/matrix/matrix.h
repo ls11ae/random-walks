@@ -40,7 +40,7 @@ extern "C" {
 
 #include "parsers/types.h"
 
-Matrix* matrix_new(ssize_t width, ssize_t height);
+Matrix* matrix_new(int32_t width, int32_t height);
 
 void matrix_free(Matrix* matrix);
 
@@ -57,13 +57,13 @@ void matrix_copy_to(Matrix* dest, const Matrix* src);
 void get_gaussian_parameters(float diffusity, int terrain_value,
                              float* out_sigma, float* out_scale);
 
-int matrix_in_bounds(const Matrix* m, size_t x, size_t y);
+int matrix_in_bounds(const Matrix* m, uint32_t x, uint32_t y);
 
-double matrix_get(const Matrix* m, size_t x, size_t y);
+float matrix_get(const Matrix* m, uint32_t x, uint32_t y);
 
-void matrix_set(const Matrix* m, size_t x, size_t y, double val);
+void matrix_set(const Matrix* m, uint32_t x, uint32_t y, float val);
 
-void matrix_fill(Matrix* matrix, double value);
+void matrix_fill(Matrix* matrix, float value);
 
 Matrix* matrix_add(const Matrix* a, const Matrix* b);
 
@@ -77,11 +77,11 @@ Matrix* matrix_elementwise_mul(const Matrix* a, const Matrix* b);
 
 void matrix_mul_inplace(Matrix* a, const Matrix* b);
 
-double matrix_sum(const Matrix* matrix);
+float matrix_sum(const Matrix* matrix);
 
 void matrix_transpose(Matrix* m);
 
-double matrix_determinant(const Matrix* mat);
+float matrix_determinant(const Matrix* mat);
 
 Matrix* matrix_invert(const Matrix* input);
 
@@ -89,23 +89,23 @@ void matrix_print(const Matrix* m);
 
 char* matrix_to_string(const Matrix* mat);
 
-size_t matrix_save(const Matrix* mat, const char* filename);
+uint32_t matrix_save(const Matrix* mat, const char* filename);
 
 Matrix* matrix_load(const char* filename);
 
 Matrix* matrix_clone(const Matrix* src);
 
-void matrix_normalize(const Matrix* mat, double sum);
+void matrix_normalize(const Matrix* mat, float sum);
 
 void matrix_normalize_01(Matrix* m);
 
 void matrix_normalize_L1(Matrix* m);
 
-Matrix* matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
-                                      ssize_t y_offset);
+Matrix* matrix_generator_gaussian_pdf(int32_t width, int32_t height, float sigma, float scale, int32_t x_offset,
+                                      int32_t y_offset);
 
-Matrix* matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
-                                  ssize_t y_offset);
+Matrix* matrix_gaussian_pdf_alpha(int32_t width, int32_t height, float sigma, float scale, int32_t x_offset,
+                                  int32_t y_offset);
 
 #ifdef __cplusplus
 }

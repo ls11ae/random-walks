@@ -6,7 +6,6 @@
 #include <thread>
 #include <chrono>
 #include <fstream>
-#include <sstream>
 
 #include "parsers/serialization.h"
 #include "walk/b_walk.h"
@@ -14,17 +13,11 @@
 #include "walk/m_walk.h"
 #include "matrix/matrix.h"
 #include "parsers/terrain_parser.h"
-#include "parsers/move_bank_parser.h"
 #include "parsers/walk_json.h"
 #include <sys/time.h>
-#include "math/path_finding.h"
 #include "math/kernel_slicing.h"
 #include "parsers/weather_parser.h"
-#include "cuda/cuda_adapter.h"
-#include "parsers/serialization.h"
 
-#include "config.h"
-#include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
 
@@ -32,9 +25,9 @@ double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
 
-double test_corr(ssize_t D) {
+double test_corr(int32_t D) {
     double ram = get_mem_available_mib();
-    ssize_t M = 21, W = 401, H = 401, T = 200;
+    int32_t M = 21, W = 401, H = 401, T = 200;
     Tensor *c_ke_tensor;
     if (D == 1) {
         Matrix *b_kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
@@ -63,7 +56,7 @@ double test_corr(ssize_t D) {
 }
 
 double test_brownian() {
-    ssize_t M = 21, W = 401, H = 401, T = 200;
+    int32_t M = 21, W = 401, H = 401, T = 200;
     Matrix *kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
     Matrix *start_m = matrix_new(W, H);
     matrix_set(start_m, 200, 200, 1.0);
@@ -87,11 +80,11 @@ double test_brownian() {
     return duration.count();
 }
 
-Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t bias_y) {
+Point2DArray *create_bias_array(const int T, const int32_t bias_x, const int32_t bias_y) {
     Point2D *bias_points = (Point2D *) malloc(sizeof(Point2D) * T);
     for (int t = 0; t < T; t++) {
-        ssize_t current_bias_x;
-        ssize_t current_bias_y;
+        int32_t current_bias_x;
+        int32_t current_bias_y;
         if (t < T / 3) {
             current_bias_x = bias_x;
             current_bias_y = bias_y;
@@ -136,7 +129,7 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     return 0;
 }
 
-int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t W, ssize_t H, size_t T, Point2D start,
+int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, int32_t W, int32_t H, uint32_t T, Point2D start,
                           Point2D goal) {
     TerrainMap terrain;
     parse_terrain_map(filename, &terrain, ' ');
@@ -266,7 +259,7 @@ void test_serialization(int argc, char **argv) {
     if (argc == 2)
         num = atoi(argv[1]);
     srand(0);
-    size_t T = 100;
+    uint32_t T = 100;
     TerrainMap *terrain = (TerrainMap *) (malloc(sizeof(TerrainMap)));
     char terrain_path[256];
     sprintf(terrain_path, "../../resources/landcover_baboons123_%i.txt", num);
@@ -327,8 +320,8 @@ int test_geo_multi() {
 }
 
 int brw_test() {
-    size_t T = 700;
-    size_t W = 2 * T + 1, H = 2 * T + 1;
+    uint32_t T = 700;
+    uint32_t W = 2 * T + 1, H = 2 * T + 1;
     auto kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
     auto start_time = std::chrono::high_resolution_clock::now();
     auto dp = brownian_walk_init(T, W, H, T, T, kernel);
@@ -343,47 +336,52 @@ int brw_test() {
     return 0;
 }
 
-void brownian_cuda() {
-    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
-    size_t T = 500;
-    size_t W = 2 * T + 1, H = 2 * T + 1;
+void brownian_cuda(uint32_t T) {
+    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 3, 1, 0, 0);
+    uint32_t W = 2 * T + 1, H = 2 * T + 1;
 
-    auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 30, 20);
-    point2d_array_print(path);
+    auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 230, 220);
+    //point2d_array_print(path);
 }
 
-Vector2D *vector2D_new(size_t count) {
+Vector2D *vector2D_new(uint32_t count) {
     Vector2D *v = (Vector2D *) malloc(sizeof(Vector2D));
     v->count = count;
-    v->sizes = (size_t *) malloc(count * sizeof(size_t));
+    v->sizes = (uint32_t *) malloc(count * sizeof(uint32_t));
     v->data = (Point2D **) malloc(count * sizeof(Point2D *));
     return v;
 }
 
 
 int main(int argc, char **argv) {
-    brownian_cuda();
-    return 0;
-    int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    // brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
+    // return 0;
+    int T = argc > 1 ? atoi(argv[1]) : 100, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
-    int end_x = 20, end_y = 20;
+    int end_x = 100, end_y = 100;
+
+    bool serialize = true;
+    const char *serialization_path = "../../resources/cuda";
+    ensure_dir_exists_for(serialization_path);
     Tensor *kernels = generate_kernels(D, kernel_width);
     Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
     Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
     compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
     auto start = std::chrono::high_resolution_clock::now();
-    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
+    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel,
+                                    serialize, serialization_path);
     //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
     auto end = std::chrono::high_resolution_clock::now();
-    point2d_array_print(walk);
+    //point2d_array_print(walk);
+
     Point2D steps[2];
     steps[0] = (Point2D){start_x, start_y};
     steps[1] = (Point2D){end_x, end_y};
     Point2DArray *stepsarr = point_2d_array_new(steps, 2);
     TerrainMap *terrain = terrain_map_new(W, H);
     save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
-    //tensor4D_free(walk, T);
+
     point2d_array_free(walk);
     point2d_array_free(stepsarr);
     tensor_free(kernels);

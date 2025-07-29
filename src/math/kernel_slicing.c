@@ -3,10 +3,10 @@
 #define SAMPLES_PER_SIDE 200
 #define PI 3.14159265358979323846
 
-double compute_angle_ks(double x, double y) {
+float compute_angle_ks(float x, float y) {
     if (x == 0.0 && y == 0.0) return 0.0;
-    double radians = atan2(y, x);
-    double degrees = radians * 180.0 / M_PI;
+    float radians = atan2(y, x);
+    float degrees = radians * 180.0 / M_PI;
     if (degrees < 0.0) {
         degrees += 360.0;
     }
@@ -15,7 +15,7 @@ double compute_angle_ks(double x, double y) {
 
 void compute_overlap_percentages(int W, int D, Tensor* tensor) {
     const int S = W / 2;
-    const double angle_step = 360.0 / D;
+    const float angle_step = 360.0 / D;
 
     // Allocate tensor data for D matrices
     tensor->len = D;
@@ -37,7 +37,7 @@ void compute_overlap_percentages(int W, int D, Tensor* tensor) {
         m->width = W;
         m->height = W;
         m->len = W * W;
-        m->data = (double*)malloc(W * W * sizeof(double));
+        m->data = (float*)malloc(W * W * sizeof(float));
         if (!m->data) {
             free(m);
             // Cleanup previous allocations on failure
@@ -49,7 +49,7 @@ void compute_overlap_percentages(int W, int D, Tensor* tensor) {
             tensor->data = NULL;
             return;
         }
-        memset(m->data, 0, W * W * sizeof(double));
+        memset(m->data, 0, W * W * sizeof(float));
         tensor->data[d] = m;
     }
 
@@ -61,9 +61,9 @@ void compute_overlap_percentages(int W, int D, Tensor* tensor) {
             int grid_x = x_center + S;
             int grid_y = y_center + S;
             for (int d = 0; d < D; ++d) {
-                double center_angle = d * angle_step;
-                double start_angle = center_angle - angle_step / 2.0;
-                double end_angle = center_angle + angle_step / 2.0;
+                float center_angle = d * angle_step;
+                float start_angle = center_angle - angle_step / 2.0;
+                float end_angle = center_angle + angle_step / 2.0;
 
                 // Normalize angles to [0, 360)
                 start_angle = fmod(start_angle, 360.0);
@@ -73,10 +73,10 @@ void compute_overlap_percentages(int W, int D, Tensor* tensor) {
 
                 int count = 0;
                 for (int dx = 0; dx < steps; ++dx) {
-                    double x = x_center - 0.5 + (dx + 0.5) / steps;
+                    float x = x_center - 0.5 + (dx + 0.5) / steps;
                     for (int dy = 0; dy < steps; ++dy) {
-                        double y = y_center - 0.5 + (dy + 0.5) / steps;
-                        double theta = compute_angle_ks(x, y);
+                        float y = y_center - 0.5 + (dy + 0.5) / steps;
+                        float theta = compute_angle_ks(x, y);
 
                         bool inside = false;
                         if (start_angle < end_angle) {
@@ -90,7 +90,7 @@ void compute_overlap_percentages(int W, int D, Tensor* tensor) {
                     }
                 }
 
-                double overlap = (double)count / (steps * steps);
+                float overlap = (float)count / (steps * steps);
                 matrix_set(tensor->data[d], grid_x, grid_y, overlap);
             }
         }

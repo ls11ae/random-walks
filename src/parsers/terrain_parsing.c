@@ -38,8 +38,8 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
     }
 
     // --- Pass 1: Determine width and height ---
-    ssize_t calculated_width = 0;
-    ssize_t calculated_height = 0;
+    int32_t calculated_width = 0;
+    int32_t calculated_height = 0;
 
     // Read the first line to attempt to determine width
     if (fgets(line_buffer, sizeof(line_buffer), file)) {
@@ -110,16 +110,8 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
         }
     }
 
-    // If dimensions are zero at this point, it implies an empty map was processed (returned 0)
-    // or a specific malformed case led to this state.
-    if (calculated_width == 0 && calculated_height == 0) {
-        // This path should ideally be covered by the "empty file" return 0.
-        // If reached, it implies the file was effectively empty.
-        if (file) fclose(file); // Ensure file is closed
-        return 0;
-    }
     // If only one dimension is zero, it's an error (e.g. content-less lines after a valid first line).
-    if (calculated_width == 0 || calculated_height == 0) {
+    if (calculated_height == 0) {
         fclose(file);
         return -5; // Invalid dimensions
     }
@@ -128,19 +120,19 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
     map->height = calculated_height;
 
     // --- Memory Allocation for map data ---
-    map->data = malloc((size_t) map->height * sizeof(int *));
+    map->data = malloc((uint32_t) map->height * sizeof(int *));
     if (map->data == NULL) {
         fclose(file);
         terrain_map_free(map); // Reset map struct
         return -3; // Memory allocation error
     }
     // Initialize row pointers to NULL for safer cleanup in case of partial column allocation
-    for (ssize_t i = 0; i < map->height; i++) {
+    for (int32_t i = 0; i < map->height; i++) {
         map->data[i] = NULL;
     }
 
-    for (ssize_t i = 0; i < map->height; i++) {
-        map->data[i] = malloc((size_t) map->width * sizeof(int));
+    for (int32_t i = 0; i < map->height; i++) {
+        map->data[i] = malloc((uint32_t) map->width * sizeof(int));
         if (map->data[i] == NULL) {
             fclose(file);
             terrain_map_free(map); // Frees successfully allocated parts
@@ -150,8 +142,7 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
 
     // --- Pass 2: Populate data ---
     rewind(file); // Go back to the beginning of the file to read data
-    ssize_t current_row = 0;
-    long val;
+    int32_t current_row = 0;
     char *endptr; // For strtol error checking
 
     while (current_row < map->height && fgets(line_buffer, sizeof(line_buffer), file)) {
@@ -164,17 +155,12 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
         }
 
         if (*line_content_start == '\0') {
-            // This line is effectively empty.
-            // Height calculation only counted non-empty lines. So, if we encounter
-            // an empty line here, it was not part of the expected `map->height` data lines.
-            // We can skip it. The final check `current_row != map->height` will catch
-            // if there are fewer actual data lines than determined.
             continue;
         }
 
         char *token = strtok(line_content_start, delim_str); // Start tokenizing from actual content
 
-        for (ssize_t current_col = 0; current_col < map->width; current_col++) {
+        for (int32_t current_col = 0; current_col < map->width; current_col++) {
             if (token == NULL) {
                 // Not enough tokens in the current line
                 fclose(file);
@@ -183,7 +169,7 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
             }
 
             errno = 0; // Reset errno before calling strtol
-            val = strtol(token, &endptr, 10); // Base 10 conversion
+            long val = strtol(token, &endptr, 10); // Base 10 conversion
 
             if (errno == ERANGE) {
                 // Value out of range for 'long'
@@ -231,7 +217,7 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
     return 0; // Success!
 }
 
-TerrainMap *terrain_map_new(const ssize_t width, const ssize_t height) {
+TerrainMap *terrain_map_new(const int32_t width, const int32_t height) {
     TerrainMap *map = malloc(sizeof(TerrainMap));
     if (!map) return NULL;
     map->width = width;
@@ -243,10 +229,10 @@ TerrainMap *terrain_map_new(const ssize_t width, const ssize_t height) {
         return NULL;
     }
 
-    for (ssize_t y = 0; y < height; ++y) {
+    for (int32_t y = 0; y < height; ++y) {
         map->data[y] = malloc(width * sizeof(int));
         if (!map->data[y]) {
-            for (ssize_t i = 0; i < y; ++i) free(map->data[i]);
+            for (int32_t i = 0; i < y; ++i) free(map->data[i]);
             free(map->data);
             free(map);
             return NULL;
@@ -257,13 +243,12 @@ TerrainMap *terrain_map_new(const ssize_t width, const ssize_t height) {
 }
 
 
-
-int terrain_at(const ssize_t x, const ssize_t y, const TerrainMap *terrain_map) {
+int terrain_at(const int32_t x, const int32_t y, const TerrainMap *terrain_map) {
     assert(x >= 0 && y >= 0 && x < terrain_map->width && y < terrain_map->height);
     return terrain_map->data[y][x];
 }
 
-void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value) {
+void terrain_set(const TerrainMap *terrain_map, int32_t x, int32_t y, int value) {
     assert(terrain_map != NULL);
     terrain_map->data[y][x] = value;
 }
@@ -271,14 +256,15 @@ void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value)
 
 void terrain_map_free(TerrainMap *terrain_map) {
     if (terrain_map == NULL) return;
-    for (size_t y = 0; y < terrain_map->height; y++) {
-        free(terrain_map->data[y]);
+    for (uint32_t y = 0; y < terrain_map->height; y++) {
+        if (terrain_map->data)
+            free(terrain_map->data[y]);
     }
     free(terrain_map->data);
     free(terrain_map);
 }
 
-Matrix *kernel_at(const KernelsMap *kernels_map, ssize_t x, ssize_t y) {
+Matrix *kernel_at(const KernelsMap *kernels_map, int32_t x, int32_t y) {
     assert(x < kernels_map->width && y < kernels_map->height&& x >= 0 && y >= 0);
     return kernels_map->kernels[y][x];
 }

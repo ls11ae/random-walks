@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-ssize_t weighted_random_index(const double* array, size_t len) {
+int32_t weighted_random_index(const float* array, uint32_t len) {
     // Seed the random number generator with the current time
     static int seeded = 0;
     if (!seeded) {
@@ -12,20 +12,20 @@ ssize_t weighted_random_index(const double* array, size_t len) {
         seeded = 1;
     }
 
-    const ssize_t length = (ssize_t)len;
+    const int32_t length = (int32_t)len;
 
     // Calculate the total weight (CDF)
-    double total_weight = 0.0;
-    for (size_t i = 0; i < length; i++) {
+    float total_weight = 0.0;
+    for (uint32_t i = 0; i < length; i++) {
         total_weight += array[i];
     }
 
     // Generate a random value between 0 and total_weight
-    double random_value = (rand() / (double)RAND_MAX) * total_weight;
+    float random_value = (rand() / (float)RAND_MAX) * total_weight;
 
     // Find the index where the cumulative sum exceeds the random value
-    double cumulative_sum = 0.0;
-    for (ssize_t i = 0; i < length; i++) {
+    float cumulative_sum = 0.0;
+    for (int32_t i = 0; i < length; i++) {
         cumulative_sum += array[i];
         if (cumulative_sum >= random_value) {
             return i; // Return the index
@@ -36,12 +36,12 @@ ssize_t weighted_random_index(const double* array, size_t len) {
     return length - 1;
 }
 
-Point rotate_point(Point p, double theta) {
+Point rotate_point(Point p, float theta) {
     Point result;
 
-    // Berechne den Cosinus und Sinus des Winkels in double
-    double cos_theta = cos(theta);
-    double sin_theta = sin(theta);
+    // Berechne den Cosinus und Sinus des Winkels in float
+    float cos_theta = cos(theta);
+    float sin_theta = sin(theta);
 
     // Drehe den Punkt
     result.x = (int)(p.x * cos_theta - p.y * sin_theta);
@@ -50,15 +50,15 @@ Point rotate_point(Point p, double theta) {
     return result;
 }
 
-double to_radians(const double angle) {
+float to_radians(const float angle) {
     return angle * M_PI / 180;
 }
 
-double compute_angle(ssize_t dx, ssize_t dy) {
+float compute_angle(int32_t dx, int32_t dy) {
     if (dx == 0 && dy == 0) return 0.0; // Handle zero vector
 
-    double radians = atan2(dy, dx);
-    double degrees = radians * 180.0 / M_PI;
+    float radians = atan2(dy, dx);
+    float degrees = radians * 180.0 / M_PI;
     // Adjust to 0-360 range
     if (degrees < 0) {
         degrees += 360.0;
@@ -66,15 +66,15 @@ double compute_angle(ssize_t dx, ssize_t dy) {
     return degrees;
 }
 
-size_t angle_to_direction(double angle, double angle_step_size) {
-    return (size_t)round(angle / angle_step_size) % ((size_t)(360.0 / angle_step_size));
+uint32_t angle_to_direction(float angle, float angle_step_size) {
+    return (uint32_t)round(angle / angle_step_size) % ((uint32_t)(360.0 / angle_step_size));
 }
 
 
-double find_closest_angle(double angle, double angle_step_size) {
+float find_closest_angle(float angle, float angle_step_size) {
     int steps = (int)(360.0 / angle_step_size);
     int num_angles = steps + 1;
-    double* angles = (double*)malloc(num_angles * sizeof(double));
+    float* angles = (float*)malloc(num_angles * sizeof(float));
     if (!angles) {
         fprintf(stderr, "Memory allocation failed\n");
         exit(EXIT_FAILURE);
@@ -85,11 +85,11 @@ double find_closest_angle(double angle, double angle_step_size) {
     }
     angles[steps] = 360.0;
 
-    double closest_angle = angles[0];
-    double min_diff = fabs(angles[0] - angle);
+    float closest_angle = angles[0];
+    float min_diff = fabs(angles[0] - angle);
 
     for (int j = 1; j < num_angles; ++j) {
-        double current_diff = fabs(angles[j] - angle);
+        float current_diff = fabs(angles[j] - angle);
         if (current_diff < min_diff) {
             min_diff = current_diff;
             closest_angle = angles[j];
@@ -100,23 +100,23 @@ double find_closest_angle(double angle, double angle_step_size) {
     return closest_angle;
 }
 
-double alpha(int i, int j, double rotation_angle) {
-    double original_alpha = atan2(j, i);
+float alpha(int i, int j, float rotation_angle) {
+    float original_alpha = atan2(j, i);
     return original_alpha - rotation_angle;
 }
 
-double euclid(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t point2_y) {
-    const double delta_x = (double)(point2_x - point1_x);
-    const double delta_y = (double)(point2_y - point1_y);
+float euclid(int32_t point1_x, int32_t point1_y, int32_t point2_x, int32_t point2_y) {
+    const float delta_x = (float)(point2_x - point1_x);
+    const float delta_y = (float)(point2_y - point1_y);
     return sqrt(delta_x * delta_x + delta_y * delta_y);
 }
 
-double euclid_sqr(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t point2_y) {
-    double delta_x = point2_x - point1_x;
-    double delta_y = point2_y - point1_y;
+float euclid_sqr(int32_t point1_x, int32_t point1_y, int32_t point2_x, int32_t point2_y) {
+    float delta_x = point2_x - point1_x;
+    float delta_y = point2_y - point1_y;
     return delta_x * delta_x + delta_y * delta_y;
 }
 
-double euclid_origin(const int i, const int j) {
+float euclid_origin(const int i, const int j) {
     return sqrt(i * i + j * j);
 }

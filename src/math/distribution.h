@@ -1,46 +1,47 @@
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    const double mean;
-    const double stddev;
-    const double _a;
-    const double _b;
+    const float mean;
+    const float stddev;
+    const float _a;
+    const float _b;
 } NormalDistribution;
 
-NormalDistribution *normal_distribution_new(double mean, double stddev);
+NormalDistribution *normal_distribution_new(float mean, float stddev);
 
-double normal_distribution_generate(NormalDistribution *dist, double x);
+float normal_distribution_generate(NormalDistribution *dist, float x);
 
-double normal_pdf(double mean, double stddev, double x);
+float normal_pdf(float mean, float stddev, float x);
 
 typedef struct {
     const int k; // Freiheitsgrade
-    const double _a;
+    const float _a;
 } ChiDistribution;
 
 ChiDistribution *chi_distribution_new(int k);
 
-double chi_distribution_generate(ChiDistribution *dist, double x);
+float chi_distribution_generate(ChiDistribution *dist, float x);
 
-double chi_pdf(int k, double x);
+float chi_pdf(int k, float x);
 
 typedef struct {
-    double period;
+    float period;
 } WrappedDistribution;
 
-double wrapped_generate(WrappedDistribution *dist, double x);
+float wrapped_generate(WrappedDistribution *dist, float x);
 
-double wrapped_normal_pdf(double mu, double rho, double x);
+float wrapped_normal_pdf(float mu, float rho, float x);
 
-double wrapped_normal_approx_pdf(double mu, double rho, double x);
+float wrapped_normal_approx_pdf(float mu, float rho, float x);
 
-int discrete_pdf(const double *probabilities, size_t size);
+int discrete_pdf(const float *probabilities, uint32_t size);
 
-int discrete_distribution(double *probs, size_t size);
+int discrete_distribution(float *probs, uint32_t size);
 
 #ifdef __cplusplus
 }

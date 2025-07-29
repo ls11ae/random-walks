@@ -15,17 +15,17 @@ extern "C" {
 #include "matrix/tensor.h"
 
 typedef struct {
-    double x;
-    double y;
+    float x;
+    float y;
 } point;
 
 typedef struct {
-    size_t count;
-    size_t *sizes;
+    uint32_t count;
+    uint32_t *sizes;
     point **data;
 } vec2;
 
-double compute_angle_ks(double x, double y);
+float compute_angle_ks(float x, float y);
 
 void compute_overlap_percentages(int W, int D, Tensor *tensor);
 

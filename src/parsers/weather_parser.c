@@ -22,14 +22,14 @@ WeatherEntry* weather_entry_new(float temperature,
     return weather_entry;
 }
 
-WeatherTimeline* weather_timeline_new(size_t time) {
+WeatherTimeline* weather_timeline_new(uint32_t time) {
     WeatherTimeline* weather_entry = malloc(sizeof(WeatherTimeline));
     weather_entry->data = malloc(sizeof(WeatherEntry*) * time);
     weather_entry->length = time;
     return weather_entry;
 }
 
-WeatherGrid* weather_grid_new(const size_t height, const size_t width) {
+WeatherGrid* weather_grid_new(const uint32_t height, const uint32_t width) {
     WeatherGrid* timeline = malloc(sizeof(WeatherGrid));
     timeline->height = height;
     timeline->width = width;

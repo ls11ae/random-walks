@@ -3,15 +3,15 @@
 #include <stdlib.h>
 
 // Bresenham's line algorithm
-static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssize_t x1, ssize_t y1) {
-    ssize_t dx = abs(x1 - x0);
-    ssize_t sx = x0 < x1 ? 1 : -1;
-    ssize_t dy = -abs(y1 - y0);
-    ssize_t sy = y0 < y1 ? 1 : -1;
-    ssize_t error = dx + dy;
+static int is_path_clear(const TerrainMap* terrain, int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
+    int32_t dx = abs(x1 - x0);
+    int32_t sx = x0 < x1 ? 1 : -1;
+    int32_t dy = -abs(y1 - y0);
+    int32_t sy = y0 < y1 ? 1 : -1;
+    int32_t error = dx + dy;
 
-    ssize_t current_x = x0;
-    ssize_t current_y = y0;
+    int32_t current_x = x0;
+    int32_t current_y = y0;
     int is_first = 1;
 
     while (1) {
@@ -30,7 +30,7 @@ static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssiz
             is_first = 0;
         }
 
-        ssize_t e2 = 2 * error;
+        int32_t e2 = 2 * error;
         if (e2 >= dy) {
             if (current_x == x1) break;
             error += dy;
@@ -46,7 +46,7 @@ static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssiz
     return 1;
 }
 
-Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+Matrix* get_reachability_kernel(const int32_t x, const int32_t y, const int32_t kernel_size,
                                 const TerrainMap* terrain) {
     Matrix* result = matrix_new(kernel_size, kernel_size);
 
@@ -57,16 +57,16 @@ Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
         return result;
     }
 
-    const ssize_t kernel_center_x = (kernel_size) / 2;
-    const ssize_t kernel_center_y = (kernel_size) / 2;
+    const int32_t kernel_center_x = (kernel_size) / 2;
+    const int32_t kernel_center_y = (kernel_size) / 2;
 
     bool full_reachable = true;
-    for (ssize_t i = 0; i < kernel_size; ++i) {
-        for (ssize_t j = 0; j < kernel_size; ++j) {
-            const ssize_t dx = i - kernel_center_x;
-            const ssize_t dy = j - kernel_center_y;
-            const ssize_t new_x = x + dx;
-            const ssize_t new_y = y + dy;
+    for (int32_t i = 0; i < kernel_size; ++i) {
+        for (int32_t j = 0; j < kernel_size; ++j) {
+            const int32_t dx = i - kernel_center_x;
+            const int32_t dy = j - kernel_center_y;
+            const int32_t new_x = x + dx;
+            const int32_t new_y = y + dy;
             if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height) {
                 continue;
             }
@@ -87,13 +87,13 @@ Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
     }
 
 #pragma omp parallel for collapse(2) schedule(dynamic)
-    for (ssize_t i = 0; i < kernel_size; ++i) {
-        for (ssize_t j = 0; j < kernel_size; ++j) {
-            const ssize_t dx = i - kernel_center_x;
-            const ssize_t dy = j - kernel_center_y;
+    for (int32_t i = 0; i < kernel_size; ++i) {
+        for (int32_t j = 0; j < kernel_size; ++j) {
+            const int32_t dx = i - kernel_center_x;
+            const int32_t dy = j - kernel_center_y;
 
-            const ssize_t new_x = x + dx;
-            const ssize_t new_y = y + dy;
+            const int32_t new_x = x + dx;
+            const int32_t new_y = y + dy;
 
             if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height) {
                 continue;
@@ -104,7 +104,7 @@ Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
             }
 
             if (is_path_clear(terrain, x, y, new_x, new_y)) {
-                matrix_set(result, (size_t)i, (size_t)j, 1.0);
+                matrix_set(result, (uint32_t)i, (uint32_t)j, 1.0);
             }
         }
     }
