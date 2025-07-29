@@ -601,7 +601,6 @@ Point2DArray *backtrace2(Tensor **DP_Matrix, const int32_t T, const Tensor *kern
 		index--;
 		uint32_t count = 0;
 
-
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_cell_set->sizes[direction]; ++i) {
 				const int32_t dx = dir_cell_set->data[direction][i].x;
@@ -616,7 +615,6 @@ Point2DArray *backtrace2(Tensor **DP_Matrix, const int32_t T, const Tensor *kern
 				}
 
 				const float p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
-
 				// Kernel indices
 				const int32_t kernel_x = dx + S;
 				const int32_t kernel_y = dy + S;
@@ -672,7 +670,6 @@ Point2DArray *backtrace2(Tensor **DP_Matrix, const int32_t T, const Tensor *kern
 
 	path->points[0].x = x;
 	path->points[0].y = y;
-
 	return path;
 }
 
@@ -681,7 +678,7 @@ void dp_calculation_low_ram(int32_t W, int32_t H, const Tensor *kernel, const in
 	const int32_t D = (int32_t) kernel->len;
 	const int32_t S = (int32_t) kernel->data[0]->width / 2;
 	Matrix *map = matrix_new(W, H);
-	matrix_set(map, start_x, start_y, 1.0 / (float) D);
+	matrix_set(map, start_x, start_y, 1.0f / (float) D);
 
 	assert(T >= 1);
 	assert(D >= 1);
