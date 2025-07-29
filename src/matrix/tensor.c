@@ -22,14 +22,14 @@
 #include "math/math_utils.h"
 #include "walk/c_walk.h"
 
-Tensor* tensor_new(size_t width, size_t height, size_t depth) {
-    Tensor* t = (Tensor*)malloc(sizeof(Tensor));
+Tensor *tensor_new(size_t width, size_t height, size_t depth) {
+    Tensor *t = (Tensor *) malloc(sizeof(Tensor));
     if (t == NULL) {
         fprintf(stderr, "Fehler bei der Speicherzuweisung für den Tensor!\n");
         return NULL;
     }
 
-    t->data = malloc(depth * sizeof(Matrix*));
+    t->data = malloc(depth * sizeof(Matrix *));
     if (t->data == NULL) {
         fprintf(stderr, "Fehler bei der Speicherzuweisung für den Matrixpointers!\n");
         free(t);
@@ -38,7 +38,7 @@ Tensor* tensor_new(size_t width, size_t height, size_t depth) {
     t->len = depth;
     t->dir_kernel = NULL;
     for (size_t i = 0; i < depth; i++) {
-        Matrix* m = matrix_new(width, height);
+        Matrix *m = matrix_new(width, height);
         if (m == NULL) {
             fprintf(stderr, "Fehler bei der Speicherzuweisung für den Matrix!\n");
             for (size_t d = 0; d < i; d++) {
@@ -53,18 +53,18 @@ Tensor* tensor_new(size_t width, size_t height, size_t depth) {
     return t;
 }
 
-TensorSet* tensor_set_new(const size_t count, Tensor** tensors) {
+TensorSet *tensor_set_new(const size_t count, Tensor **tensors) {
     if (!tensors || count == 0) {
         return NULL;
     }
 
-    TensorSet* set = (TensorSet*)malloc(sizeof(TensorSet));
+    TensorSet *set = (TensorSet *) malloc(sizeof(TensorSet));
     if (!set) {
         return NULL;
     }
 
-    set->data = (Tensor**)malloc(count * sizeof(Tensor*));
-    set->grid_cells = (Vector2D**)malloc(count * sizeof(Vector2D*));
+    set->data = (Tensor **) malloc(count * sizeof(Tensor *));
+    set->grid_cells = (Vector2D **) malloc(count * sizeof(Vector2D *));
     if (!set->data || !set->grid_cells) {
         free(set->data);
         free(set->grid_cells);
@@ -96,7 +96,7 @@ TensorSet* tensor_set_new(const size_t count, Tensor** tensors) {
     return set;
 }
 
-bool tensor_equals(const Tensor* t1, const Tensor* t2) {
+bool tensor_equals(const Tensor *t1, const Tensor *t2) {
     if (!t1 || !t2) {
         return false;
     }
@@ -111,7 +111,7 @@ bool tensor_equals(const Tensor* t1, const Tensor* t2) {
     return true;
 }
 
-void tensor_set_free(TensorSet* set) {
+void tensor_set_free(TensorSet *set) {
     if (set) {
         for (size_t i = 0; i < set->len; i++) {
             tensor_free(set->data[i]);
@@ -123,16 +123,16 @@ void tensor_set_free(TensorSet* set) {
     }
 }
 
-Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
-    Vector2D* result = (Vector2D*)malloc(sizeof(Vector2D));
+Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
+    Vector2D *result = (Vector2D *) malloc(sizeof(Vector2D));
     result->count = D;
-    result->data = (Point2D**)malloc(D * sizeof(Point2D*));
-    result->sizes = (size_t*)calloc(D, sizeof(size_t));
+    result->data = (Point2D **) malloc(D * sizeof(Point2D *));
+    result->sizes = (size_t *) calloc(D, sizeof(size_t));
 
     // First pass to count points in each direction
-    size_t* counts = (size_t*)calloc(D, sizeof(size_t));
+    size_t *counts = (size_t *) calloc(D, sizeof(size_t));
     const ssize_t S = size / 2;
-    const double angle_step_size = 360.0 / (double)D;
+    const double angle_step_size = 360.0 / (double) D;
 
     for (ssize_t i = -S; i <= S; ++i) {
         for (ssize_t j = -S; j <= S; ++j) {
@@ -147,7 +147,7 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
 
     // Allocate memory for each direction
     for (size_t dir = 0; dir < D; dir++) {
-        result->data[dir] = (Point2D*)malloc(counts[dir] * sizeof(Point2D));
+        result->data[dir] = (Point2D *) malloc(counts[dir] * sizeof(Point2D));
         result->sizes[dir] = 0; // Reset counter for second pass
     }
 
@@ -168,9 +168,9 @@ Vector2D* get_dir_kernel(const ssize_t D, const ssize_t size) {
     return result;
 }
 
-Vector2D* vector2d_clone(const Vector2D* src, size_t len) {
+Vector2D *vector2d_clone(const Vector2D *src, size_t len) {
     if (!src) return NULL;
-    Vector2D* clone = malloc(sizeof(Vector2D));
+    Vector2D *clone = malloc(sizeof(Vector2D));
     if (!clone) return NULL;
 
     clone->count = src->count;
@@ -182,7 +182,7 @@ Vector2D* vector2d_clone(const Vector2D* src, size_t len) {
     }
     memcpy(clone->sizes, src->sizes, sizeof(size_t) * len);
 
-    clone->data = malloc(sizeof(Point2D*) * len);
+    clone->data = malloc(sizeof(Point2D *) * len);
     if (!clone->data) {
         free(clone->sizes);
         free(clone);
@@ -210,7 +210,7 @@ Vector2D* vector2d_clone(const Vector2D* src, size_t len) {
 
 
 // Helper function to free the Vector2D when done
-void free_Vector2D(Vector2D* v) {
+void free_Vector2D(Vector2D *v) {
     if (v == NULL) return;
     if (v->data != NULL) {
         for (size_t i = 0; i < v->count; ++i) {
@@ -224,15 +224,14 @@ void free_Vector2D(Vector2D* v) {
 }
 
 
-void tensor_free(Tensor* tensor) {
+void tensor_free(Tensor *tensor) {
     if (!tensor) return;
     for (size_t i = 0; i < tensor->len; i++) {
         if (tensor->data && tensor->data[i] != NULL) {
             matrix_free(tensor->data[i]);
         }
     }
-    if (tensor->dir_kernel)
-        free_Vector2D(tensor->dir_kernel);
+
     free(tensor->data);
     tensor->len = 0;
     tensor->data = NULL;
@@ -240,43 +239,43 @@ void tensor_free(Tensor* tensor) {
 }
 
 
-Tensor* tensor_copy(const Tensor* original) {
+Tensor *tensor_copy(const Tensor *original) {
     if (original == NULL) {
         return NULL;
     }
 
     // Neuen Tensor erstellen
-    Tensor* copy = tensor_new(original->data[0]->width, original->data[0]->height, original->len);
+    Tensor *copy = tensor_new(original->data[0]->width, original->data[0]->height, original->len);
     if (copy == NULL) {
         return NULL;
     }
 
     // Matrixdaten kopieren
     for (size_t i = 0; i < original->len; i++) {
-        memcpy(copy->data[i]->data, original->data[i]->data, sizeof(Matrix*) * original->data[i]->len);
+        memcpy(copy->data[i]->data, original->data[i]->data, sizeof(Matrix *) * original->data[i]->len);
     }
 
     return copy;
 }
 
 
-void tensor_fill(Tensor* tensor, double value) {
+void tensor_fill(Tensor *tensor, double value) {
     for (size_t i = 0; i < tensor->len; i++) {
         matrix_fill(tensor->data[i], value);
     }
 }
 
-int tensor_in_bounds(Tensor* tensor, size_t x, size_t y, size_t z) {
+int tensor_in_bounds(Tensor *tensor, size_t x, size_t y, size_t z) {
     return z < tensor->len && matrix_in_bounds(tensor->data[z], x, y);
 }
 
-Tensor* tensor_clone(const Tensor* src) {
+Tensor *tensor_clone(const Tensor *src) {
     if (!src) return NULL;
-    Tensor* clone = malloc(sizeof(Tensor));
+    Tensor *clone = malloc(sizeof(Tensor));
     if (!clone) return NULL;
 
     clone->len = src->len;
-    clone->data = malloc(sizeof(Matrix*) * clone->len);
+    clone->data = malloc(sizeof(Matrix *) * clone->len);
     if (!clone->data) {
         free(clone);
         return NULL;
@@ -305,8 +304,7 @@ Tensor* tensor_clone(const Tensor* src) {
             free(clone);
             return NULL;
         }
-    }
-    else {
+    } else {
         clone->dir_kernel = NULL;
     }
 
@@ -314,14 +312,14 @@ Tensor* tensor_clone(const Tensor* src) {
 }
 
 
-size_t tensor_save(Tensor* tensor, const char* foldername) {
+size_t tensor_save(Tensor *tensor, const char *foldername) {
     if (MKDIR(foldername) != 0 && errno != EEXIST) {
         perror("Error creating folder");
         return 0;
     }
     char filePathInfo[256];
     snprintf(filePathInfo, sizeof(filePathInfo), "%s/%s", foldername, "info.txt");
-    FILE* file = fopen(filePathInfo, "wb"); // Open the file in binary write mode
+    FILE *file = fopen(filePathInfo, "wb"); // Open the file in binary write mode
     if (file == NULL) {
         perror("Error opening file");
         return 0;
@@ -345,10 +343,10 @@ size_t tensor_save(Tensor* tensor, const char* foldername) {
     return len;
 }
 
-Tensor* tensor_load(const char* foldername) {
+Tensor *tensor_load(const char *foldername) {
     char filePathInfo[256];
     snprintf(filePathInfo, sizeof(filePathInfo), "%s/%s", foldername, "info.txt");
-    FILE* file = fopen(filePathInfo, "rb"); // Open the file in binary read mode
+    FILE *file = fopen(filePathInfo, "rb"); // Open the file in binary read mode
     if (file == NULL) {
         printf("foldername: %s\n", foldername);
         perror("Error opening file");
@@ -357,14 +355,14 @@ Tensor* tensor_load(const char* foldername) {
     size_t len_t;
     fread(&len_t, sizeof(size_t), 1, file);
 
-    Tensor* t = malloc(sizeof(Tensor));
+    Tensor *t = malloc(sizeof(Tensor));
     if (t == NULL) {
         fprintf(stderr, "Fehler bei der Speicherzuweisung für den Tensor!\n");
         fclose(file);
         return NULL;
     }
     t->len = len_t;
-    t->data = malloc(t->len * sizeof(Matrix*));
+    t->data = malloc(t->len * sizeof(Matrix *));
     if (t->data == NULL) {
         fprintf(stderr, "Fehler bei der Speicherzuweisung für den Matirxpointers!\n");
         free(t);
@@ -375,7 +373,7 @@ Tensor* tensor_load(const char* foldername) {
     for (size_t i = 0; i < t->len; i++) {
         char filePath[256];
         snprintf(filePath, sizeof(filePath), "%s/%d.mem", foldername, i);
-        Matrix* m = matrix_load(filePath);
+        Matrix *m = matrix_load(filePath);
         if (m == NULL) {
             fprintf(stderr, "Fehler bei der Speicherzuweisung für den Matrix!\n");
             for (size_t d = 0; d < i; d++) {
@@ -392,14 +390,14 @@ Tensor* tensor_load(const char* foldername) {
     return t;
 }
 
-void* tensor4D_new(size_t width, size_t height, size_t depth);
+void *tensor4D_new(size_t width, size_t height, size_t depth);
 
-void tensor4D_free(Tensor** tensor, ssize_t T) {
+void tensor4D_free(Tensor **tensor, ssize_t T) {
     for (ssize_t i = 0; i < T; ++i)
         tensor_free(tensor[i]);
     free(tensor);
 }
 
-void tensor4D_fill(Tensor* tensor, double value);
+void tensor4D_fill(Tensor *tensor, double value);
 
-int tensor4D_in_bounds(Tensor* tensor, size_t x, size_t y, size_t z);
+int tensor4D_in_bounds(Tensor *tensor, size_t x, size_t y, size_t z);
