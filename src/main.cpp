@@ -338,9 +338,10 @@ int brw_test() {
 
 void brownian_cuda(uint32_t T) {
     Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 3, 1, 0, 0);
+    float *kernel_values = kernel->data;
     uint32_t W = 2 * T + 1, H = 2 * T + 1;
 
-    auto path = gpu_brownian_walk(kernel, T, W, H, T, T, 230, 220);
+    auto path = gpu_brownian_walk(kernel_values, 7, T, W, H, T, T, 230, 220);
     //point2d_array_print(path);
 }
 
@@ -360,34 +361,14 @@ int main(int argc, char **argv) {
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
     int end_x = 100, end_y = 100;
-
     bool serialize = true;
-    const char *serialization_path = "../../resources/cuda";
-    ensure_dir_exists_for(serialization_path);
-    Tensor *kernels = generate_kernels(D, kernel_width);
-    Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-    Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-    compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
-    auto start = std::chrono::high_resolution_clock::now();
-    auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel,
-                                    serialize, serialization_path);
-    //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
-    auto end = std::chrono::high_resolution_clock::now();
-    //point2d_array_print(walk);
+    const char *serialization_path = "../../resources/cuda/dp";
+    char walk_json[512];
+    snprintf(walk_json, sizeof(walk_json), "../../resources/cuda/walk_T%d_W%d_H%d_D%d_S%d.json", T, W, H, D, S);
 
-    Point2D steps[2];
-    steps[0] = (Point2D){start_x, start_y};
-    steps[1] = (Point2D){end_x, end_y};
-    Point2DArray *stepsarr = point_2d_array_new(steps, 2);
-    TerrainMap *terrain = terrain_map_new(W, H);
-    save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
-
+    Point2DArray *walk = correlated_walk_gpu(T, W, H, D, S, kernel_width, start_x, start_y, end_x, end_y, serialize,
+                                             serialization_path, walk_json);
     point2d_array_free(walk);
-    point2d_array_free(stepsarr);
-    tensor_free(kernels);
-    tensor_free(angles_mask);
-    free_vector2d(dir_kernel);
-    std::chrono::duration<double> duration = end - start;
-    std::cout << duration.count() << "\n";
+
     return 0;
 }
