@@ -4,22 +4,22 @@
 #include "math/math_utils.h"
 
 Point2DArray *b_walk_backtrace_flat(
-    const float *tensor_flat, // Tensor: [T][H][W] linearisiert → [T * H * W]
-    const float *kernel, // ebenfalls flach
+    const float *tensor_flat, // Tensor: [T][H][W] linearized → [T * H * W]
+    const float *kernel, // flat
     uint32_t T, uint32_t H, uint32_t W, int32_t S,
     int32_t start_x, int32_t start_y
 ) {
-    Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
-    if (!result) return NULL;
-    result->points = (Point2D *) malloc(T * sizeof(Point2D));
+    auto *result = static_cast<Point2DArray *>(malloc(sizeof(Point2DArray)));
+    if (!result) return nullptr;
+    result->points = static_cast<Point2D *>(malloc(T * sizeof(Point2D)));
     if (!result->points) {
         free(result);
-        return NULL;
+        return nullptr;
     }
     result->length = T;
 
-    int x = start_x;
-    int y = start_y;
+    int64_t x = start_x;
+    int64_t y = start_y;
     result->points[0].x = x;
     result->points[0].y = y;
 
@@ -30,10 +30,10 @@ Point2DArray *b_walk_backtrace_flat(
         int count = 0;
 
         for (int dy = -S; dy <= S; ++dy) {
-            int ny = y + dy;
+            int64_t ny = y + dy;
             if (ny < 0 || ny >= H) continue;
             for (int dx = -S; dx <= S; ++dx) {
-                int nx = x + dx;
+                int64_t nx = x + dx;
                 if (nx < 0 || nx >= W) continue;
 
                 float dp_prev = tensor_flat[(t - 1) * H * W + ny * W + nx];
@@ -50,10 +50,10 @@ Point2DArray *b_walk_backtrace_flat(
         if (count == 0) {
             free(result->points);
             free(result);
-            return NULL;
+            return nullptr;
         }
 
-        const int32_t selected = weighted_random_index(probabilities, count);
+        const int64_t selected = weighted_random_index_float(probabilities, count);
         x = neighbors[selected].x;
         y = neighbors[selected].y;
 
@@ -80,8 +80,8 @@ __global__ void convolve_kernel_step(
     const float *kernel,
     int W, int H, int S
 ) {
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int x = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const int y = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
 
     if (x >= W || y >= H) return;
 
@@ -93,8 +93,8 @@ __global__ void convolve_kernel_step(
             int xx = x + j;
             if (xx < 0 || xx >= W) continue;
 
-            float val = prev[yy * W + xx];
-            float k = kernel[(i + S) * (2 * S + 1) + (j + S)];
+            const float val = prev[yy * W + xx];
+            const float k = kernel[(i + S) * (2 * S + 1) + (j + S)];
             sum += val * k;
         }
     }
@@ -102,8 +102,8 @@ __global__ void convolve_kernel_step(
 }
 
 // GPU Wrapper
-void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_t T, const uint32_t H, const uint32_t W,
-                     const uint32_t S) {
+void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_t T, const int32_t H, const int32_t W,
+                     const int32_t S) {
     uint32_t size_2d = H * W;
     uint32_t kernel_size = (2 * S + 1) * (2 * S + 1);
 
@@ -138,14 +138,15 @@ void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_
 }
 
 
-// Testfunktion
-Point2DArray *gpu_brownian_walk(float *kernel, const uint32_t S, const uint32_t T, const uint32_t W, const uint32_t H,
-                                const uint32_t start_x, const uint32_t start_y, const uint32_t end_x,
-                                const uint32_t end_y) {
+// interface
+Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint32_t T, const int32_t W,
+                                const int32_t H,
+                                const uint32_t start_x, const uint32_t start_y, const int32_t end_x,
+                                const int32_t end_y) {
     printf("start\n");
-    uint32_t size_2d = W * H;
+    const uint32_t size_2d = W * H;
 
-    float *tensor = (float *) calloc(T * size_2d, sizeof(float));
+    auto *tensor = static_cast<float *>(calloc(T * size_2d, sizeof(float)));
 
     tensor[start_y * W + start_x] = 1.0;
 
@@ -153,11 +154,11 @@ Point2DArray *gpu_brownian_walk(float *kernel, const uint32_t S, const uint32_t 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+    cudaEventRecord(start, nullptr);
 
     gpu_tensor_walk(tensor, kernel, T, H, W, S);
 
-    cudaEventRecord(stop, 0);
+    cudaEventRecord(stop, nullptr);
     cudaEventSynchronize(stop);
 
     float milliseconds = 0.0f;

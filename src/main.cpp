@@ -6,6 +6,8 @@
 #include <thread>
 #include <chrono>
 #include <fstream>
+#include <sstream>
+#include <unistd.h>
 
 #include "parsers/serialization.h"
 #include "walk/b_walk.h"
@@ -13,11 +15,17 @@
 #include "walk/m_walk.h"
 #include "matrix/matrix.h"
 #include "parsers/terrain_parser.h"
+#include "parsers/move_bank_parser.h"
 #include "parsers/walk_json.h"
 #include <sys/time.h>
+#include "math/path_finding.h"
 #include "math/kernel_slicing.h"
 #include "parsers/weather_parser.h"
+#include "cuda/cuda_adapter.h"
+#include "parsers/serialization.h"
 
+#include "config.h"
+#include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
 
@@ -25,9 +33,9 @@ double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
 
-double test_corr(int32_t D) {
+double test_corr(ssize_t D) {
     double ram = get_mem_available_mib();
-    int32_t M = 21, W = 401, H = 401, T = 200;
+    ssize_t M = 15, W = 401, H = 401, T = 200;
     Tensor *c_ke_tensor;
     if (D == 1) {
         Matrix *b_kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
@@ -37,26 +45,32 @@ double test_corr(int32_t D) {
     }
     if (D > 16) M = 21;
     c_ke_tensor = generate_kernels(D, M);
-    TerrainMap *terrain = get_terrain_map("../../resources/landcover_142_brownian.txt", ' ');
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto t_map = tensor_map_new(terrain, c_ke_tensor);
+    TerrainMap terrain;
+    parse_terrain_map("../../resources/landcover_142.txt", &terrain, ' ');
+    auto t_map = tensor_map_new(&terrain, c_ke_tensor);
     std::cout << "start_m\n";
+    Point2D steps[3];
+    steps[0] = (Point2D){.x = 200, .y = 200};
+    steps[1] = (Point2D){.x = 380, .y = 380};
+    steps[2] = (Point2D){.x = 80, .y = 380};
+    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto walk = c_walk_backtrace_multiple_no_terrain(T, W, H, c_ke_tensor, steps_arr);
+    point2d_array_print(walk);
+    // auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, &terrain, t_map, T, 200, 200);
+    // auto walk = backtrace(DP, T, c_ke_tensor, &terrain, t_map, 380, 380, 0, D);
+    // point2d_array_print(walk);
 
-    auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, terrain, t_map, T, 200, 200);
-    auto walk = backtrace(DP, T, c_ke_tensor, terrain, t_map, 380, 380, 0, D);
     auto end = std::chrono::high_resolution_clock::now();
-
     std::chrono::duration<double> duration = end - start;
     std::cout << "dp_calculation took " << duration.count() << " seconds\n";
-    tensor4D_free(DP, T);
+    //tensor4D_free(DP, T);
     point2d_array_free(walk);
-    terrain_map_free(terrain);
     return duration.count();
 }
 
 double test_brownian() {
-    int32_t M = 21, W = 401, H = 401, T = 200;
+    ssize_t M = 21, W = 401, H = 401, T = 200;
     Matrix *kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
     Matrix *start_m = matrix_new(W, H);
     matrix_set(start_m, 200, 200, 1.0);
@@ -66,25 +80,31 @@ double test_brownian() {
     auto *kernel_map = kernels_map_new(terrain, kernel);
     auto *dp = b_walk_init_terrain(start_m, kernel, terrain, kernel_map, T);
 
-    auto walk = b_walk_backtrace(dp, kernel, kernel_map, 380, 380);
+    Point2D steps[3];
+    steps[0] = (Point2D){.x = 200, .y = 200};
+    steps[1] = (Point2D){.x = 380, .y = 380};
+    steps[2] = (Point2D){.x = 80, .y = 380};
+    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
+    auto walk = b_walk_backtrace_multiple(T, W, H, kernel, kernel_map, steps_arr);
     auto end = std::chrono::high_resolution_clock::now();
 
+    point2d_array_print(walk);
+    //kernels_map_free(kernel_map);
     tensor_free(dp);
     point2d_array_free(walk);
     matrix_free(start_m);
     terrain_map_free(terrain);
-    // kernels_map_free(kernel_map);
 
     std::chrono::duration<double> duration = end - start;
     std::cout << "dp_calculation took " << duration.count() << " seconds\n";
     return duration.count();
 }
 
-Point2DArray *create_bias_array(const int T, const int32_t bias_x, const int32_t bias_y) {
+Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t bias_y) {
     Point2D *bias_points = (Point2D *) malloc(sizeof(Point2D) * T);
     for (int t = 0; t < T; t++) {
-        int32_t current_bias_x;
-        int32_t current_bias_y;
+        ssize_t current_bias_x;
+        ssize_t current_bias_y;
         if (t < T / 3) {
             current_bias_x = bias_x;
             current_bias_y = bias_y;
@@ -110,8 +130,8 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     // Kernel Map generieren mit terrain und bias timeline
     KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases);
 
-    Point2D start = {360, 227};
-    Point2D goal = {290, 132};
+    Point2D start = {200, 200};
+    Point2D goal = {390, 332};
 
     const char *path = "";
     auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, path);
@@ -129,7 +149,7 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     return 0;
 }
 
-int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, int32_t W, int32_t H, uint32_t T, Point2D start,
+int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t W, ssize_t H, size_t T, Point2D start,
                           Point2D goal) {
     TerrainMap terrain;
     parse_terrain_map(filename, &terrain, ' ');
@@ -189,6 +209,18 @@ int serialize_tensor() {
     std::cout << loaded->len << std::endl;
     tensor_free(loaded);
     return 0;
+}
+
+void test_mixed() {
+    TerrainMap terrain;
+    parse_terrain_map("../../resources/landcover_baboons123_300.txt", &terrain, ' ');
+    auto kmap = tensor_map_terrain(&terrain);
+    auto dp = m_walk(terrain.width, terrain.height, &terrain, kmap, 100, 100, 100, false, true, "");
+    auto walk = m_walk_backtrace(dp, 100, kmap, &terrain, 200, 200, 0, false, "", "");
+    point2d_array_print(walk);
+
+    tensor4D_free(dp, 100);
+    point2d_array_free(walk);
 }
 
 void test_sym_link() {
@@ -259,7 +291,7 @@ void test_serialization(int argc, char **argv) {
     if (argc == 2)
         num = atoi(argv[1]);
     srand(0);
-    uint32_t T = 100;
+    size_t T = 100;
     TerrainMap *terrain = (TerrainMap *) (malloc(sizeof(TerrainMap)));
     char terrain_path[256];
     sprintf(terrain_path, "../../resources/landcover_baboons123_%i.txt", num);
@@ -320,8 +352,8 @@ int test_geo_multi() {
 }
 
 int brw_test() {
-    uint32_t T = 700;
-    uint32_t W = 2 * T + 1, H = 2 * T + 1;
+    size_t T = 700;
+    size_t W = 2 * T + 1, H = 2 * T + 1;
     auto kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
     auto start_time = std::chrono::high_resolution_clock::now();
     auto dp = brownian_walk_init(T, W, H, T, T, kernel);
@@ -336,40 +368,63 @@ int brw_test() {
     return 0;
 }
 
-void brownian_cuda(uint32_t T) {
-    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 3, 1, 0, 0);
-    float *kernel_values = kernel->data;
-    uint32_t W = 2 * T + 1, H = 2 * T + 1;
-
-    auto path = gpu_brownian_walk(kernel_values, 7, T, W, H, T, T, 230, 220);
-    matrix_free(kernel);
-    //point2d_array_print(path);
+void brownian_cuda() {
+    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 6, 1, 0, 0);
+    auto T = 700;
+    const auto W = 2 * 500 + 1;
+    auto H = 2 * 500 + 1;
+    auto *kernel_array = static_cast<float *>(malloc(sizeof(float) * kernel->len));
+    for (int i = 0; i < kernel->len; i++) {
+        kernel_array[i] = static_cast<float>(kernel->data[i]);
+    }
+    auto S = 7;
+    auto path = gpu_brownian_walk(kernel_array, S, T, W, H, T, T, 30, 30);
+    point2d_array_print(path);
 }
 
-Vector2D *vector2D_new(uint32_t count) {
+Vector2D *vector2D_new(size_t count) {
     Vector2D *v = (Vector2D *) malloc(sizeof(Vector2D));
     v->count = count;
-    v->sizes = (uint32_t *) malloc(count * sizeof(uint32_t));
+    v->sizes = (size_t *) malloc(count * sizeof(size_t));
     v->data = (Point2D **) malloc(count * sizeof(Point2D *));
     return v;
 }
 
 
 int main(int argc, char **argv) {
-    brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
+    brownian_cuda();
     return 0;
-    int T = argc > 1 ? atoi(argv[1]) : 100, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
+    auto bias = create_bias_array(100, 3, 3);
+    test_biased_walk(bias, "../../resources/landcover_142.txt");
+    return 0;
+    brownian_cuda();
+    return 0;
+    int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
-    int end_x = 100, end_y = 100;
-    bool serialize = true;
-    const char *serialization_path = "../../resources/cuda/dp";
-    char walk_json[512];
-    snprintf(walk_json, sizeof(walk_json), "../../resources/cuda/walk_T%d_W%d_H%d_D%d_S%d.json", T, W, H, D, S);
-
-    Point2DArray *walk = correlated_walk_gpu(T, W, H, D, S, kernel_width, start_x, start_y, end_x, end_y, serialize,
-                                             serialization_path, walk_json);
-    point2d_array_free(walk);
-
+    int end_x = 20, end_y = 20;
+    Tensor *kernels = generate_kernels(D, kernel_width);
+    Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
+    Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
+    compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+    auto start = std::chrono::high_resolution_clock::now();
+    //auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
+    //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
+    auto end = std::chrono::high_resolution_clock::now();
+    //point2d_array_print(walk);
+    Point2D steps[2];
+    steps[0] = (Point2D){start_x, start_y};
+    steps[1] = (Point2D){end_x, end_y};
+    Point2DArray *stepsarr = point_2d_array_new(steps, 2);
+    TerrainMap *terrain = terrain_map_new(W, H);
+    //save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
+    //tensor4D_free(walk, T);
+    //point2d_array_free(walk);
+    point2d_array_free(stepsarr);
+    tensor_free(kernels);
+    tensor_free(angles_mask);
+    free_vector2d(dir_kernel);
+    std::chrono::duration<double> duration = end - start;
+    std::cout << duration.count() << "\n";
     return 0;
 }

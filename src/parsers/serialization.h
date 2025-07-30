@@ -11,18 +11,15 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <libgen.h>  // für dirname()
-#include <unistd.h>
+
 
 #include "parsers/types.h"
 
 typedef struct {
-    int32_t width;
-    int32_t height;
-    int32_t timesteps;
-    uint32_t max_D;
+    ssize_t width;
+    ssize_t height;
+    ssize_t timesteps;
+    size_t max_D;
 } KernelMapMeta;
 
 KernelMapMeta read_kernel_map_meta(const char *path);
@@ -32,17 +29,17 @@ void write_kernel_map_meta(const char *path, KernelMapMeta *meta);
 void ensure_dir_exists_for(const char *filepath);
 
 // Serialization functions
-uint32_t serialize_point2d(FILE *fp, const Point2D *p);
+size_t serialize_point2d(FILE *fp, const Point2D *p);
 
-uint32_t serialize_matrix(FILE *fp, const Matrix *m);
+size_t serialize_matrix(FILE *fp, const Matrix *m);
 
-uint32_t serialize_vector2d(FILE *fp, const Vector2D *v);
+size_t serialize_vector2d(FILE *fp, const Vector2D *v);
 
-uint32_t serialize_tensor(FILE *fp, const Tensor *t);
+size_t serialize_tensor(FILE *fp, const Tensor *t);
 
-uint32_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km);
+size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km);
 
-uint32_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
+size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
 uint64_t serialize_array(FILE *fp, float *values, uint64_t size);
 
@@ -59,8 +56,6 @@ KernelsMap4D *deserialize_kernels_map_4d(FILE *fp);
 
 KernelsMap3D *deserialize_kernels_map_3d(const char *filename);
 
-float *deserialize_array(FILE *fp);
-
 // Free functions (important for memory management)
 void free_matrix(Matrix *m);
 
@@ -69,6 +64,8 @@ void free_vector2d(Vector2D *v);
 void free_tensor(Tensor *t);
 
 void free_kernels_map_4d(KernelsMap4D *km);
+
+float *deserialize_array(FILE *fp);
 
 #ifdef __cplusplus
 }

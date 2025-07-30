@@ -381,6 +381,7 @@ Tensor **dp_calculation(int32_t W, int32_t H, const Tensor *kernel, const int32_
 		}
 		printf("(%d/%d)\n", t, T);
 	}
+	tensor_free(angles_mask);
 	free_Vector2D(dir_cell_set);
 	return DP_mat;
 }

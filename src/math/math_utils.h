@@ -1,6 +1,5 @@
 #pragma once
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 
 #ifdef __cplusplus
@@ -13,25 +12,27 @@ typedef struct {
 } Point;
 
 // Funktion, um einen Punkt um einen beliebigen Mittelpunkt (offset_x, offset_y) zu drehen
-Point rotate_point(Point p, float theta);
+Point rotate_point(Point p, double theta);
 
-int32_t weighted_random_index(const float *array, uint32_t length);
+ssize_t weighted_random_index_float(const float *array, size_t len);
 
-float to_radians(float angle);
+ssize_t weighted_random_index(const double *array, size_t length);
 
-float compute_angle(int32_t x, int32_t y);
+double to_radians(double angle);
 
-uint32_t angle_to_direction(float angle, float angle_step_size);
+double compute_angle(ssize_t x, ssize_t y);
 
-float find_closest_angle(float angle, float angle_step_size);
+size_t angle_to_direction(double angle, double angle_step_size);
 
-float alpha(int i, int j, float rotation_angle);
+double find_closest_angle(double angle, double angle_step_size);
 
-float euclid(int32_t f_x, int32_t f_y, int32_t s_x, int32_t s_y);
+double alpha(int i, int j, double rotation_angle);
 
-float euclid_origin(int i, int j);
+double euclid(ssize_t f_x, ssize_t f_y, ssize_t s_x, ssize_t s_y);
 
-float euclid_sqr(int32_t point1_x, int32_t point1_y, int32_t point2_x, int32_t point2_y);
+double euclid_origin(int i, int j);
+
+double euclid_sqr(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t point2_y);
 #ifdef __cplusplus
 }
 #endif
