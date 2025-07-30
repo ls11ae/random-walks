@@ -139,16 +139,13 @@ void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_
 
 
 // Testfunktion
-Point2DArray *gpu_brownian_walk(Matrix *kernel_matrix, uint32_t T, uint32_t W, uint32_t H, uint32_t start_x,
-                                uint32_t start_y,
-                                uint32_t end_x,
-                                uint32_t end_y) {
+Point2DArray *gpu_brownian_walk(float *kernel, const uint32_t S, const uint32_t T, const uint32_t W, const uint32_t H,
+                                const uint32_t start_x, const uint32_t start_y, const uint32_t end_x,
+                                const uint32_t end_y) {
     printf("start\n");
-    int32_t S = kernel_matrix->width / 2;
     uint32_t size_2d = W * H;
 
     float *tensor = (float *) calloc(T * size_2d, sizeof(float));
-    float *kernel = kernel_matrix->data;
 
     tensor[start_y * W + start_x] = 1.0;
 
