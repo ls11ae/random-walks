@@ -171,6 +171,5 @@ Point2DArray *gpu_brownian_walk(float *kernel, const uint32_t S, const uint32_t 
     printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
 
     free(tensor);
-    free(kernel);
     return path;
 }
