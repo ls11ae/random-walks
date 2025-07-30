@@ -342,6 +342,7 @@ void brownian_cuda(uint32_t T) {
     uint32_t W = 2 * T + 1, H = 2 * T + 1;
 
     auto path = gpu_brownian_walk(kernel_values, 7, T, W, H, T, T, 230, 220);
+    matrix_free(kernel);
     //point2d_array_print(path);
 }
 
@@ -355,8 +356,8 @@ Vector2D *vector2D_new(uint32_t count) {
 
 
 int main(int argc, char **argv) {
-    // brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
-    // return 0;
+    brownian_cuda(argc > 1 ? atoi(argv[1]) : 400);
+    return 0;
     int T = argc > 1 ? atoi(argv[1]) : 100, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
