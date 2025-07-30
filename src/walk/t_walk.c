@@ -12,7 +12,7 @@ void mixed_walk_time_serialized(int32_t W, int32_t H,
                                 const int32_t start_x,
                                 const int32_t start_y,
                                 const char *serialized_path) {
-	char tensor_dir[512];
+	char tensor_dir[FILENAME_MAX];
 	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start_x, start_y);
 
 	struct stat st;
@@ -24,7 +24,7 @@ void mixed_walk_time_serialized(int32_t W, int32_t H,
 	Tensor *start_kernel = tensor_at_xyt(serialized_path, start_x, start_y, 0);
 
 	// Lade Meta-Infos und überprüfe Konsistenz
-	char meta_path[256];
+	char meta_path[FILENAME_MAX];
 	snprintf(meta_path, sizeof(meta_path), "%s/meta.info", serialized_path);
 	KernelMapMeta meta = read_kernel_map_meta(meta_path);
 	assert(terrain_map->width == meta.width && terrain_map->height == meta.height);
@@ -43,8 +43,8 @@ void mixed_walk_time_serialized(int32_t W, int32_t H,
 
 	Tensor *prev = tensor_new(W, H, max_D);
 	Tensor *current = tensor_new(W, H, max_D);
-	matrix_set(prev->data[0], start_x, start_y, 1.0 / (float) max_D);
-	matrix_set(current->data[0], start_x, start_y, 1.0 / (float) max_D);
+	matrix_set(prev->data[0], start_x, start_y, 1.0f / (float) max_D);
+	matrix_set(current->data[0], start_x, start_y, 1.0f / (float) max_D);
 	tensor_free(start_kernel); // Nicht mehr benötigt
 
 
@@ -95,7 +95,7 @@ void mixed_walk_time_serialized(int32_t W, int32_t H,
 			}
 		}
 		// Speichere current als Schritt t
-		char step_path[256];
+		char step_path[FILENAME_MAX];
 		snprintf(step_path, sizeof(step_path), "%s/step_%d", tensor_dir, t - 1);
 		ensure_dir_exists_for(step_path);
 		FILE *file = fopen(step_path, "wb");
@@ -109,7 +109,7 @@ void mixed_walk_time_serialized(int32_t W, int32_t H,
 		printf("(%d/%d)\n", t, T);
 	}
 
-	char final_step_folder[256];
+	char final_step_folder[FILENAME_MAX];
 	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%d", tensor_dir, T - 1);
 	ensure_dir_exists_for(final_step_folder);
 	FILE *file = fopen(final_step_folder, "wb");
@@ -128,7 +128,7 @@ Tensor **mixed_walk_time(int32_t W, int32_t H,
                          bool use_serialized,
                          const char *serialized_path) {
 	if (use_serialized) {
-		char tensor_dir[512];
+		char tensor_dir[FILENAME_MAX];
 		snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start_x, start_y);
 
 		struct stat st;
@@ -393,7 +393,7 @@ Point2DArray *backtrace_time_walk_serialized(const char *dp_folder, const int32_
 		path->points[index].y = y;
 		index--;
 
-		char dp_filename[512];
+		char dp_filename[FILENAME_MAX];
 		snprintf(dp_filename, sizeof(dp_filename), "%s/step_%u", dp_folder, t - 1);
 		FILE *file = fopen(dp_filename, "rb");
 		Tensor *DP_t_minus_1 = deserialize_tensor(file);
@@ -482,11 +482,11 @@ Point2DArray *time_walk_geo(int32_t T, const char *csv_path, const char *terrain
 	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, T);
 	printf("weather grid loaded\n");
 
-	char dp_dir[512];
+	char dp_dir[FILENAME_MAX];
 	snprintf(dp_dir, sizeof(dp_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start.x, start.y);
 
 	// Kernels map path
-	char kmap_path[512];
+	char kmap_path[FILENAME_MAX];
 	snprintf(kmap_path, sizeof(kmap_path), "%s/tensors", serialized_path);
 
 	TerrainMap terrain;
@@ -557,7 +557,7 @@ Point2DArray *time_walk_geo_multi(int32_t T, const char *csv_path, const char *t
 
 	if (use_serialized) {
 		// Prüfe auf existierende Kernel-Map
-		char kmap_path[512];
+		char kmap_path[FILENAME_MAX];
 		snprintf(kmap_path, sizeof(kmap_path), "%s/tensors", serialized_path);
 		struct stat st;
 		if (stat(kmap_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
@@ -568,7 +568,7 @@ Point2DArray *time_walk_geo_multi(int32_t T, const char *csv_path, const char *t
 		for (int i = 0; i < steps->length - 1; i++) {
 			Point2D start = steps->points[i];
 			Point2D goal = steps->points[i + 1];
-			char dp_dir[512];
+			char dp_dir[FILENAME_MAX];
 			snprintf(dp_dir, sizeof(dp_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start.x, start.y);
 
 			if (stat(dp_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {

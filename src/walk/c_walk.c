@@ -736,7 +736,7 @@ void dp_calculation_low_ram(int32_t W, int32_t H, const Tensor *kernel, const in
 		}
 
 		// Save previous tensor (t-1)
-		char prev_step_folder[256];
+		char prev_step_folder[FILENAME_MAX];
 		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%d", output_folder, t - 1);
 		tensor_save(prev, prev_step_folder);
 		tensor_free(prev);
@@ -747,7 +747,7 @@ void dp_calculation_low_ram(int32_t W, int32_t H, const Tensor *kernel, const in
 	}
 
 	// Save the final step (t=T-1)
-	char final_step_folder[256];
+	char final_step_folder[FILENAME_MAX];
 	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%d", output_folder, T - 1);
 	tensor_save(prev, final_step_folder);
 	tensor_free(prev);
@@ -817,7 +817,7 @@ void c_walk_init_terrain_low_ram(int32_t W, int32_t H, const Tensor *kernel, con
 			}
 		}
 		// Save previous tensor (t-1)
-		char prev_step_folder[256];
+		char prev_step_folder[FILENAME_MAX];
 		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%d", output_folder, t - 1);
 		tensor_save(prev, prev_step_folder);
 		tensor_free(prev);
@@ -827,7 +827,7 @@ void c_walk_init_terrain_low_ram(int32_t W, int32_t H, const Tensor *kernel, con
 		// printf("(%d/%d)\n", t, T);
 	}
 	// Save the final step (t=T-1)
-	char final_step_folder[256];
+	char final_step_folder[FILENAME_MAX];
 	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%d", output_folder, T - 1);
 	tensor_save(prev, final_step_folder);
 	tensor_free(prev);
@@ -867,7 +867,7 @@ Point2DArray *backtrace_low_ram(const char *dp_folder, const int32_t T, const Te
 		index--;
 
 		// Load the previous tensor (t-1)
-		char step_path[256];
+		char step_path[FILENAME_MAX];
 		snprintf(step_path, sizeof(step_path), "%s/step_%u", dp_folder, t - 1);
 		Tensor *prev_tensor = tensor_load(step_path);
 		if (!prev_tensor) {
