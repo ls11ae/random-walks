@@ -137,7 +137,7 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
                         const TensorSet *correlated_tensors, bool serialized) {
     size_t M = p->S * 2 + 1;
     if (p->is_brownian) {
-        float scale, sigma;
+        double scale, sigma;
         get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
         Matrix *kernel;
         if (full_bias)

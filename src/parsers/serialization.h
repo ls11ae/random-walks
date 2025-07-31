@@ -48,8 +48,6 @@ Point2D *deserialize_point2d(FILE *fp);
 
 Matrix *deserialize_matrix(FILE *fp);
 
-Vector2D *deserialize_vector2d(FILE *fp);
-
 Tensor *deserialize_tensor(FILE *fp);
 
 KernelsMap4D *deserialize_kernels_map_4d(FILE *fp);

@@ -25,7 +25,7 @@ typedef struct {
     point **data;
 } vec2;
 
-float compute_angle_ks(float x, float y);
+double compute_angle_ks(double x, double y);
 
 void compute_overlap_percentages(int W, int D, Tensor *tensor);
 

@@ -24,7 +24,7 @@ void tensor_flat(const Tensor *t, float *values) {
     }
 }
 
-Tensor *tensor_from_flat(const double *flat, size_t tensor_len, ssize_t mat_width, ssize_t mat_height) {
+Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_width, int32_t mat_height) {
     if (!flat || tensor_len == 0 || mat_width <= 0 || mat_height <= 0) return NULL;
 
     Tensor *t = tensor_new_empty(tensor_len);
@@ -45,7 +45,7 @@ Tensor *tensor_from_flat(const double *flat, size_t tensor_len, ssize_t mat_widt
 }
 
 
-void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_sizes, size_t *out_D) {
+void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D) {
     *out_D = input->count;
     int total_points = 0;
     for (size_t d = 0; d < input->count; ++d)

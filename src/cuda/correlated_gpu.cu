@@ -174,7 +174,7 @@ Point2DArray *backtrace_correlated_gpu_wrapped(const char *dp_path, const int64_
                                                const int32_t D) {
 	int kernel_width = 2 * S + 1;
 	Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-	size_t actual_D = 0;
+	uint32_t actual_D = 0;
 	int2 *h_offsets;
 	int *h_sizes;
 	dir_kernel_to_cuda(dir_kernel, &h_offsets, &h_sizes, &actual_D);
@@ -363,7 +363,7 @@ Point2DArray *correlated_walk_gpu(const int T, const int W, const int H, const i
 	Tensor *kernels = generate_kernels(D, kernel_width);
 
 	Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-	size_t actual_D = 0;
+	uint32_t actual_D = 0;
 	int2 *h_offsets;
 	int *h_sizes;
 	dir_kernel_to_cuda(dir_kernel, &h_offsets, &h_sizes, &actual_D);

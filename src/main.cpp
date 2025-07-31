@@ -24,7 +24,6 @@
 #include "cuda/cuda_adapter.h"
 #include "parsers/serialization.h"
 
-#include "config.h"
 #include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
@@ -392,7 +391,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-    brownian_cuda();
+    test_mixed();
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");
