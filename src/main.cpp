@@ -46,15 +46,16 @@ double test_corr(ssize_t D) {
     c_ke_tensor = generate_kernels(D, M);
     TerrainMap terrain;
     parse_terrain_map("../../resources/landcover_142.txt", &terrain, ' ');
+    auto tmap = tensor_map_new(&terrain, c_ke_tensor);
     auto t_map = tensor_map_new(&terrain, c_ke_tensor);
     std::cout << "start_m\n";
     Point2D steps[3];
     steps[0] = (Point2D){.x = 200, .y = 200};
     steps[1] = (Point2D){.x = 380, .y = 380};
-    steps[2] = (Point2D){.x = 80, .y = 380};
+    steps[2] = (Point2D){.x = 180, .y = 300};
     Point2DArray *steps_arr = point_2d_array_new(steps, 3);
     auto start = std::chrono::high_resolution_clock::now();
-    auto walk = c_walk_backtrace_multiple_no_terrain(T, W, H, c_ke_tensor, steps_arr);
+    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, &terrain, tmap, steps_arr);
     point2d_array_print(walk);
     // auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, &terrain, t_map, T, 200, 200);
     // auto walk = backtrace(DP, T, c_ke_tensor, &terrain, t_map, 380, 380, 0, D);
@@ -391,7 +392,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-    test_mixed();
+    test_corr(8);
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");
