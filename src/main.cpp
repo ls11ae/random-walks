@@ -369,6 +369,7 @@ int brw_test() {
 }
 
 void brownian_cuda() {
+#ifdef USE_CUDA
     Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 6, 1, 0, 0);
     auto T = 700;
     const auto W = 2 * 500 + 1;
@@ -380,6 +381,9 @@ void brownian_cuda() {
     auto S = 7;
     auto path = gpu_brownian_walk(kernel_array, S, T, W, H, T, T, 30, 30);
     point2d_array_print(path);
+#else
+    printf("you need an NVIDIA GPU for this :P\n")
+#endif
 }
 
 Vector2D *vector2D_new(size_t count) {
