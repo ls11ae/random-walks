@@ -382,7 +382,7 @@ void brownian_cuda() {
     auto path = gpu_brownian_walk(kernel_array, S, T, W, H, T, T, 30, 30);
     point2d_array_print(path);
 #else
-    printf("you need an NVIDIA GPU for this :P\n")
+    printf("you need an NVIDIA GPU for this :P\n");
 #endif
 }
 
