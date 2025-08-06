@@ -485,7 +485,6 @@ Point2DArray *backtrace(Tensor **DP_Matrix, const ssize_t T, const Tensor *kerne
 		index--;
 		size_t count = 0;
 
-
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_cell_set->sizes[direction]; ++i) {
 				const ssize_t dx = dir_cell_set->data[direction][i].x;
@@ -869,10 +868,10 @@ Point2DArray *backtrace_low_ram(const char *dp_folder, const ssize_t T, const Te
 
 		// Load the previous tensor (t-1)
 		char step_path[FILENAME_MAX];
-		snprintf(step_path, sizeof(step_path), "%s/step_%u", dp_folder, t - 1);
+		snprintf(step_path, sizeof(step_path), "%s/step_%zu", dp_folder, t - 1);
 		Tensor *prev_tensor = tensor_load(step_path);
 		if (!prev_tensor) {
-			fprintf(stderr, "Failed to load tensor for step %u\n", t - 1);
+			fprintf(stderr, "Failed to load tensor for step %zu\n", t - 1);
 			free(path->points);
 			free(path);
 			free_Vector2D(dir_cell_set);
@@ -1002,6 +1001,9 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 
 		Point2DArray *points = backtrace(c_dp, T, kernel, terrain, kernels_map, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
+		printf("points: %p, result: %p\n", (void*)points, (void*)result);
+		printf("points->points: %p, result->points: %p\n", (void*)points->points, (void*)result->points);
+
 		if (!points) {
 			// Check immediately after calling backtrace
 			printf("points returned invalid\n");
@@ -1020,13 +1022,13 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 			return NULL;
 		}
 
-		printf("%u\n", points->length);
+		printf("%zu\n", points->length);
 		fflush(stdout); // Force output to appear
 
 
 		// Ensure we don't exceed the allocated memory
 		if (index + points->length > total_points) {
-			printf("%u , %u", index, points->length);
+			printf("%zu , %zu", index, points->length);
 			point2d_array_free(points);
 			free(result->points);
 			free(result);
@@ -1034,9 +1036,8 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 			return NULL;
 		}
 
-		for (size_t i = 0; i < points->length; ++i) {
-			result->points[index++] = points->points[i];
-		}
+		memcpy(&result->points[index], points->points, points->length * sizeof(Point2D));
+		index += points->length;
 
 		tensor4D_free(c_dp, T);
 
@@ -1092,8 +1093,11 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 
 		const ssize_t D = (ssize_t) kernel->len;
 
-		Point2DArray *points = backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
+		Point2DArray *points = c_backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
+		printf("points: %p, result: %p\n", (void*)points, (void*)result);
+		printf("points->points: %p, result->points: %p\n", (void*)points->points, (void*)result->points);
+
 		if (!points) {
 			// Check immediately after calling backtrace
 			printf("points returned invalid\n");
@@ -1108,13 +1112,13 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 			return NULL;
 		}
 
-		printf("%u\n", points->length);
+		printf("%zu\n", points->length);
 		fflush(stdout); // Force output to appear
 
 
 		// Ensure we don't exceed the allocated memory
 		if (index + points->length > total_points) {
-			printf("%u , %u", index, points->length);
+			printf("%zu , %zu", index, points->length);
 			point2d_array_free(points);
 			free(result->points);
 			free(result);
@@ -1122,9 +1126,8 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 			return NULL;
 		}
 
-		for (size_t i = 0; i < points->length; ++i) {
-			result->points[index++] = points->points[i];
-		}
+		memcpy(&result->points[index], points->points, points->length * sizeof(Point2D));
+		index += points->length;
 
 		tensor4D_free(c_dp, T);
 
