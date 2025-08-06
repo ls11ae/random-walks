@@ -1093,7 +1093,7 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 
 		const ssize_t D = (ssize_t) kernel->len;
 
-		Point2DArray *points = c_backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
+		Point2DArray *points = backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
 		printf("points: %p, result: %p\n", (void*)points, (void*)result);
 		printf("points->points: %p, result->points: %p\n", (void*)points->points, (void*)result->points);
