@@ -1002,8 +1002,6 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 
 		Point2DArray *points = backtrace(c_dp, T, kernel, terrain, kernels_map, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
-		printf("points: %p, result: %p\n", (void *) points, (void *) result);
-		printf("points->points: %p, result->points: %p\n", (void *) points->points, (void *) result->points);
 
 		if (!points) {
 			// Check immediately after calling backtrace
@@ -1011,21 +1009,11 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 			printf("points returned invalid\n");
 			fflush(stdout); // Force output to appear
 
-			// Free resources and handle error
-			for (size_t i = 0; i < T; ++i) {
-				free(c_dp[i]);
-			}
-			free(c_dp);
-			fflush(stdout);
+			tensor4D_free(c_dp, T);
 			point2d_array_free(result);
 			point2d_array_free(points);
-			// Cleanup code...
 			return NULL;
 		}
-
-		printf("%zu\n", points->length);
-		fflush(stdout); // Force output to appear
-
 
 		// Ensure we don't exceed the allocated memory
 		if (index + points->length > total_points) {

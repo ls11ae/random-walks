@@ -406,3 +406,82 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
 	path->points[0].y = y;
 	return path;
 }
+
+Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, TerrainMap *terrain, Point2DArray *steps,
+                                        bool use_serialized, const char *serialize_dir, const char *dp_folder) {
+	if (!steps || steps->length < 2) {
+		// Add kernel->data check
+		// Example in c_walk.c
+		printf("Debug: \n");
+		fflush(stdout); // Force output to appear
+		return NULL;
+	}
+	printf("Debug: \n");
+	fflush(stdout); // Force output to appear
+	const ssize_t num_steps = (ssize_t) steps->length;
+	const ssize_t total_points = T * (num_steps - 1);
+
+	Point2DArray *result = malloc(sizeof(Point2DArray));
+	if (!result) return NULL;
+
+	result->points = malloc(total_points * sizeof(Point2D));
+	if (!result->points) {
+		free(result);
+		return NULL;
+	}
+	result->length = total_points;
+	size_t index = 0;
+
+	for (size_t step = 0; step < num_steps - 1; step++) {
+		Tensor **c_dp = m_walk(terrain->width, terrain->height, terrain, tensor_map, T, steps->points[step].x,
+		                       steps->points[step].y, use_serialized, true, serialize_dir);
+		if (!c_dp) {
+			printf("dp calculation failed");
+			fflush(stdout); // Force output to appear
+
+			free(result->points);
+			free(result);
+			return NULL;
+		}
+
+		printf("dp calculation success\n");
+		fflush(stdout);
+
+		Point2DArray *points = m_walk_backtrace(c_dp, T, tensor_map, terrain, steps->points[step + 1].x,
+		                                        steps->points[step + 1].y, 0, use_serialized, serialize_dir, dp_folder);
+
+		if (!points) {
+			// Check immediately after calling backtrace
+			printf("points returned invalid\n");
+			printf("points returned invalid\n");
+			fflush(stdout); // Force output to appear
+
+			tensor4D_free(c_dp, T);
+			point2d_array_free(result);
+			point2d_array_free(points);
+			return NULL;
+		}
+
+		// Ensure we don't exceed the allocated memory
+		if (index + points->length > total_points) {
+			printf("%zu , %zu", index, points->length);
+			point2d_array_free(points);
+			free(result->points);
+			free(result);
+			tensor4D_free(c_dp, T);
+			return NULL;
+		}
+
+		memcpy(&result->points[index], points->points, points->length * sizeof(Point2D));
+		index += points->length;
+
+		tensor4D_free(c_dp, T);
+		point2d_array_free(points);
+		printf("one iteration successfull\n");
+		fflush(stdout); // Force output to appear
+	}
+	printf("success\n");
+	fflush(stdout); // Force output to appear
+
+	return result;
+}

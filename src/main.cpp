@@ -211,7 +211,13 @@ int serialize_tensor() {
 
 void test_mixed() {
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    auto walk = corr_terrain(terrain, 100, 200, 200, 380, 380);
+    Point2D steps[3];
+    steps[0] = (Point2D){200, 200};
+    steps[1] = (Point2D){380, 380};
+    steps[2] = (Point2D){200, 340};
+    Point2DArray *step_arr = point_2d_array_new(steps, 3);
+    auto t_map = tensor_map_terrain(terrain);
+    auto walk = m_walk_backtrace_multiple(100, t_map, terrain, step_arr, false, "", "");
     point2d_array_print(walk);
     terrain_map_free(terrain);
     point2d_array_free(walk);
