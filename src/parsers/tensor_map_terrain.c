@@ -6,36 +6,35 @@
 KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain);
-    int32_t terrain_width = terrain->width;
-    int32_t terrain_height = terrain->height;
+    ssize_t terrain_width = terrain->width;
+    ssize_t terrain_height = terrain->height;
 
     // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
     kernels_map->width = terrain_width;
     kernels_map->height = terrain_height;
     kernels_map->kernels = malloc(terrain_height * sizeof(Tensor **));
-    for (int32_t y = 0; y < terrain_height; y++)
+    for (ssize_t y = 0; y < terrain_height; y++)
         kernels_map->kernels[y] = malloc(terrain_width * sizeof(Tensor *));
 
     Cache *cache = cache_create(4096);
 
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    uint32_t maxD = 0;
-    for (int32_t i = 0; i < tensor_set->height; i++)
-        for (int32_t j = 0; j < tensor_set->width; j++)
-            if ((uint32_t) tensor_set->data[i][j]->D > maxD)
+    ssize_t maxD = 0;
+    for (ssize_t i = 0; i < tensor_set->height; i++)
+        for (ssize_t j = 0; j < tensor_set->width; j++)
+            if ((ssize_t) tensor_set->data[i][j]->D > maxD)
                 maxD = tensor_set->data[i][j]->D;
     kernels_map->max_D = maxD;
 
     int recomputed = 0;
     TensorSet *correlated_kernels = generate_correlated_tensors();
 
-
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
-    for (int32_t y = 0; y < terrain_height; y++) {
-        for (int32_t x = 0; x < terrain_width; x++) {
-            uint32_t terrain_val = terrain_at(x, y, terrain);
+    for (ssize_t y = 0; y < terrain_height; y++) {
+        for (ssize_t x = 0; x < terrain_width; x++) {
+            ssize_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == WATER) {
                 kernels_map->kernels[y][x] = NULL;
                 continue;
@@ -56,9 +55,9 @@ KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
             } else {
                 // c) Cache‐Miss → neu berechnen und einfügen
                 recomputed++;
-                int32_t D = tensor_set->data[y][x]->D;
+                ssize_t D = tensor_set->data[y][x]->D;
                 arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels, true);
-                for (int32_t d = 0; d < D; d++) {
+                for (ssize_t d = 0; d < D; d++) {
                     Matrix *m = matrix_elementwise_mul(
                         arr->data[d],
                         reach_mat
@@ -86,16 +85,16 @@ KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
 void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain);
-    int32_t terrain_width = terrain->width;
-    int32_t terrain_height = terrain->height;
+    ssize_t terrain_width = terrain->width;
+    ssize_t terrain_height = terrain->height;
     printf("terrain width = %d\n", terrain_width);
     printf("terrain height = %d\n", terrain_height);
 
     TensorSet *correlated_kernels = generate_correlated_tensors();
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    uint32_t maxD = 0;
-    for (int32_t i = 0; i < correlated_kernels->len; i++)
-        if ((uint32_t) correlated_kernels->data[i]->len > maxD)
+    ssize_t maxD = 0;
+    for (ssize_t i = 0; i < correlated_kernels->len; i++)
+        if ((ssize_t) correlated_kernels->data[i]->len > maxD)
             maxD = correlated_kernels->data[i]->len;
 
     KernelMapMeta meta = (KernelMapMeta){terrain->width, terrain->height, 0, maxD};
@@ -111,18 +110,18 @@ void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) 
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
-    for (int32_t y = 0; y < terrain_height; y++) {
+    for (ssize_t y = 0; y < terrain_height; y++) {
         printf("%d / %d \n", y, terrain->height);
-        for (int32_t x = 0; x < terrain_width; x++) {
-            uint32_t terrain_val = terrain_at(x, y, terrain);
+        for (ssize_t x = 0; x < terrain_width; x++) {
+            ssize_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == WATER) {
                 continue;
             }
             KernelParameters *current_parameters = tensor_set->data[y][x];
             Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain);
-            int32_t D = current_parameters->D;
+            ssize_t D = current_parameters->D;
             Tensor *arr = generate_tensor(current_parameters, (int) terrain_val, false, correlated_kernels, true);
-            for (int32_t d = 0; d < D; d++) {
+            for (ssize_t d = 0; d < D; d++) {
                 Matrix *mat = matrix_elementwise_mul(arr->data[d], reach_mat);
                 matrix_normalize_L1(mat);
                 matrix_free(arr->data[d]);

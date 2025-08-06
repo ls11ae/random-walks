@@ -44,10 +44,8 @@ double test_corr(ssize_t D) {
     }
     if (D > 16) M = 21;
     c_ke_tensor = generate_kernels(D, M);
-    TerrainMap terrain;
-    parse_terrain_map("../../resources/landcover_142.txt", &terrain, ' ');
-    auto tmap = tensor_map_new(&terrain, c_ke_tensor);
-    auto t_map = tensor_map_new(&terrain, c_ke_tensor);
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
+    auto tmap = tensor_map_terrain(terrain);
     std::cout << "start_m\n";
     Point2D steps[3];
     steps[0] = (Point2D){.x = 200, .y = 200};
@@ -55,7 +53,7 @@ double test_corr(ssize_t D) {
     steps[2] = (Point2D){.x = 180, .y = 300};
     Point2DArray *steps_arr = point_2d_array_new(steps, 3);
     auto start = std::chrono::high_resolution_clock::now();
-    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, &terrain, tmap, steps_arr);
+    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, tmap, steps_arr);
     point2d_array_print(walk);
     // auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, &terrain, t_map, T, 200, 200);
     // auto walk = backtrace(DP, T, c_ke_tensor, &terrain, t_map, 380, 380, 0, D);
@@ -212,15 +210,9 @@ int serialize_tensor() {
 }
 
 void test_mixed() {
-    TerrainMap terrain;
-    parse_terrain_map("../../resources/landcover_baboons123_300.txt", &terrain, ' ');
-    auto kmap = tensor_map_terrain(&terrain);
-    auto dp = m_walk(terrain.width, terrain.height, &terrain, kmap, 100, 100, 100, false, true, "");
-    auto walk = m_walk_backtrace(dp, 100, kmap, &terrain, 200, 200, 0, false, "", "");
-    point2d_array_print(walk);
-
-    tensor4D_free(dp, 100);
-    point2d_array_free(walk);
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
+    corr_terrain(terrain, 100, 200, 200, 380, 380);
+    terrain_map_free(terrain);
 }
 
 void test_sym_link() {
@@ -396,7 +388,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-    test_corr(8);
+    test_mixed();
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");

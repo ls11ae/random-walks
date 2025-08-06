@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "m_walk.h"
 #include "math/kernel_slicing.h"
 #include "math/path_finding.h"
 
@@ -417,7 +418,7 @@ Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const T
 			for (ssize_t y = 0; y < H; ++y) {
 				for (ssize_t x = 0; x < W; ++x) {
 					double sum = 0.0;
-					if (terrain_map->data[y][x] == WATER) goto skip;
+					if (terrain_map->data[y][x] == WATER) continue;
 					for (int di = 0; di < D; di++) {
 						const Matrix *current_kernel = kernels_map->kernels[y][x]->data[di];
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
@@ -1139,4 +1140,17 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 	fflush(stdout); // Force output to appear
 
 	return result;
+}
+
+
+void corr_terrain(TerrainMap *terrain, const ssize_t T, const ssize_t start_x, const ssize_t start_y,
+                  const ssize_t end_x, const ssize_t end_y) {
+	KernelsMap3D *kmap = tensor_map_terrain(terrain);
+	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, kmap, T, start_x, start_y, false, true, "");
+	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, end_x, end_y, 0, false, "", "");
+	point2d_array_print(walk);
+
+	tensor4D_free(dp, T);
+	point2d_array_free(walk);
+	kernels_map3d_free(kmap);
 }
