@@ -211,8 +211,10 @@ int serialize_tensor() {
 
 void test_mixed() {
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    corr_terrain(terrain, 100, 200, 200, 380, 380);
+    auto walk = corr_terrain(terrain, 100, 200, 200, 380, 380);
+    point2d_array_print(walk);
     terrain_map_free(terrain);
+    point2d_array_free(walk);
 }
 
 void test_sym_link() {

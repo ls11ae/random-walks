@@ -1002,8 +1002,8 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 
 		Point2DArray *points = backtrace(c_dp, T, kernel, terrain, kernels_map, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
-		printf("points: %p, result: %p\n", (void*)points, (void*)result);
-		printf("points->points: %p, result->points: %p\n", (void*)points->points, (void*)result->points);
+		printf("points: %p, result: %p\n", (void *) points, (void *) result);
+		printf("points->points: %p, result->points: %p\n", (void *) points->points, (void *) result->points);
 
 		if (!points) {
 			// Check immediately after calling backtrace
@@ -1096,8 +1096,8 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 
 		Point2DArray *points = backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
-		printf("points: %p, result: %p\n", (void*)points, (void*)result);
-		printf("points->points: %p, result->points: %p\n", (void*)points->points, (void*)result->points);
+		printf("points: %p, result: %p\n", (void *) points, (void *) result);
+		printf("points->points: %p, result->points: %p\n", (void *) points->points, (void *) result->points);
 
 		if (!points) {
 			// Check immediately after calling backtrace
@@ -1143,14 +1143,14 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 }
 
 
-void corr_terrain(TerrainMap *terrain, const ssize_t T, const ssize_t start_x, const ssize_t start_y,
-                  const ssize_t end_x, const ssize_t end_y) {
+Point2DArray *corr_terrain(TerrainMap *terrain, const ssize_t T, const ssize_t start_x, const ssize_t start_y,
+                           const ssize_t end_x, const ssize_t end_y) {
 	KernelsMap3D *kmap = tensor_map_terrain(terrain);
 	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, kmap, T, start_x, start_y, false, true, "");
 	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, end_x, end_y, 0, false, "", "");
 	point2d_array_print(walk);
 
 	tensor4D_free(dp, T);
-	point2d_array_free(walk);
 	kernels_map3d_free(kmap);
+	return walk;
 }
