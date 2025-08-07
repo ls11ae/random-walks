@@ -129,6 +129,7 @@ KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels) {
     }
     free(hash_grid);
     kernels_map->cache = cache;
+    kernels_map->max_D = (ssize_t) kernels->len;
 
     return kernels_map;
 }

@@ -215,12 +215,14 @@ void test_mixed() {
     steps[0] = (Point2D){200, 200};
     steps[1] = (Point2D){380, 380};
     steps[2] = (Point2D){200, 340};
+    auto kernel = generate_kernels(8, 15);
     Point2DArray *step_arr = point_2d_array_new(steps, 3);
-    auto t_map = tensor_map_terrain(terrain);
+    auto t_map = tensor_map_new(terrain, kernel);
     auto walk = m_walk_backtrace_multiple(100, t_map, terrain, step_arr, false, "", "");
     point2d_array_print(walk);
     terrain_map_free(terrain);
     point2d_array_free(walk);
+    tensor_free(kernel);
 }
 
 void test_sym_link() {
