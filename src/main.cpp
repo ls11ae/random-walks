@@ -27,7 +27,6 @@
 #include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
-#include <criterion/criterion.h>
 double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
