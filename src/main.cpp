@@ -27,7 +27,7 @@
 #include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
-
+#include <criterion/criterion.h>
 double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
@@ -383,6 +383,8 @@ void brownian_cuda() {
     auto S = 7;
     auto path = gpu_brownian_walk(kernel_array, S, T, W, H, T, T, 30, 30);
     point2d_array_print(path);
+    matrix_free(kernel);
+    free(kernel_array);
 #else
     printf("you need an NVIDIA GPU for this :P\n");
 #endif
@@ -398,7 +400,9 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-    test_mixed();
+    test_geo_multi();
+    //brownian_cuda();
+    //test_mixed();
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");
