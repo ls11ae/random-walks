@@ -199,26 +199,6 @@ void kernels_map3d_free(KernelsMap3D *map) {
 
 void kernels_map4d_free(KernelsMap4D *km) {
     cache_free(km->cache);
-    if (km == NULL) return;
-    assert(km);
-    if (km->kernels != NULL) {
-        for (ssize_t y = 0; y < km->height; ++y) {
-            if (km->kernels[y] != NULL) {
-                for (ssize_t x = 0; x < km->width; ++x) {
-                    if (km->kernels[y][x] != NULL) {
-                        for (ssize_t t = 0; t < km->timesteps; ++t) {
-                            if (km->kernels[y][x][t] != NULL) {
-                                tensor_free(km->kernels[y][x][t]);
-                            }
-                        }
-                        free(km->kernels[y][x]);
-                    }
-                }
-                free(km->kernels[y]);
-            }
-        }
-        free(km->kernels);
-    }
     free(km);
 }
 

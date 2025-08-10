@@ -43,7 +43,8 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
                                   const char *serialized_path);
 
 
-Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
+Point2DArray *time_walk_geo(ssize_t T, const char *csv_path,
+                            const char *terrain_path, const char *walk_path,
                             const char *serialized_path,
                             int grid_x, int grid_y,
                             Point2D start, Point2D goal,
