@@ -23,301 +23,6 @@
 
 #define MKDIR(path) mkdir(path, 0755)
 
-Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, int k, int d) {
-	const ssize_t big_size = size * subsample_size;
-	Matrix *m = matrix_new(big_size, big_size);
-	if (!m) return NULL;
-
-	ChiDistribution *chi = chi_distribution_new(k);
-	if (!chi) {
-		matrix_free(m);
-		return NULL;
-	}
-
-	const double scale_k = (double) subsample_size * k;
-	size_t index = 0;
-	for (int y = 0; y < m->height; y++) {
-		for (int x = 0; x < m->width; x++) {
-			const double dist = euclid(big_size / 2, big_size / 2, x, y);
-			const double value = chi_distribution_generate(chi, dist / scale_k);
-			m->data[index++] = value;
-		}
-	}
-	free(chi);
-	Matrix *result = matrix_new(size, size);
-	if (!result) {
-		matrix_free(m);
-		return NULL;
-	}
-	matrix_pooling_avg(result, m);
-	matrix_normalize_L1(result);
-	matrix_free(m);
-
-	return result;
-}
-
-// Gibt eine Matrix zurück, in der jeder Wert die Sektornummer enthält
-Matrix *assign_sectors_matrix(ssize_t width, ssize_t height, ssize_t D) {
-	Matrix *m = matrix_new(width, height);
-	if (!m) return NULL;
-
-	const ssize_t S = width / 2;
-	const double angle_step_size = 360.0 / (double) D;
-
-	size_t index = 0;
-	for (ssize_t i = -S; i <= S; ++i) {
-		for (ssize_t j = -S; j <= S; ++j) {
-			const double angle = compute_angle(j, i);
-			const double closest = find_closest_angle(angle, angle_step_size);
-			const ssize_t dir = (ssize_t) (((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D);
-			m->data[index++] = (double) dir;
-		}
-	}
-	m->len = width * height;
-	return m;
-}
-
-void rotate_kernel_ss(Matrix *kernel, double deg, int subsampling) {
-	if (!kernel || subsampling <= 0) return;
-
-	const ssize_t size = (ssize_t) kernel->height;
-	const ssize_t bin_width = size * subsampling;
-	const ssize_t total_size = bin_width * bin_width;
-	Matrix *values = matrix_new(bin_width, bin_width);
-	ScalarMapping *bins = (ScalarMapping *) calloc(total_size, sizeof(ScalarMapping));
-	if (!bins) {
-		matrix_free(values);
-		return;
-	}
-
-	const double angle = DEG_TO_RAD(deg);
-	const double center = (double) ((size / 2) * subsampling);
-
-	// Step 1: Upscale kernel into values matrix
-	for (ssize_t i = 0; i < size; ++i) {
-		for (ssize_t j = 0; j < size; ++j) {
-			const double val = matrix_get(kernel, j, i);
-			for (int k = 0; k < subsampling; ++k) {
-				for (int l = 0; l < subsampling; ++l) {
-					const ssize_t x = j * subsampling + l;
-					const ssize_t y = i * subsampling + k;
-					matrix_set(values, x, y, val);
-				}
-			}
-		}
-	}
-
-	// Step 2: Rotate each point and accumulate into bins
-	for (ssize_t i = 0; i < bin_width; ++i) {
-		for (ssize_t j = 0; j < bin_width; ++j) {
-			const double val = matrix_get(values, j, i);
-			const double di = (double) i - center;
-			const double dj = (double) j - center;
-
-			const double new_i_rot = di * cos(angle) - dj * sin(angle) + center;
-			const double new_j_rot = di * sin(angle) + dj * cos(angle) + center;
-
-			const ssize_t new_i = (ssize_t) round(new_i_rot);
-			const ssize_t new_j = (ssize_t) round(new_j_rot);
-
-			if (new_i < 0 || new_i >= (int) bin_width || new_j < 0 || new_j >= (int) bin_width)
-				continue;
-
-			const ssize_t idx = (ssize_t) new_i * bin_width + (ssize_t) new_j;
-			bins[idx].value += val;
-			bins[idx].index++;
-		}
-	}
-
-	// Step 3: Average the bins
-	for (size_t i = 0; i < total_size; ++i) {
-		if (bins[i].index > 0) {
-			bins[i].value /= (double) bins[i].index;
-		}
-	}
-
-	// Step 4: Downsample bins into kernel
-	for (ssize_t i = 0; i < size; ++i) {
-		for (ssize_t j = 0; j < size; ++j) {
-			double sum = 0.0;
-			for (int k = 0; k < subsampling; ++k) {
-				for (int l = 0; l < subsampling; ++l) {
-					const ssize_t y_bin = i * subsampling + k;
-					const ssize_t x_bin = j * subsampling + l;
-					if (y_bin < bin_width && x_bin < bin_width) {
-						sum += bins[y_bin * bin_width + x_bin].value;
-					}
-				}
-			}
-			matrix_set(kernel, j, i, sum / (double) (subsampling * subsampling));
-		}
-	}
-
-	free(bins);
-	matrix_free(values);
-}
-
-// Gibt einen Tensor zurück, in dem jede Matrix nur die Werte eines Sektors enthält
-Tensor *assign_sectors_tensor(ssize_t width, ssize_t height, int D) {
-	Tensor *t = tensor_new(width, height, D);
-	if (!t) return NULL;
-
-	size_t cx = width / 2;
-	size_t cy = height / 2;
-	double sector_size = 360.0 / D;
-
-	for (size_t y = 0; y < height; y++) {
-		for (size_t x = 0; x < width; x++) {
-			double angle = atan2((double) (y - cy), (double) (x - cx)) * (180.0 / M_PI);
-			if (angle < 0) angle += 360;
-			const int sector = (int) (angle / sector_size);
-			t->data[sector]->data[y * width + x] = sector + 1;
-		}
-	}
-	return t;
-}
-
-
-static double warped_normal(double mu, double rho, double x) {
-	double sigma = sqrt(-2 * log10(rho));
-	return normal_pdf(0, sigma, x);
-}
-
-
-Matrix *generate_length_kernel_ss(const ssize_t size, const ssize_t subsampling, const double scaling) {
-	const ssize_t kernel_size = size * subsampling + 1;
-	Matrix *values = matrix_new(kernel_size, kernel_size);
-
-	double std_dev = sqrt(-3.0 * log10(0.9));
-	const ssize_t half_size = size * subsampling / 2;
-
-	// Compute intermediate kernel values using chi distribution PDF
-	for (ssize_t i = -half_size; i <= half_size; ++i) {
-		for (ssize_t j = -half_size; j <= half_size; ++j) {
-			const ssize_t displacement = 0;
-			const double dist = euclid(displacement * subsampling, 0, j, i);
-			values->data[(i + half_size) * kernel_size + (j + half_size)] =
-					exp(-0.5 * pow(dist * scaling / std_dev, 2)) / (std_dev * sqrt(2 * M_PI));
-		}
-	}
-
-	// Create the final kernel matrix
-	Matrix *kernel = matrix_new(size, size);
-
-	for (ssize_t y = 0; y < size * subsampling; y += subsampling) {
-		for (ssize_t x = 0; x < size * subsampling; x += subsampling) {
-			double sum = 0.0;
-			for (ssize_t k = 0; k < subsampling; ++k) {
-				for (ssize_t l = 0; l < subsampling; ++l) {
-					const ssize_t yy = y + k;
-					const ssize_t xx = x + l;
-					assert(yy * kernel_size + xx < values->len);
-					sum += values->data[yy * kernel_size + xx];
-				}
-			}
-
-			const ssize_t r_y = y / subsampling;
-			const ssize_t r_x = x / subsampling;
-
-			assert(r_y * size + r_x < kernel->len);
-			kernel->data[r_y * size + r_x] = sum / ((double) (subsampling) * (double) (subsampling));
-		}
-	}
-
-	matrix_normalize_01(kernel);
-	matrix_free(values);
-
-	return kernel;
-}
-
-Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
-	Matrix *kernel = matrix_new(size, size);
-
-	size_t grid_size = size * subsampling + 1;
-	Matrix *values = matrix_new(grid_size, grid_size);
-
-	const long long half = (long long) (size * subsampling) / 2;
-
-	for (long long y = -half; y <= half; ++y) {
-		for (long long x = -half; x <= half; ++x) {
-			double angle = atan2((double) y, (double) x);
-			size_t yy = (size_t) (y + half);
-			size_t xx = (size_t) (x + half);
-			if (matrix_in_bounds(values, xx, yy)) {
-				values->data[yy * grid_size + xx] = warped_normal(0.0, 0.9, angle);
-			}
-		}
-	}
-
-	for (size_t y = 0; y < size * subsampling; y += subsampling) {
-		for (size_t x = 0; x < size * subsampling; x += subsampling) {
-			double sum = 0.0;
-			for (size_t k = 0; k < subsampling; ++k) {
-				for (size_t l = 0; l < subsampling; ++l) {
-					size_t yy = y + k;
-					size_t xx = x + l;
-					if (matrix_in_bounds(values, xx, yy)) {
-						sum += values->data[yy * grid_size + xx];
-					}
-				}
-			}
-			size_t r_y = y / subsampling;
-			size_t r_x = x / subsampling;
-			if (matrix_in_bounds(kernel, r_x, r_y)) {
-				double current_value = sum / (double) (subsampling * subsampling);
-				kernel->data[r_y * size + r_x] = current_value;
-			}
-		}
-	}
-
-	matrix_normalize_01(kernel);
-	matrix_free(values);
-	return kernel;
-}
-
-Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel) {
-	if (!length_kernel || !angle_kernel || !length_kernel->data || !angle_kernel->data ||
-	    length_kernel->height != angle_kernel->height || length_kernel->width != angle_kernel->width) {
-		return NULL;
-	}
-	Matrix *combined = matrix_new(length_kernel->width, length_kernel->height);
-	matrix_convolution(length_kernel, angle_kernel, combined);
-	matrix_normalize_01(combined);
-	return combined;
-}
-
-
-Tensor *generate_kernels(const ssize_t dirs, ssize_t size) {
-	Tensor *kernels = tensor_new(size, size, dirs);
-	Matrix *length_kernel = generate_length_kernel_ss(size, 10, 0.0047);
-	Matrix *angle_kernel = generate_angle_kernel_ss(size, 10);
-	Matrix *combined_kernel = generate_combined_kernel_ss(length_kernel, angle_kernel);
-
-	// discretize angles
-	double *angles = calloc(dirs, sizeof(double));
-	for (size_t i = 0; i < dirs; ++i) {
-		angles[i] = (double) (i) * (360.0 / (double) dirs);
-	}
-
-	// create rotated combined kernels
-	for (int i = 0; i < dirs; ++i) {
-		const double deg = angles[i];
-		Matrix *rotated_kernel = matrix_copy(combined_kernel);
-		rotate_kernel_ss(rotated_kernel, deg, 10);
-		matrix_normalize_L1(rotated_kernel);
-		kernels->data[(dirs - i) % dirs] = rotated_kernel;
-	}
-	kernels->dir_kernel = get_dir_kernel(dirs, size);
-
-	matrix_free(length_kernel);
-	matrix_free(angle_kernel);
-	matrix_free(combined_kernel);
-	free(angles);
-
-	return kernels;
-}
-
-
 Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
                         const ssize_t start_y) {
 	const ssize_t D = (ssize_t) kernel->len;
@@ -441,7 +146,7 @@ Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const T
 				}
 			}
 		}
-		printf("(%d/%d)\n", t, T);
+		printf("(%zd/%zd)\n", t, T);
 	}
 	free_Vector2D(dir_cell_set);
 	// printf("DP calculation finished\n");
@@ -738,18 +443,18 @@ void dp_calculation_low_ram(ssize_t W, ssize_t H, const Tensor *kernel, const ss
 
 		// Save previous tensor (t-1)
 		char prev_step_folder[FILENAME_MAX];
-		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%d", output_folder, t - 1);
+		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%zd", output_folder, t - 1);
 		tensor_save(prev, prev_step_folder);
 		tensor_free(prev);
 
 		prev = current;
 
-		// printf("(%d/%d)\n", t, T);
+		// printf("(%zd/%zd)\n", t, T);
 	}
 
 	// Save the final step (t=T-1)
 	char final_step_folder[FILENAME_MAX];
-	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%d", output_folder, T - 1);
+	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%zd", output_folder, T - 1);
 	tensor_save(prev, final_step_folder);
 	tensor_free(prev);
 
@@ -819,17 +524,17 @@ void c_walk_init_terrain_low_ram(ssize_t W, ssize_t H, const Tensor *kernel, con
 		}
 		// Save previous tensor (t-1)
 		char prev_step_folder[FILENAME_MAX];
-		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%d", output_folder, t - 1);
+		snprintf(prev_step_folder, sizeof(prev_step_folder), "%s/step_%zd", output_folder, t - 1);
 		tensor_save(prev, prev_step_folder);
 		tensor_free(prev);
 
 		prev = current;
 
-		// printf("(%d/%d)\n", t, T);
+		// printf("(%zd/%zd)\n", t, T);
 	}
 	// Save the final step (t=T-1)
 	char final_step_folder[FILENAME_MAX];
-	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%d", output_folder, T - 1);
+	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%zd", output_folder, T - 1);
 	tensor_save(prev, final_step_folder);
 	tensor_free(prev);
 

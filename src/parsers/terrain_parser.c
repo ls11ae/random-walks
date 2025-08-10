@@ -1,5 +1,7 @@
 #include "terrain_parser.h"
 
+#include "matrix/kernels.h"
+
 
 TensorSet *generate_correlated_tensors() {
     const int terrain_count = 11;

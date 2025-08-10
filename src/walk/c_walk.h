@@ -20,7 +20,6 @@ typedef struct {
 
 #define DEG_TO_RAD(deg) ((deg) * M_PI / 180.0)
 
-Matrix *generate_chi_kernel(ssize_t size, ssize_t subsample_size, int k, int d);
 
 Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, ssize_t T, ssize_t start_x, ssize_t start_y);
 
@@ -55,12 +54,6 @@ Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const T
 
 Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T_c, ssize_t W_c, ssize_t H_c, Tensor *kernel_c,
                                                    Point2DArray *steps_c);
-
-Tensor *generate_kernels(ssize_t dirs, ssize_t size);
-
-Matrix *assign_sectors_matrix(ssize_t width, ssize_t height, ssize_t D);
-
-Tensor *assign_sectors_tensor(ssize_t width, ssize_t height, int D);
 
 #ifdef __cplusplus
 }

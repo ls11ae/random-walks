@@ -7,6 +7,7 @@
 #include "c_walk.h"
 #include "math/math_utils.h"
 #include "math/path_finding.h"
+#include "matrix/kernels.h"
 
 
 Tensor *brownian_walk_init(ssize_t T,

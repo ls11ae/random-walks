@@ -27,6 +27,8 @@
 #include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
+#include "matrix/kernels.h"
+
 double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
@@ -44,7 +46,7 @@ double test_corr(ssize_t D) {
     if (D > 16) M = 21;
     c_ke_tensor = generate_kernels(D, M);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    auto tmap = tensor_map_terrain(terrain);
+    auto tmap = tensor_map_new(terrain, c_ke_tensor);
     std::cout << "start_m\n";
     Point2D steps[3];
     steps[0] = (Point2D){.x = 200, .y = 200};
@@ -399,7 +401,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-    test_geo_multi();
+test_corr(8);
     //brownian_cuda();
     //test_mixed();
     return 0;

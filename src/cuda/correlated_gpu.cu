@@ -7,6 +7,7 @@
 
 #include "math/kernel_slicing.h"
 #include "math/math_utils.h"
+#include "matrix/kernels.h"
 #include "parsers/walk_json.h"
 #include "walk/c_walk.h"
 

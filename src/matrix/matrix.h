@@ -54,9 +54,6 @@ void matrix_pooling_avg(Matrix *dst, const Matrix *src);
 
 void matrix_copy_to(Matrix *dest, const Matrix *src);
 
-void get_gaussian_parameters(double diffusity, int terrain_value,
-                             double *out_sigma, double *out_scale);
-
 int matrix_in_bounds(const Matrix *m, uint32_t x, uint32_t y);
 
 double matrix_get(const Matrix *m, uint32_t x, uint32_t y);
@@ -101,11 +98,6 @@ void matrix_normalize_01(Matrix *m);
 
 void matrix_normalize_L1(Matrix *m);
 
-Matrix *matrix_generator_gaussian_pdf(int32_t width, int32_t height, double sigma, double scale, int32_t x_offset,
-                                      int32_t y_offset);
-
-Matrix *matrix_gaussian_pdf_alpha(int32_t width, int32_t height, double sigma, double scale, int32_t x_offset,
-                                  int32_t y_offset);
 
 #ifdef __cplusplus
 }
