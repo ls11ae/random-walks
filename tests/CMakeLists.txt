@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.18)
-project(random_walk LANGUAGES C CXX)
 include(FetchContent)
 FetchContent_Declare(
         googletest
