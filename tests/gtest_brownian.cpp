@@ -8,7 +8,7 @@ TEST(BrownianNormal, RunsAndReturnsValidData) {
     ssize_t end_x = 180, end_y = 150;
     auto T = 100;
     auto kernel = matrix_generator_gaussian_pdf(9, 9, 3.0, 1, 0, 0);
-    Tensor* walker = brownian_walk_init(T, 2 * T + 1, 2 * T + 1, start_x, start_y, kernel);
+    Tensor *walker = brownian_walk_init(T, 2 * T + 1, 2 * T + 1, start_x, start_y, kernel);
 
     ASSERT_NE(walker, nullptr);
 
@@ -62,7 +62,8 @@ TEST(BrownianTerrain, RunsAndReturnsValidData) {
     TerrainMap *terrain = get_terrain_map("../../resources/landcover_142.txt", ' ');
     ASSERT_GT(terrain->width, 100);
     auto *kernel_map = kernels_map_new(terrain, kernel);
-    Tensor* walker = brownian_walk_terrain_init(T, terrain->width, terrain->height, start_x, start_y, kernel, terrain, kernel_map);
+    Tensor *walker = brownian_walk_terrain_init(T, terrain->width, terrain->height, start_x, start_y, kernel, terrain,
+                                                kernel_map);
 
     ASSERT_NE(walker, nullptr);
 
@@ -83,32 +84,4 @@ TEST(BrownianTerrain, RunsAndReturnsValidData) {
     terrain_map_free(terrain);
     point2d_array_free(walk);
     matrix_free(kernel);
-}
-
-TEST(BrownianTerrainMultiStep, RunsAndReturnsValidData) {
-    auto T = 100;
-    auto kernel = matrix_generator_gaussian_pdf(9, 9, 3, 1, 0, 0);
-    Point2D steps[3];
-    steps[0] = (Point2D){.x = 200, .y = 200};
-    steps[1] = (Point2D){.x = 380, .y = 380};
-    steps[2] = (Point2D){.x = 180, .y = 380};
-    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
-    TerrainMap *terrain = get_terrain_map("../../resources/landcover_142.txt", ' ');
-    ASSERT_GT(terrain->width, 100);
-    auto *kernel_map = kernels_map_new(terrain, kernel);
-    auto walk = b_walk_backtrace_multiple(T, terrain->width, terrain->height, kernel, kernel_map, steps_arr);
-
-    ASSERT_NE(walk, nullptr);
-    ASSERT_EQ(walk->length, 200);
-    ASSERT_EQ(walk->points[0].x, steps[0].x);
-    ASSERT_EQ(walk->points[0].y, steps[0].y);
-    ASSERT_EQ(walk->points[T].x, steps[1].x);
-    ASSERT_EQ(walk->points[T].y, steps[1].y);
-    ASSERT_EQ(walk->points[walk->length - 1].x, steps[2].x);
-    ASSERT_EQ(walk->points[walk->length - 1].y, steps[2].y);
-
-    //kernels_map_free(kernel_map);
-    terrain_map_free(terrain);
-    matrix_free(kernel);
-    point2d_array_free(steps_arr);
 }

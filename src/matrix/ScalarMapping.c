@@ -1,6 +1,6 @@
 #include "ScalarMapping.h"
 
-ScalarMapping *Point2D_new(const float val, const uint32_t ind) {
+ScalarMapping *scalar_mapping_new(const float val, const uint32_t ind) {
     ScalarMapping *point = malloc(sizeof(ScalarMapping));
     if (point != NULL) {
         point->value = val;

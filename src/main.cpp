@@ -401,7 +401,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
-test_corr(8);
+    test_brownian();
     //brownian_cuda();
     //test_mixed();
     return 0;
