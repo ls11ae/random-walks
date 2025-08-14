@@ -22,6 +22,20 @@ TensorSet *generate_correlated_tensors() {
     return correlated_kernels;
 }
 
+TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const ssize_t height) {
+    TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
+    terrain_map->height = height;
+    terrain_map->width = width;
+    terrain_map->data = malloc(height * sizeof(int));
+    for (int i = 0; i < height; i++) {
+        terrain_map->data[i] = malloc(width * sizeof(int));
+        for (int j = 0; j < width; j++) {
+            terrain_map->data[i][j] = land_type;
+        }
+    }
+    return terrain_map;
+}
+
 KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel) {
     KernelsMap *kernels_map = malloc(sizeof(KernelsMap));
     kernels_map->kernels = malloc(terrain->height * sizeof(Matrix **));

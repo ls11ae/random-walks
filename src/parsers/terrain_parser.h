@@ -2,6 +2,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 #include <linux/limits.h>
 #include "matrix/matrix.h"
@@ -73,6 +76,8 @@ void terrain_map_free(TerrainMap *terrain_map);
 int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter);
 
 TerrainMap *create_terrain_map(const char *filename, char delimiter);
+
+TerrainMap *terrain_single_value(int land_type, ssize_t width, ssize_t height);
 
 TensorSet *generate_correlated_tensors();
 
