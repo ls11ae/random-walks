@@ -23,6 +23,7 @@
 #include "parsers/weather_parser.h"
 #include "cuda/cuda_adapter.h"
 #include "parsers/serialization.h"
+#include "parsers/kernel_terrain_mapping.h"
 
 #include "memory_utils.h"
 #include "cuda/brownian_gpu.h"
@@ -401,6 +402,7 @@ Vector2D *vector2D_new(size_t count) {
 
 
 int main(int argc, char **argv) {
+    create_default_terrain_kernel_mapping(AIRBORNE, 7);
     test_brownian();
     //brownian_cuda();
     //test_mixed();

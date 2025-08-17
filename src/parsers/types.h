@@ -7,6 +7,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 /**
@@ -112,6 +115,41 @@ typedef struct {
     ssize_t bias_y;
 } KernelParameters;
 
+enum landmarkType {
+    TREE_COVER = 10,
+    SHRUBLAND = 20,
+    GRASSLAND = 30,
+    CROPLAND = 40,
+    BUILT_UP = 50,
+    SPARSE_VEGETATION = 60,
+    SNOW_AND_ICE = 70,
+    WATER = 80,
+    HERBACEOUS_WETLAND = 90,
+    MANGROVES = 95,
+    MOSS_AND_LICHEN = 100,
+    LAVA = WATER
+};
+
+static enum landmarkType landmarks[12] = {
+    TREE_COVER, SHRUBLAND, GRASSLAND, CROPLAND, BUILT_UP, SPARSE_VEGETATION,
+    SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN,
+    LAVA
+};
+
+typedef struct {
+    enum landmarkType forbidden_landmarks[12];
+    bool has_forbidden_landmarks;
+    int forbidden_landmarks_count;
+    KernelParameters parameters[12];
+} KernelParametersMapping;
+
+enum animal_type {
+    AIRBORNE,
+    AMPHIBIAN,
+    LIGHT,
+    MEDIUM,
+    HEAVY
+};
 
 typedef struct {
     Matrix ***kernels;
@@ -130,20 +168,6 @@ typedef struct {
     ssize_t width, height, timesteps, max_D;
     Cache *cache;
 } KernelsMap4D;
-
-enum landmarkType {
-    TREE_COVER = 10,
-    SHRUBLAND = 20,
-    GRASSLAND = 30,
-    CROPLAND = 40,
-    BUILT_UP = 50,
-    SPARSE_VEGETATION = 60,
-    SNOW_AND_ICE = 70,
-    WATER = 80,
-    HERBACEOUS_WETLAND = 90,
-    MANGROVES = 95,
-    MOSS_AND_LICHEN = 100
-};
 
 
 typedef struct {
