@@ -8,9 +8,10 @@
 extern "C" {
 
 
-
 #endif
 
+KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
+                                           ssize_t max_bias_y);
 
 KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelParametersMapping *kernels_mapping);
 

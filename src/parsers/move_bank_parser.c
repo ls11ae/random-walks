@@ -10,6 +10,17 @@
 #include "kernel_terrain_mapping.h"
 #include "utils.h"
 
+KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
+                                           ssize_t max_bias_y) {
+    KernelParameters *kernel_parameters = malloc(sizeof(KernelParameters));
+    kernel_parameters->is_brownian = is_brownian;
+    kernel_parameters->S = S;
+    kernel_parameters->D = D;
+    kernel_parameters->diffusity = diffusity;
+    kernel_parameters->bias_x = max_bias_x;
+    kernel_parameters->bias_y = max_bias_y;
+    return kernel_parameters;
+}
 
 Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t length) {
     Coordinate_array *result = (Coordinate_array *) malloc(sizeof(Coordinate_array));
