@@ -11,9 +11,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stdlib.h>
 
-KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel);
+KernelsMap *kernels_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Matrix *kernel);
 
-KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels);
+KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Tensor *kernels);
 
 KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                         KernelParametersMapping *mapping);

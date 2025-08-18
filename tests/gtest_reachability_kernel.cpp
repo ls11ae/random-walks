@@ -2,6 +2,7 @@
 
 #include "math/path_finding.h"
 #include "matrix/kernels.h"
+#include "parsers/kernel_terrain_mapping.h"
 
 static TerrainMap init_terrain_map() {
     TerrainMap terrain;
@@ -66,7 +67,8 @@ protected:
 };
 
 TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
-    auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain_map);
+    auto mapping = create_default_brownian_mapping(MEDIUM, 3);
+    auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain_map, mapping);
     // First row
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 1.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 1, 0), 0.0);
@@ -124,10 +126,12 @@ TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
     ASSERT_EQ(matrix_get(reachability_kernel1, 5, 6), 0.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 6, 6), 0.0);
     matrix_free(reachability_kernel1);
+    free(mapping);
 }
 
 TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
-    auto reachability_kernel1 = get_reachability_kernel(4, 11, 3, &terrain_map);
+    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto reachability_kernel1 = get_reachability_kernel(4, 11, 3, &terrain_map, mapping);
 
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 0.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 1, 0), 1.0);
@@ -141,25 +145,30 @@ TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
     ASSERT_EQ(matrix_get(reachability_kernel1, 1, 2), 0.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 2, 2), 1.0);
     matrix_free(reachability_kernel1);
+    free(mapping);
 }
 
 TEST_F(ReachabilityTest, FullReachability) {
-    auto reachability_kernel1 = get_reachability_kernel(6, 14, 3, &terrain_map);
+    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto reachability_kernel1 = get_reachability_kernel(6, 14, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j)
             ASSERT_EQ(matrix_get(reachability_kernel1,i, j), 1.0);
 
     matrix_free(reachability_kernel1);
+    free(mapping);
 }
 
 TEST_F(ReachabilityTest, ZeroReachability) {
-    auto reachability_kernel1 = get_reachability_kernel(3, 12, 3, &terrain_map);
+    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto reachability_kernel1 = get_reachability_kernel(3, 12, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j)
             ASSERT_EQ(matrix_get(reachability_kernel1,i, j), 0.0);
 
     matrix_free(reachability_kernel1);
+    free(mapping);
 }
 

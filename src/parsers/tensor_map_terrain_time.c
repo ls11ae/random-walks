@@ -65,7 +65,8 @@ KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2D
                 // a) Einzel-Hashes
                 uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
                 uint64_t w_params = ((uint64_t) (bias.x) << 32) | (uint32_t) (bias.y);
-                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
+                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
+                                                            mapping);
                 uint64_t h_reach = compute_matrix_hash(reach_mat);
                 uint64_t pre_combined = hash_combine(h_params, h_reach);
                 uint64_t combined = hash_combine(pre_combined, w_params);
@@ -158,7 +159,8 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
 
                 // a) Einzel-Hashes
                 uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
-                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
+                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
+                                                            mapping);
                 uint64_t h_reach = compute_matrix_hash(reach_mat);
                 uint64_t pre_combined = hash_combine(h_params, h_reach);
 
@@ -241,7 +243,8 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
                 }
 
                 // a) Einzel-Hashes
-                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain);
+                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
+                                                            mapping);
                 ssize_t D = tensor_set->data[y][x][t]->D;
                 Tensor *arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true, correlated_kernels,
                                               true);
@@ -349,7 +352,7 @@ void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_se
                     continue;
                 }
                 KernelParameters *current_parameters = tensor_set_time->data[y][x][t];
-                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain);
+                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain, mapping);
                 ssize_t D = current_parameters->D;
                 Tensor *arr = generate_tensor(current_parameters, (int) terrain_val, false, correlated_kernels, true);
                 for (ssize_t d = 0; d < D; d++) {

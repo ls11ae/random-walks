@@ -35,7 +35,8 @@ double chi_square_pdf(const double x, const int k) {
 
 double test_corr(ssize_t D) {
     double ram = get_mem_available_mib();
-    ssize_t M = 15, W = 401, H = 401, T = 200;
+    int S = 7;
+    ssize_t M = 2 * S + 1, W = 401, H = 401, T = 200;
     Tensor *c_ke_tensor;
     if (D == 1) {
         Matrix *b_kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
@@ -46,7 +47,8 @@ double test_corr(ssize_t D) {
     if (D > 16) M = 21;
     c_ke_tensor = generate_kernels(D, M);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    auto tmap = tensor_map_new(terrain, c_ke_tensor);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    auto tmap = tensor_map_new(terrain, mapping, c_ke_tensor);
     std::cout << "start_m\n";
     Point2D steps[3];
     steps[0] = (Point2D){.x = 200, .y = 200};
@@ -54,7 +56,7 @@ double test_corr(ssize_t D) {
     steps[2] = (Point2D){.x = 180, .y = 300};
     Point2DArray *steps_arr = point_2d_array_new(steps, 3);
     auto start = std::chrono::high_resolution_clock::now();
-    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, tmap, steps_arr);
+    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, mapping, tmap, steps_arr);
     point2d_array_print(walk);
     // auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, &terrain, t_map, T, 200, 200);
     // auto walk = backtrace(DP, T, c_ke_tensor, &terrain, t_map, 380, 380, 0, D);
@@ -74,9 +76,9 @@ double test_brownian() {
     Matrix *start_m = matrix_new(W, H);
     matrix_set(start_m, 200, 200, 1.0);
     TerrainMap *terrain = get_terrain_map("../../resources/landcover_142.txt", ' ');
-
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, (int) (M / 2));
     auto start = std::chrono::high_resolution_clock::now();
-    auto *kernel_map = kernels_map_new(terrain, kernel);
+    auto *kernel_map = kernels_map_new(terrain, mapping, kernel);
     auto *dp = b_walk_init_terrain(start_m, kernel, terrain, kernel_map, T);
 
     Point2D steps[3];
@@ -127,7 +129,7 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
 
     const int T = 100;
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     // Kernel Map generieren mit terrain und bias timeline
     KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mapping);
 
@@ -135,8 +137,8 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     Point2D goal = {390, 332};
 
     const char *path = "";
-    auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, path);
-    auto walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, path);
+    auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false, path);
+    auto walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, false, path);
 
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
 
@@ -159,12 +161,13 @@ int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t 
 
     // Kernel Map generieren mit terrain und bias timeline
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
 
-    Tensor **dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, false, "");
+    Tensor **dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false,
+                                  "");
     std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
-    Point2DArray *walk = backtrace_time_walk(dp, T, &terrain, kmap, goal.x, goal.y, 0, false, "");
+    Point2DArray *walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, false, "");
 
 
     Point2D *points = static_cast<Point2D *>(malloc(sizeof(Point2D) * 2));
@@ -194,7 +197,7 @@ int test_serialization_terrain() {
     }
 
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
     serialize_kernels_map_4d(file, kmap);
     auto *loaded_map = deserialize_kernels_map_4d(file);
@@ -224,9 +227,9 @@ void test_mixed() {
     steps[2] = (Point2D){200, 340};
     auto kernel = generate_kernels(8, 15);
     Point2DArray *step_arr = point_2d_array_new(steps, 3);
-    auto t_map = tensor_map_new(terrain, kernel);
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    auto t_map = tensor_map_new(terrain, mapping, kernel);
     auto walk = m_walk_backtrace_multiple(100, t_map, terrain, mapping, step_arr, false, "", "");
     point2d_array_print(walk);
     terrain_map_free(terrain);
@@ -323,7 +326,7 @@ void test_serialization(int argc, char **argv) {
     sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
 
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     const auto start = std::chrono::high_resolution_clock::now();
     m_walk(terrain->width, terrain->height, terrain, mapping, NULL, T, stepss->points[0].x,
            stepss->points[0].y, true, true, path);
@@ -352,7 +355,7 @@ int test_geo_multi() {
 
     const auto start = std::chrono::high_resolution_clock::now();
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_terrain_kernel_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     auto walk = time_walk_geo_multi(T, csv_path, "../../resources/landcover_baboons123_200.txt",
                                     "../../resources/time_walk_serialized.json", mapping, grid_x, grid_y, steps, true,
                                     serialized_path);

@@ -41,7 +41,7 @@ TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const
     return terrain_map;
 }
 
-KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel) {
+KernelsMap *kernels_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Matrix *kernel) {
     KernelsMap *kernels_map = malloc(sizeof(KernelsMap));
     kernels_map->kernels = malloc(terrain->height * sizeof(Matrix **));
     for (ssize_t y = 0; y < terrain->height; y++) {
@@ -58,7 +58,7 @@ KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel) {
     for (ssize_t y = 0; y < terrain->height; y++) {
         for (ssize_t x = 0; x < terrain->width; x++) {
             if (terrain_at(x, y, terrain) == WATER) continue;
-            Matrix *reachable = get_reachability_kernel(x, y, kernel_size, terrain);
+            Matrix *reachable = get_reachability_kernel(x, y, kernel_size, terrain, mapping);
             const uint64_t reachable_hash = compute_matrix_hash(reachable);
             const uint64_t combined_hash = reachable_hash ^ kernel_hash;
 
@@ -78,7 +78,7 @@ KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel) {
     return kernels_map;
 }
 
-KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels) {
+KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Tensor *kernels) {
     ssize_t D = (ssize_t) kernels->len;
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
@@ -102,7 +102,7 @@ KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels) {
         hash_grid[y] = (uint64_t *) malloc(terrain_width * sizeof(uint64_t));
         for (ssize_t x = 0; x < terrain_width; x++) {
             if (terrain_at(x, y, terrain) == WATER) continue;
-            Matrix *reachable = get_reachability_kernel(x, y, M, terrain);
+            Matrix *reachable = get_reachability_kernel(x, y, M, terrain, mapping);
             uint64_t reachable_hash = compute_matrix_hash(reachable);
             uint64_t combined_hash = reachable_hash ^ tensor_hash;
             hash_grid[y][x] = combined_hash;

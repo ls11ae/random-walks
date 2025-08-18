@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "matrix/kernels.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "walk/b_walk.h"
 
 TEST(BrownianNormal, RunsAndReturnsValidData) {
@@ -61,7 +62,8 @@ TEST(BrownianTerrain, RunsAndReturnsValidData) {
     const auto kernel = matrix_generator_gaussian_pdf(9, 9, 3.0, 1, 0, 0);
     TerrainMap *terrain = get_terrain_map("../../resources/landcover_142.txt", ' ');
     ASSERT_GT(terrain->width, 100);
-    auto *kernel_map = kernels_map_new(terrain, kernel);
+    auto mapping = create_default_brownian_mapping(MEDIUM, 4);
+    auto *kernel_map = kernels_map_new(terrain, mapping, kernel);
     Tensor *walker = brownian_walk_terrain_init(T, terrain->width, terrain->height, start_x, start_y, kernel, terrain,
                                                 kernel_map);
 

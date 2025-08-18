@@ -19,7 +19,8 @@
 
 #include "m_walk.h"
 #include "math/kernel_slicing.h"
-#include "math/path_finding.h"
+#include "parsers/kernel_terrain_mapping.h"
+
 
 #define MKDIR(path) mkdir(path, 0755)
 
@@ -85,14 +86,16 @@ Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_
 				}
 			}
 		}
-		printf("(%d/%d)\n", t, T);
+		printf("(%ld/%ld)\n", t, T);
 	}
 	tensor_free(angles_mask);
 	free_Vector2D(dir_cell_set);
 	return DP_mat;
 }
 
-Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const TerrainMap *terrain_map,
+Tensor **c_walk_init_terrain(const ssize_t W, const ssize_t H, const Tensor *kernel, const TerrainMap *terrain_map,
+                             KernelParametersMapping *mapping,
+
                              const KernelsMap3D *kernels_map, const ssize_t T, const ssize_t start_x,
                              const ssize_t start_y) {
 	const ssize_t D = (ssize_t) kernel->len;
@@ -123,7 +126,7 @@ Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const T
 			for (ssize_t y = 0; y < H; ++y) {
 				for (ssize_t x = 0; x < W; ++x) {
 					double sum = 0.0;
-					if (terrain_map->data[y][x] == WATER) continue;
+					if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
 					for (int di = 0; di < D; di++) {
 						const Matrix *current_kernel = kernels_map->kernels[y][x]->data[di];
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
@@ -155,7 +158,8 @@ Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const T
 
 
 Point2DArray *backtrace(Tensor **DP_Matrix, const ssize_t T, const Tensor *kernel,
-                        TerrainMap *terrain, KernelsMap3D *tensor_map, ssize_t end_x, ssize_t end_y, ssize_t dir,
+                        TerrainMap *terrain, KernelParametersMapping *mapping, KernelsMap3D *tensor_map, ssize_t end_x,
+                        ssize_t end_y, ssize_t dir,
                         ssize_t D) {
 	printf("backtrace\n");
 	fflush(stdout);
@@ -203,7 +207,8 @@ Point2DArray *backtrace(Tensor **DP_Matrix, const ssize_t T, const Tensor *kerne
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
 					continue;
 				}
-				if (terrain && terrain_at(prev_x, prev_y, terrain) == WATER || tensor_map && d >= tensor_map->kernels[
+				if (terrain && is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping) || tensor_map && d >=
+				    tensor_map->kernels[
 					    prev_y][prev_x]->len)
 					continue;
 
@@ -462,6 +467,8 @@ void dp_calculation_low_ram(ssize_t W, ssize_t H, const Tensor *kernel, const ss
 }
 
 void c_walk_init_terrain_low_ram(ssize_t W, ssize_t H, const Tensor *kernel, const TerrainMap *terrain_map,
+                                 KernelParametersMapping *mapping,
+
                                  const KernelsMap3D *kernels_map, const ssize_t T, const ssize_t start_x,
                                  const ssize_t start_y, const char *output_folder) {
 	const ssize_t D = (ssize_t) kernel->len;
@@ -499,7 +506,7 @@ void c_walk_init_terrain_low_ram(ssize_t W, ssize_t H, const Tensor *kernel, con
 			for (ssize_t y = 0; y < H; ++y) {
 				for (ssize_t x = 0; x < W; ++x) {
 					double sum = 0.0;
-					if (terrain_map->data[y][x] == WATER) goto skip;
+					if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) goto skip;
 					for (int di = 0; di < D; di++) {
 						const Matrix *current_kernel = kernels_map->kernels[y][x]->data[di];
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
@@ -663,6 +670,8 @@ Point2DArray *backtrace_low_ram(const char *dp_folder, const ssize_t T, const Te
 }
 
 Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor *kernel, TerrainMap *terrain,
+                                        KernelParametersMapping *mapping,
+
                                         KernelsMap3D *kernels_map,
                                         const Point2DArray *steps) {
 	if (!steps || steps->length < 2 || !kernel || !kernel->data) {
@@ -689,7 +698,7 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 	size_t index = 0;
 
 	for (size_t step = 0; step < num_steps - 1; step++) {
-		Tensor **c_dp = c_walk_init_terrain(W, H, kernel, terrain, kernels_map, T, steps->points[step].x,
+		Tensor **c_dp = c_walk_init_terrain(W, H, kernel, terrain, mapping, kernels_map, T, steps->points[step].x,
 		                                    steps->points[step].y);
 		if (!c_dp) {
 			printf("dp calculation failed");
@@ -705,7 +714,7 @@ Point2DArray *c_walk_backtrace_multiple(ssize_t T, ssize_t W, ssize_t H, Tensor 
 
 		const ssize_t D = (ssize_t) kernel->len;
 
-		Point2DArray *points = backtrace(c_dp, T, kernel, terrain, kernels_map, steps->points[step + 1].x,
+		Point2DArray *points = backtrace(c_dp, T, kernel, terrain, mapping, kernels_map, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
 
 		if (!points) {
@@ -787,10 +796,8 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 
 		const ssize_t D = (ssize_t) kernel->len;
 
-		Point2DArray *points = backtrace(c_dp, T, kernel, NULL, NULL, steps->points[step + 1].x,
+		Point2DArray *points = backtrace(c_dp, T, kernel, NULL, NULL, NULL, steps->points[step + 1].x,
 		                                 steps->points[step + 1].y, 0, D);
-		printf("points: %p, result: %p\n", (void *) points, (void *) result);
-		printf("points->points: %p, result->points: %p\n", (void *) points->points, (void *) result->points);
 
 		if (!points) {
 			// Check immediately after calling backtrace
@@ -805,6 +812,9 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 			// Cleanup code...
 			return NULL;
 		}
+
+		printf("points: %p, result: %p\n", (void *) points, (void *) result);
+		printf("points->points: %p, result->points: %p\n", (void *) points->points, (void *) result->points);
 
 		printf("%zu\n", points->length);
 		fflush(stdout); // Force output to appear
@@ -841,7 +851,7 @@ Point2DArray *corr_terrain(TerrainMap *terrain, KernelParametersMapping *mapping
                            const ssize_t end_x, const ssize_t end_y) {
 	KernelsMap3D *kmap = tensor_map_terrain(terrain, mapping);
 	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, mapping, kmap, T, start_x, start_y, false, true, "");
-	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, end_x, end_y, 0, false, "", "");
+	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, mapping, end_x, end_y, 0, false, "", "");
 	point2d_array_print(walk);
 
 	tensor4D_free(dp, T);

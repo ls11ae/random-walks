@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "matrix/kernels.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "walk/b_walk.h"
 
 TEST(CorrelatedTerrainMulti, RunsAndReturnsValidData) {
@@ -8,7 +9,8 @@ TEST(CorrelatedTerrainMulti, RunsAndReturnsValidData) {
     ssize_t D = 6;
     Tensor *c_ke_tensor = generate_kernels(D, M);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    auto tmap = tensor_map_new(terrain, c_ke_tensor);
+    auto mapping = create_default_correlated_mapping(MEDIUM, 5);
+    auto tmap = tensor_map_new(terrain, mapping, c_ke_tensor);
     ASSERT_EQ(tmap->width, terrain->width);
     ASSERT_EQ(tmap->height, terrain->height);
     Point2D steps[3];
@@ -17,7 +19,7 @@ TEST(CorrelatedTerrainMulti, RunsAndReturnsValidData) {
     steps[2] = (Point2D){.x = 180, .y = 300};
     Point2DArray *steps_arr = point_2d_array_new(steps, 3);
     std::cout << "init dp \n";
-    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, tmap, steps_arr);
+    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, mapping, tmap, steps_arr);
 
     ASSERT_NE(walk, nullptr);
     ASSERT_EQ(walk->length, 200);
@@ -33,5 +35,6 @@ TEST(CorrelatedTerrainMulti, RunsAndReturnsValidData) {
     point2d_array_free(steps_arr);
     tensor_free(c_ke_tensor);
     terrain_map_free(terrain);
+    free(mapping);
 }
 

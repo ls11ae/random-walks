@@ -7,30 +7,30 @@
 #include <sys/stat.h>
 
 #include "math/math_utils.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
 #include "parsers/walk_json.h"
-#include "parsers/weather_parser.h"
 
 
-Point2DArray *mixed_walk(ssize_t W, ssize_t H, TerrainMap *spatial_map,
+Point2DArray *mixed_walk(ssize_t W, ssize_t H, TerrainMap *spatial_map, KernelParametersMapping *mapping,
                          KernelsMap3D *tensor_map, Tensor *c_kernel, ssize_t T, const Point2DArray *steps) {
-	return c_walk_backtrace_multiple(T, W, H, c_kernel, spatial_map, tensor_map, steps);
+	return c_walk_backtrace_multiple(T, W, H, c_kernel, spatial_map, mapping, tensor_map, steps);
 }
 
-static Tensor **m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_map,
-                                  const ssize_t T, const ssize_t start_x, const ssize_t start_y,
-                                  const char *serialize_dir) {
+static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
+                              const ssize_t T, const ssize_t start_x, const ssize_t start_y,
+                              const char *serialize_dir) {
 	char tensor_dir[FILENAME_MAX];
 	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%ld_X%ld_Y%ld", serialize_dir, T, start_x, start_y);
 
 	struct stat st;
 	if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
 		printf("skip dp calculation, using serialized data from %s\n", tensor_dir);
-		return NULL;
 	}
 
 	printf("Start DP calculation for T=%ld, X=%ld, Y=%ld\n", T, start_x, start_y);
-	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
+	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map),mapping)
+		&& "walk cannot start on forbidden landmark");
 
 	// Lade Meta-Infos und überprüfe Konsistenz
 	char meta_path[FILENAME_MAX];
@@ -58,7 +58,7 @@ static Tensor **m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrai
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				if (terrain_map->data[y][x] == WATER) continue;
+				if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
 
 				Tensor *kernel_tensor = tensor_at(serialize_dir, x, y);
 				const size_t D = kernel_tensor->len;
@@ -112,7 +112,6 @@ static Tensor **m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrai
 	serialize_tensor(file, prev);
 	tensor_free(prev);
 	tensor_free(current);
-	return NULL;
 }
 
 
@@ -123,12 +122,12 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 		struct stat st;
 		if (!recompute || stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
 			printf("Using serialized data from %s\n", serialize_dir);
-			return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
+			m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
 		}
 		tensor_map_terrain_serialize(terrain_map, mapping, serialize_dir);
-		return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
+		m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
 	}
-	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
+	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
 	size_t max_D;
 	KernelMapMeta meta;
 	max_D = kernels_map->max_D;
@@ -137,7 +136,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 	Matrix *map = matrix_new(W, H);
 	const double init_value = 1.0f / (double) start_kernel->len;
 	matrix_set(map, start_x, start_y, init_value);
-	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
+	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
 	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
 	for (int i = 0; i < T; i++) {
 		Tensor *current = tensor_new(W, H, max_D);
@@ -152,7 +151,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				if (terrain_map->data[y][x] == WATER) continue;
+				if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
 
 				Tensor *current_tensor = kernels_map->kernels[y][x];
 				const size_t D = current_tensor->len;
@@ -189,9 +188,9 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 }
 
 static Point2DArray *backtrace_serialized(const char *dp_folder, const ssize_t T,
-                                          TerrainMap *terrain, ssize_t end_x, ssize_t end_y,
-                                          ssize_t dir, const char *serialize_dir) {
-	assert(terrain_at(end_x, end_y, terrain) != WATER);
+                                          TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t end_x,
+                                          ssize_t end_y, ssize_t dir, const char *serialize_dir) {
+	assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain) , mapping));
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	Point2D *points = malloc(sizeof(Point2D) * T);
 	path->points = points;
@@ -236,7 +235,7 @@ static Point2DArray *backtrace_serialized(const char *dp_folder, const ssize_t T
 				const ssize_t prev_y = y - dy;
 
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
-				if (terrain_at(prev_x, prev_y, terrain) == WATER) continue;
+				if (is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping)) continue;
 
 				Tensor *prev_tensor = tensor_at(serialize_dir, prev_x, prev_y);
 				if (d >= prev_tensor->len) {
@@ -298,12 +297,13 @@ static Point2DArray *backtrace_serialized(const char *dp_folder, const ssize_t T
 
 
 Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
-                               KernelsMap3D *tensor_map, TerrainMap *terrain, const ssize_t end_x, const ssize_t end_y,
+                               KernelsMap3D *tensor_map, TerrainMap *terrain, KernelParametersMapping *mapping,
+                               const ssize_t end_x, const ssize_t end_y,
                                const ssize_t dir, bool use_serialized, const char *serialize_dir,
                                const char *dp_folder) {
-	assert(terrain_at(end_x, end_y, terrain) != WATER);
+	assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain), mapping));
 	if (use_serialized) {
-		return backtrace_serialized(dp_folder, T, terrain, end_x, end_y, dir, serialize_dir);
+		return backtrace_serialized(dp_folder, T, terrain, mapping, end_x, end_y, dir, serialize_dir);
 	}
 	//printf("backtrace\n");
 	fflush(stdout);
@@ -350,7 +350,7 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
 					continue;
 				}
-				if (terrain_at(prev_x, prev_y, terrain) == WATER || d >= previous_tensor->len)
+				if (is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping) || d >= previous_tensor->len)
 					continue;
 
 				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
@@ -449,7 +449,7 @@ Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, Ter
 		printf("dp calculation success\n");
 		fflush(stdout);
 
-		Point2DArray *points = m_walk_backtrace(c_dp, T, tensor_map, terrain, steps->points[step + 1].x,
+		Point2DArray *points = m_walk_backtrace(c_dp, T, tensor_map, terrain, mapping, steps->points[step + 1].x,
 		                                        steps->points[step + 1].y, 0, use_serialized, serialize_dir, dp_folder);
 
 		if (!points) {

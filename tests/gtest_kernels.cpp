@@ -2,17 +2,18 @@
 
 #include "matrix/kernels.h"
 #include "matrix/matrix.h"
+#include "matrix/tensor.h"
 #include "walk/c_walk.h"
 
 TEST(GaussianKernel, RunsAndReturnsValidData) {
-    Matrix* matrix = matrix_generator_gaussian_pdf(11, 11, 3.0, 1.0, 0, 0);
+    Matrix *matrix = matrix_generator_gaussian_pdf(11, 11, 3.0, 1.0, 0, 0);
     ASSERT_EQ(matrix->width, 11);
     ASSERT_EQ(matrix->height, 11);
     ASSERT_FLOAT_EQ(matrix_sum(matrix), 1.0);
 }
 
 TEST(CorrelatedKernel, RunsAndReturnsValidData) {
-    Tensor* kernels = generate_kernels(16, 15);
+    Tensor *kernels = generate_kernels(16, 15);
     ASSERT_EQ(kernels->len, 16);
     ASSERT_EQ(kernels->data[0]->width, 15);
     ASSERT_EQ(kernels->data[0]->height, 15);

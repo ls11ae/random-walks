@@ -8,95 +8,96 @@
 #include <stdlib.h>
 
 #include "ScalarMapping.h"
+#include "tensor.h"
 #include "math/distribution.h"
 #include "walk/c_walk.h"
 
 
 Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
                                       ssize_t y_offset) {
-    scale = 1.0; // TODO: remove scaling
-    assert(sigma > 0 && "Sigma must be positive");
-    sigma = (sigma < 2.0) ? 2.0 : sigma;
-    Matrix *matrix = matrix_new(width, height);
-    if (matrix == NULL) return NULL;
+	scale = 1.0; // TODO: remove scaling
+	assert(sigma > 0 && "Sigma must be positive");
+	sigma = (sigma < 2.0) ? 2.0 : sigma;
+	Matrix *matrix = matrix_new(width, height);
+	if (matrix == NULL) return NULL;
 
-    const ssize_t width_half = width >> 1;
-    const ssize_t height_half = height >> 1;
+	const ssize_t width_half = width >> 1;
+	const ssize_t height_half = height >> 1;
 
-    x_offset += width_half;
-    y_offset += height_half;
+	x_offset += width_half;
+	y_offset += height_half;
 
-    //prozess distribution subsample_matrix
-    ssize_t index = 0;
-    for (ssize_t y = 0; y < matrix->height; y++) {
-        for (ssize_t x = 0; x < matrix->width; x++) {
-            const double distance_squared = euclid_sqr(x_offset, y_offset, x, y);
-            const double gaussian_value = exp(-distance_squared / (2 * pow(sigma, 2)));
-            matrix->data[index++] = gaussian_value;
-        }
-    }
+	//prozess distribution subsample_matrix
+	ssize_t index = 0;
+	for (ssize_t y = 0; y < matrix->height; y++) {
+		for (ssize_t x = 0; x < matrix->width; x++) {
+			const double distance_squared = euclid_sqr(x_offset, y_offset, x, y);
+			const double gaussian_value = exp(-distance_squared / (2 * pow(sigma, 2)));
+			matrix->data[index++] = gaussian_value;
+		}
+	}
 
-    double sum = 0.0;
-    for (int i = 0; i < matrix->len; ++i) {
-        sum += matrix->data[i];
-    }
+	double sum = 0.0;
+	for (int i = 0; i < matrix->len; ++i) {
+		sum += matrix->data[i];
+	}
 
-    //printf("%f\n", sum);
+	//printf("%f\n", sum);
 
-    for (int i = 0; i < matrix->len; ++i) {
-        matrix->data[i] /= sum;
-    }
+	for (int i = 0; i < matrix->len; ++i) {
+		matrix->data[i] /= sum;
+	}
 
-    return matrix;
+	return matrix;
 }
 
 Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
                                   ssize_t y_offset) {
-    scale = 1.0; // TODO: remove scaling
-    Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, scale, x_offset, y_offset);
-    if (x_offset != 0 || y_offset != 0) {
-        // Mische Gaußverteilung mit Gleichverteilung
-        const double alpha = 0.001;
-        const double uniform_value = 1.0 / (double) (width * height);
+	scale = 1.0; // TODO: remove scaling
+	Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, scale, x_offset, y_offset);
+	if (x_offset != 0 || y_offset != 0) {
+		// Mische Gaußverteilung mit Gleichverteilung
+		const double alpha = 0.001;
+		const double uniform_value = 1.0 / (double) (width * height);
 
-        for (int i = 0; i < matrix->len; ++i) {
-            matrix->data[i] = (1.0 - alpha) * matrix->data[i] + alpha * uniform_value;
-        }
+		for (int i = 0; i < matrix->len; ++i) {
+			matrix->data[i] = (1.0 - alpha) * matrix->data[i] + alpha * uniform_value;
+		}
 
-        //  normalisieren
-        double sum = 0.0;
-        for (int i = 0; i < matrix->len; ++i) sum += matrix->data[i];
-        for (int i = 0; i < matrix->len; ++i) matrix->data[i] /= sum;
-    }
+		//  normalisieren
+		double sum = 0.0;
+		for (int i = 0; i < matrix->len; ++i) sum += matrix->data[i];
+		for (int i = 0; i < matrix->len; ++i) matrix->data[i] /= sum;
+	}
 
-    return matrix;
+	return matrix;
 }
 
 // Convert diffusity to Gaussian parameters with terrain modulation
 void get_gaussian_parameters(double diffusity, int terrain_value, double *out_sigma, double *out_scale) {
-    // Base sigma-scaling factors per terrain type
-    const double terrain_modifiers[] = {
-        0.8f, // 10: Tree cover (reduced spread)
-        1.1f, // 20: Shrubland
-        1.3f, // 30: Grassland
-        1.0f, // 40: Cropland
-        0.6f, // 50: Built-up (constrained)
-        1.5f, // 60: Desert (wide spread)
-        0.5f, // 70: Snow/ice (concentrated)
-        0.4f, // 80: Water
-        0.9f, // 90: Wetland
-        0.7f, // 95: Mangroves
-        1.2f // 100: Moss/lichens
-    };
-    // Normalize terrain value to array index (assuming class values 10,20,...100)
-    int terrain_index = (terrain_value / 10) - 1;
-    terrain_index = fmax(0, fmin(terrain_index, 10));
+	// Base sigma-scaling factors per terrain type
+	const double terrain_modifiers[] = {
+		0.8f, // 10: Tree cover (reduced spread)
+		1.1f, // 20: Shrubland
+		1.3f, // 30: Grassland
+		1.0f, // 40: Cropland
+		0.6f, // 50: Built-up (constrained)
+		1.5f, // 60: Desert (wide spread)
+		0.5f, // 70: Snow/ice (concentrated)
+		0.4f, // 80: Water
+		0.9f, // 90: Wetland
+		0.7f, // 95: Mangroves
+		1.2f // 100: Moss/lichens
+	};
+	// Normalize terrain value to array index (assuming class values 10,20,...100)
+	int terrain_index = (terrain_value / 10) - 1;
+	terrain_index = fmax(0, fmin(terrain_index, 10));
 
-    double effective_diffusity = diffusity * terrain_modifiers[terrain_index];
+	double effective_diffusity = diffusity * terrain_modifiers[terrain_index];
 
-    // Sigma-Mindestwert einführen (z.B. 1.5)
-    *out_sigma = fmax(1.5f, 0.5f + effective_diffusity * 1.5f); // Min. 1.5
-    *out_scale = 1.0f; // Scaling deaktiviert
+	// Sigma-Mindestwert einführen (z.B. 1.5)
+	*out_sigma = fmax(1.5f, 0.5f + effective_diffusity * 1.5f); // Min. 1.5
+	*out_scale = 1.0f; // Scaling deaktiviert
 }
 
 Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, int k, int d) {

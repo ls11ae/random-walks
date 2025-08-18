@@ -47,7 +47,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
 
             // a) Einzel-Hashes
             uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
-            Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain);
+            Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);
             uint64_t h_reach = compute_matrix_hash(reach_mat);
             uint64_t combined = hash_combine(h_params, h_reach);
             combined = hash_combine(combined, tensor_set->data[y][x]->D);
@@ -124,7 +124,7 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
                 continue;
             }
             KernelParameters *current_parameters = tensor_set->data[y][x];
-            Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain);
+            Matrix *reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain, mapping);
             ssize_t D = current_parameters->D;
             Tensor *arr = generate_tensor(current_parameters, (int) terrain_val, false, correlated_kernels, true);
             for (ssize_t d = 0; d < D; d++) {

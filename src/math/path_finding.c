@@ -2,8 +2,12 @@
 
 #include <stdlib.h>
 
+#include "parsers/kernel_terrain_mapping.h"
+#include "parsers/terrain_parser.h"
+
 // Bresenham's line algorithm
-static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssize_t x1, ssize_t y1) {
+static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t x0, ssize_t y0,
+                         ssize_t x1, ssize_t y1) {
     ssize_t dx = abs(x1 - x0);
     ssize_t sx = x0 < x1 ? 1 : -1;
     ssize_t dy = -abs(y1 - y0);
@@ -22,11 +26,10 @@ static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssiz
             if (current_x < 0 || current_x >= terrain->width || current_y < 0 || current_y >= terrain->height) {
                 return 0;
             }
-            if (terrain_at(current_x, current_y, terrain) == WATER) {
+            if (is_forbidden_landmark(terrain_at(current_x, current_y, terrain), mapping)) {
                 return 0;
             }
-        }
-        else {
+        } else {
             is_first = 0;
         }
 
@@ -46,14 +49,14 @@ static int is_path_clear(const TerrainMap* terrain, ssize_t x0, ssize_t y0, ssiz
     return 1;
 }
 
-Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
-                                const TerrainMap* terrain) {
-    Matrix* result = matrix_new(kernel_size, kernel_size);
+Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+                                const TerrainMap *terrain, KernelParametersMapping *mapping) {
+    Matrix *result = matrix_new(kernel_size, kernel_size);
 
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height) {
         return result;
     }
-    if (terrain_at(x, y, terrain) == WATER) {
+    if (is_forbidden_landmark(terrain_at(x, y, terrain), mapping)) {
         return result;
     }
 
@@ -71,7 +74,7 @@ Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
                 continue;
             }
 
-            if (terrain_at(new_x, new_y, terrain) == WATER) {
+            if (is_forbidden_landmark(terrain_at(new_x, new_y, terrain), mapping)) {
                 full_reachable = false;
                 break;
             }
@@ -99,12 +102,12 @@ Matrix* get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
                 continue;
             }
 
-            if (terrain_at(new_x, new_y, terrain) == WATER) {
+            if (is_forbidden_landmark(terrain_at(new_x, new_y, terrain), mapping)) {
                 continue;
             }
 
-            if (is_path_clear(terrain, x, y, new_x, new_y)) {
-                matrix_set(result, (ssize_t)i, (ssize_t)j, 1.0);
+            if (is_path_clear(terrain, mapping, x, y, new_x, new_y)) {
+                matrix_set(result, (ssize_t) i, (ssize_t) j, 1.0);
             }
         }
     }
