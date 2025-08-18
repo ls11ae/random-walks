@@ -1,7 +1,7 @@
 #include <stdlib.h>  // Für malloc, free, NULL
 #include <string.h>  // Für memset
 #include <stdio.h>   // Für fprintf, fwrite
-#include <stddef.h>  // Für uint32_t
+#include <stddef.h>  // Für size_t
 #include <math.h>
 #include <assert.h>
 
@@ -9,7 +9,7 @@
 
 #include "math/math_utils.h"
 
-Matrix *matrix_new(const int32_t width, const int32_t height) {
+Matrix *matrix_new(const ssize_t width, const ssize_t height) {
     Matrix *m = (Matrix *) malloc(sizeof(Matrix));
     if (!m) return NULL; // Fehlerbehandlung für Matrix Allokierung
 
@@ -34,7 +34,7 @@ void matrix_free(Matrix *matrix) {
 }
 
 void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output) {
-    for (uint32_t i = 0; i < input->len; i++) {
+    for (size_t i = 0; i < input->len; i++) {
         output->data[i] = input->data[i] * kernel->data[i];
     }
 }
@@ -43,7 +43,7 @@ bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2) {
     assert(matrix1 != NULL);
     assert(matrix2 != NULL);
     if (matrix1->len != matrix2->len) return false;
-    for (uint32_t i = 0; i < matrix1->len; i++) {
+    for (size_t i = 0; i < matrix1->len; i++) {
         if (fabs(matrix1->data[i] - matrix2->data[i]) > 0.01) return false;
     }
     return true;
@@ -54,21 +54,21 @@ void matrix_pooling_avg(Matrix *dst, const Matrix *src) {
         return; // Ungültige Eingabe
     }
 
-    uint32_t pool_width = src->width / dst->width;
-    uint32_t pool_height = src->height / dst->height;
+    size_t pool_width = src->width / dst->width;
+    size_t pool_height = src->height / dst->height;
 
 
-    uint32_t dst_index = 0;
-    for (uint32_t dst_y = 0; dst_y < dst->height; dst_y++) {
-        for (uint32_t dst_x = 0; dst_x < dst->width; dst_x++) {
+    size_t dst_index = 0;
+    for (size_t dst_y = 0; dst_y < dst->height; dst_y++) {
+        for (size_t dst_x = 0; dst_x < dst->width; dst_x++) {
             double sum = 0.0;
-            uint32_t count = 0;
+            size_t count = 0;
 
             // Durchlaufe das Pooling-Fenster
-            for (uint32_t src_y = 0; src_y < pool_height; src_y++) {
-                for (uint32_t src_x = 0; src_x < pool_width; src_x++) {
-                    uint32_t x = dst_x * pool_width + src_x;
-                    uint32_t y = dst_y * pool_height + src_y;
+            for (size_t src_y = 0; src_y < pool_height; src_y++) {
+                for (size_t src_x = 0; src_x < pool_width; src_x++) {
+                    size_t x = dst_x * pool_width + src_x;
+                    size_t y = dst_y * pool_height + src_y;
                     sum += matrix_get(src, x, y);
                     count++;
                 }
@@ -96,18 +96,18 @@ void matrix_copy_to(Matrix *dest, const Matrix *src) {
     memcpy(dest->data, src->data, dest->width * dest->height * sizeof(double));
 }
 
-int matrix_in_bounds(const Matrix *matrix, uint32_t x, uint32_t y) {
+int matrix_in_bounds(const Matrix *matrix, size_t x, size_t y) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     return x < matrix->width && y < matrix->height;
 }
 
-double matrix_get(const Matrix *matrix, const uint32_t x, const uint32_t y) {
+double matrix_get(const Matrix *matrix, const size_t x, const size_t y) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(x >= 0 && y >= 0 && x < matrix->width && y < matrix->height);
     return matrix->data[y * matrix->width + x];
 }
 
-void matrix_set(const Matrix *matrix, const uint32_t x, const uint32_t y, double val) {
+void matrix_set(const Matrix *matrix, const size_t x, const size_t y, double val) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(x >= 0 && y >= 0 && x < matrix->width && y < matrix->height);
     matrix->data[y * matrix->width + x] = val;
@@ -136,11 +136,11 @@ Matrix *matrix_add(const Matrix *a, const Matrix *b) {
     Matrix *result = matrix_new(a->width, a->height);
     if (result == NULL) return NULL;
 
-    const uint32_t len = a->len;
+    const size_t len = a->len;
     const double *data_a = a->data;
     const double *data_b = b->data;
     double *data_result = result->data;
-    for (uint32_t i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         data_result[i] = data_a[i] + data_b[i];
     }
     return result;
@@ -154,11 +154,11 @@ Matrix *matrix_sub(const Matrix *a, const Matrix *b) {
     Matrix *result = matrix_new(a->width, a->height);
     if (result == NULL) return NULL;
 
-    const uint32_t len = a->len;
+    const size_t len = a->len;
     const double *data_a = a->data;
     const double *data_b = b->data;
     double *data_result = result->data;
-    for (uint32_t i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         data_result[i] = data_a[i] - data_b[i];
     }
     return result;
@@ -175,10 +175,10 @@ Matrix *matrix_mul(const Matrix *a, const Matrix *b) {
     const double *data_a = a->data;
     const double *data_b = b->data;
     double *data_result = result->data;
-    for (uint32_t i = 0; i < a->height; ++i) {
-        for (uint32_t j = 0; j < b->width; ++j) {
+    for (size_t i = 0; i < a->height; ++i) {
+        for (size_t j = 0; j < b->width; ++j) {
             double sum = 0.0;
-            for (uint32_t k = 0; k < a->width; ++k) {
+            for (size_t k = 0; k < a->width; ++k) {
                 sum += data_a[i * a->width + k] * data_b[k * b->width + j];
             }
             data_result[i * b->width + j] = sum;
@@ -197,11 +197,11 @@ Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b) {
     Matrix *result = matrix_new(a->width, a->height);
     if (result == NULL) return NULL;
 
-    const uint32_t len = a->len;
+    const size_t len = a->len;
     const double *data_a = a->data;
     const double *data_b = b->data;
     double *data_result = result->data;
-    for (uint32_t i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         data_result[i] = data_a[i] * data_b[i];
     }
     return result;
@@ -212,7 +212,7 @@ void matrix_mul_inplace(Matrix *a, const Matrix *b) {
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(a->width == b->width && a->height == b->height);
 
-    for (uint32_t i = 0; i < a->len; ++i) {
+    for (size_t i = 0; i < a->len; ++i) {
         a->data[i] *= b->data[i];
     }
 }
@@ -220,7 +220,7 @@ void matrix_mul_inplace(Matrix *a, const Matrix *b) {
 double matrix_sum(const Matrix *matrix) {
     if (matrix == NULL) return 0.0;
     double sum = 0.0;
-    for (uint32_t index = 0; index < matrix->len; index++) {
+    for (size_t index = 0; index < matrix->len; index++) {
         sum += matrix->data[index];
     }
     return sum;
@@ -229,8 +229,8 @@ double matrix_sum(const Matrix *matrix) {
 void matrix_transpose(Matrix *m) {
     assert(m != NULL);
     Matrix *temp = matrix_copy(m);
-    for (uint32_t y = 0; y < m->height; y++) {
-        for (uint32_t x = 0; x < m->width; x++) {
+    for (size_t y = 0; y < m->height; y++) {
+        for (size_t x = 0; x < m->width; x++) {
             matrix_set(m, x, y, matrix_get(temp, y, x));
         }
     }
@@ -302,14 +302,14 @@ void matrix_normalize_L1(Matrix *m) {
     double sum = 0.0;
 
     // Gesamtsumme berechnen
-    for (uint32_t i = 0; i < m->len; i++) {
+    for (size_t i = 0; i < m->len; i++) {
         sum += m->data[i];
     }
 
     if (sum == 0.0) return; // Verhindert Division durch 0
 
     // Werte normalisieren
-    for (uint32_t i = 0; i < m->len; i++) {
+    for (size_t i = 0; i < m->len; i++) {
         m->data[i] /= sum;
     }
 }
@@ -320,11 +320,11 @@ void matrix_normalize_01(Matrix *m) {
     double sum = 0;
 
     // Minimum und Maximum finden
-    for (uint32_t i = 0; i < m->len; i++) {
+    for (size_t i = 0; i < m->len; i++) {
         sum += m->data[i];
     }
     // Werte normalisieren
-    for (uint32_t i = 0; i < m->len; i++) {
+    for (size_t i = 0; i < m->len; i++) {
         m->data[i] /= sum;
     }
 }
@@ -332,16 +332,16 @@ void matrix_normalize_01(Matrix *m) {
 char *matrix_to_string(const Matrix *mat) {
     const char presition = 4;
     // Berechnen der benötigten Größe für den String
-    uint32_t buffer_size = (mat->len << 1) * presition; // Platz für Zeilenumbrüche und Nullterminator
+    size_t buffer_size = (mat->len << 1) * presition; // Platz für Zeilenumbrüche und Nullterminator
     char *result = (char *) malloc(buffer_size);
     if (!result) {
         fprintf(stderr, "Fehler: Speicher konnte nicht zugewiesen werden.\n");
         exit(EXIT_FAILURE);
     }
 
-    uint32_t str_index = 0; // Aktuelle Position im String
-    uint32_t w_index = 0;
-    for (uint32_t index = 0; index < mat->len; ++index) {
+    size_t str_index = 0; // Aktuelle Position im String
+    size_t w_index = 0;
+    for (size_t index = 0; index < mat->len; ++index) {
         str_index += sprintf(&result[str_index], "%0.2f", mat->data[index]); // Format: %0.2f für 2 Dezimalstellen
         char c = ' ';
         w_index++;
@@ -356,7 +356,7 @@ char *matrix_to_string(const Matrix *mat) {
     return result;
 }
 
-uint32_t matrix_save(const Matrix *mat, const char *filename) {
+size_t matrix_save(const Matrix *mat, const char *filename) {
     if (mat == NULL) return 0;
 
     FILE *file = fopen(filename, "wb"); // Open the file in binary write mode
@@ -365,9 +365,9 @@ uint32_t matrix_save(const Matrix *mat, const char *filename) {
         return 0;
     }
 
-    uint32_t len = 0;
-    len += fwrite(&mat->width, sizeof(uint32_t), 1, file);
-    len += fwrite(&mat->height, sizeof(uint32_t), 1, file);
+    size_t len = 0;
+    len += fwrite(&mat->width, sizeof(size_t), 1, file);
+    len += fwrite(&mat->height, sizeof(size_t), 1, file);
     len += fwrite(mat->data, sizeof(double), mat->len, file);
     if (len != mat->len + 2) {
         perror("Error writing data to file");
@@ -384,9 +384,9 @@ Matrix *matrix_load(const char *filename) {
         return NULL;
     }
 
-    uint32_t width, height;
-    fread(&width, sizeof(uint32_t), 1, file);
-    fread(&height, sizeof(uint32_t), 1, file);
+    size_t width, height;
+    fread(&width, sizeof(size_t), 1, file);
+    fread(&height, sizeof(size_t), 1, file);
     Matrix *mat = matrix_new(width, height);
     if (mat == NULL) {
         perror("Error allocating memory for matrix");
@@ -394,7 +394,7 @@ Matrix *matrix_load(const char *filename) {
         return NULL;
     }
 
-    uint32_t len = fread(mat->data, sizeof(double), mat->len, file);
+    size_t len = fread(mat->data, sizeof(double), mat->len, file);
     if (len != mat->len) {
         perror("Error reading data from file");
     }
@@ -422,8 +422,8 @@ Matrix *matrix_clone(const Matrix *src) {
 }
 
 void matrix_print(const Matrix *m) {
-    for (uint32_t i = 0; i < m->height; i++) {
-        for (uint32_t j = 0; j < m->width; j++) {
+    for (size_t i = 0; i < m->height; i++) {
+        for (size_t j = 0; j < m->width; j++) {
             printf("%0.5f ", matrix_get(m, j, i)); // Werte auf 3 Dezimalstellen
         }
         printf("\n");
@@ -488,15 +488,15 @@ int matrix_add_inplace(Matrix *dst, const Matrix *src) {
 }
 
 
-Matrix *matrix_upsample_bilinear(const Matrix *input, int32_t new_w, int32_t new_h) {
+Matrix *matrix_upsample_bilinear(const Matrix *input, ssize_t new_w, ssize_t new_h) {
     Matrix *output = matrix_new(new_w, new_h);
     if (!output) return NULL;
 
     double x_ratio = (double) (input->width - 1) / (new_w - 1);
     double y_ratio = (double) (input->height - 1) / (new_h - 1);
 
-    for (uint32_t ny = 0; ny < new_h; ny++) {
-        for (uint32_t nx = 0; nx < new_w; nx++) {
+    for (size_t ny = 0; ny < new_h; ny++) {
+        for (size_t nx = 0; nx < new_w; nx++) {
             double gx = nx * x_ratio;
             double gy = ny * y_ratio;
 
@@ -530,8 +530,8 @@ Matrix *matrix_rotate(Matrix *original, double angle) {
     double radians = angle * M_PI / 180.0;
 
     // Neue Dimensionen der rotierten Matrix
-    uint32_t new_width = original->height;
-    uint32_t new_height = original->width;
+    size_t new_width = original->height;
+    size_t new_height = original->width;
 
     // Erstelle eine neue Matrix für das Ergebnis
     Matrix *rotated = matrix_new(new_width, new_height);
@@ -539,11 +539,11 @@ Matrix *matrix_rotate(Matrix *original, double angle) {
     rotated->data = (double *) malloc(rotated->len * sizeof(double));
 
     // Rotationsmatrix anwenden
-    for (uint32_t i = 0; i < original->height; i++) {
-        for (uint32_t j = 0; j < original->width; j++) {
+    for (size_t i = 0; i < original->height; i++) {
+        for (size_t j = 0; j < original->width; j++) {
             // Berechne die neuen Positionen
-            uint32_t new_i = (uint32_t) (round(i * cos(radians) + j * sin(radians)));
-            uint32_t new_j = (uint32_t) (round(-i * sin(radians) + j * cos(radians)));
+            size_t new_i = (size_t) (round(i * cos(radians) + j * sin(radians)));
+            size_t new_j = (size_t) (round(-i * sin(radians) + j * cos(radians)));
 
             // Falls die Position innerhalb der Grenzen liegt
             if (new_i < new_height && new_j < new_width) {
@@ -560,8 +560,8 @@ Matrix *matrix_rotate_center(Matrix *original, double angle) {
     double radians = angle * M_PI / 180.0;
 
     // Neue Dimensionen der rotierten Matrix
-    uint32_t new_width = original->width;
-    uint32_t new_height = original->height;
+    size_t new_width = original->width;
+    size_t new_height = original->height;
 
     // Erstelle eine neue Matrix für das Ergebnis
     Matrix *rotated = matrix_new(new_width, new_height);
@@ -573,8 +573,8 @@ Matrix *matrix_rotate_center(Matrix *original, double angle) {
     double center_y = (new_height - 1) / 2.0;
 
     // Rotationslogik für jeden Punkt der Matrix
-    for (uint32_t y = 0; y < new_height; y++) {
-        for (uint32_t x = 0; x < new_width; x++) {
+    for (size_t y = 0; y < new_height; y++) {
+        for (size_t x = 0; x < new_width; x++) {
             // Berechne die Koordinaten relativ zum Mittelpunkt
             double rel_x = x - center_x;
             double rel_y = y - center_y;
@@ -584,8 +584,8 @@ Matrix *matrix_rotate_center(Matrix *original, double angle) {
             double rotated_y = rel_x * sin(radians) + rel_y * cos(radians);
 
             // Setze die rotierten Koordinaten in die Zielmatrix
-            uint32_t new_x = (uint32_t) (rotated_x + center_x);
-            uint32_t new_y = (uint32_t) (rotated_y + center_y);
+            size_t new_x = (size_t) (rotated_x + center_x);
+            size_t new_y = (size_t) (rotated_y + center_y);
 
             // Falls die Position innerhalb der Matrix liegt, setze den Wert
             if (new_x < original->width && new_y < original->height) {

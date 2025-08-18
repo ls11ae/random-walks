@@ -1,11 +1,16 @@
 #include <unistd.h>
+#include <libgen.h>
 
+#include "caching.h"
+#include "move_bank_parser.h"
+#include "serialization.h"
+#include "math/path_finding.h"
 #include "parsers/terrain_parser.h"
 
 
-KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain);
+    KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain, mapping);
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
 
@@ -28,7 +33,7 @@ KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
     kernels_map->max_D = maxD;
 
     int recomputed = 0;
-    TensorSet *correlated_kernels = generate_correlated_tensors();
+    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
@@ -76,23 +81,24 @@ KernelsMap3D *tensor_map_terrain(TerrainMap *terrain) {
     }
 
     // 5) Abschluss
-    printf("Recomputed: %d / %d\n", recomputed, terrain->width * terrain->height);
+    printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
     return kernels_map;
 }
 
-void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) {
+void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping,
+                                  const char *output_path) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain);
+    KernelParametersTerrain *tensor_set = get_kernels_terrain(terrain, mapping);
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
-    printf("terrain width = %d\n", terrain_width);
-    printf("terrain height = %d\n", terrain_height);
+    printf("terrain width = %zd\n", terrain_width);
+    printf("terrain height = %zd\n", terrain_height);
 
-    TensorSet *correlated_kernels = generate_correlated_tensors();
+    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    ssize_t maxD = 0;
+    size_t maxD = 0;
     for (ssize_t i = 0; i < correlated_kernels->len; i++)
         if ((ssize_t) correlated_kernels->data[i]->len > maxD)
             maxD = correlated_kernels->data[i]->len;
@@ -111,7 +117,7 @@ void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
-        printf("%d / %d \n", y, terrain->height);
+        printf("%zd / %zd \n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == WATER) {
@@ -130,7 +136,7 @@ void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) 
 
             //  Serialize Tensor
             char current_path[256];
-            snprintf(current_path, sizeof(current_path), "%s/tensors/y%d/x%d.tensor", output_path, y, x);
+            snprintf(current_path, sizeof(current_path), "%s/tensors/y%zd/x%zd.tensor", output_path, y, x);
             ensure_dir_exists_for(current_path);
             // uint64_t pre_hash = compute_matrix_hash(reach_mat);
             // uint64_t hash = hash_combine(pre_hash, compute_parameters_hash(current_parameters));
@@ -150,7 +156,7 @@ void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path) 
                 dirname(dir_buf); // Pfad zum Ordner, in dem Link liegt
 
                 realpath(dir_buf, abs_link); // hole absoluten Pfad zum Zielverzeichnis
-                snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/x%d.tensor", x);
+                snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/x%zd.tensor", x);
                 // hänge Dateinamen an
 
                 // relativen Pfad von Link-Verzeichnis zum Ziel berechnen

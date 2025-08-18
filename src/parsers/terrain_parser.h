@@ -6,52 +6,28 @@ extern "C" {
 
 
 #endif
-#include <linux/limits.h>
-#include "matrix/matrix.h"
-#include "matrix/tensor.h"
+
 #include "types.h"
 #include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <libgen.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdint.h>
-
-#include <inttypes.h>
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <limits.h>
-#include <asm-generic/errno-base.h>
-
-#include "parsers/caching.h"
-#include "parsers/move_bank_parser.h"
-#include "serialization.h"
-#include "math/path_finding.h"
-#include "walk/c_walk.h"
-
-#include "move_bank_parser.h"
-
 
 KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel);
 
-KernelsMap *kernels_map_serialized(const TerrainMap *terrain, const Matrix *kernel);
-
-
 KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels);
 
-KernelsMap4D *tensor_map_terrain_biased(TerrainMap *terrain, Point2DArray *biases);
+KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                        KernelParametersMapping *mapping);
 
-KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGrid *biases);
+KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGrid *biases,
+                                             KernelParametersMapping *mapping);
 
 void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArrayGrid *biases,
+                                               KernelParametersMapping *mapping,
                                                const char *output_path);
 
-KernelsMap3D *tensor_map_terrain(TerrainMap *terrain);
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping);
 
-void tensor_map_terrain_serialize(TerrainMap *terrain, const char *output_path);
+void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping, const char *output_path);
 
 Matrix *kernel_at(const KernelsMap *kernels_map, ssize_t x, ssize_t y);
 
@@ -79,7 +55,7 @@ TerrainMap *create_terrain_map(const char *filename, char delimiter);
 
 TerrainMap *terrain_single_value(int land_type, ssize_t width, ssize_t height);
 
-TensorSet *generate_correlated_tensors();
+TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
 
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized);
@@ -89,6 +65,7 @@ Tensor *tensor_at(const char *output_file, ssize_t x, ssize_t y);
 Tensor *tensor_at_xyt(const char *output_file, ssize_t x, ssize_t y, ssize_t t);
 
 void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain,
+                                       KernelParametersMapping *mapping,
                                        const char *output_path);
 
 

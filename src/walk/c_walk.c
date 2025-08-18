@@ -836,10 +836,11 @@ Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T, ssize_t W, ssize_t
 }
 
 
-Point2DArray *corr_terrain(TerrainMap *terrain, const ssize_t T, const ssize_t start_x, const ssize_t start_y,
+Point2DArray *corr_terrain(TerrainMap *terrain, KernelParametersMapping *mapping, const ssize_t T,
+                           const ssize_t start_x, const ssize_t start_y,
                            const ssize_t end_x, const ssize_t end_y) {
-	KernelsMap3D *kmap = tensor_map_terrain(terrain);
-	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, kmap, T, start_x, start_y, false, true, "");
+	KernelsMap3D *kmap = tensor_map_terrain(terrain, mapping);
+	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, mapping, kmap, T, start_x, start_y, false, true, "");
 	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, end_x, end_y, 0, false, "", "");
 	point2d_array_print(walk);
 

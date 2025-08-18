@@ -1,0 +1,42 @@
+#pragma once
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+
+static void memory_size_print(double size_in_bytes) {
+    const char *size_units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
+    int unit_index = 0;
+    while (size_in_bytes >= 1024 && unit_index < 4) {
+        size_in_bytes /= 1024;
+        unit_index++;
+    }
+    printf("%.2f%s", size_in_bytes, size_units[unit_index]);
+}
+
+
+static double safe_strtod(const char *token) {
+    char *endptr;
+    errno = 0;
+    double val = strtod(token, &endptr);
+    if (endptr == token) {
+        // No conversion performed
+        fprintf(stderr, "Warning: no number found in '%s'\n", token);
+    } else if (errno == ERANGE) {
+        // Underflow/overflow
+        fprintf(stderr, "Warning: out-of-range value in '%s'\n", token);
+    }
+    return val;
+}
+
+static long safe_strtol(const char *token) {
+    char *endptr;
+    errno = 0;
+    const long val = strtol(token, &endptr, 10);
+    if (endptr == token) {
+        fprintf(stderr, "Warning: no integer found in '%s'\n", token);
+    } else if (errno == ERANGE) {
+        fprintf(stderr, "Warning: out-of-range integer in '%s'\n", token);
+    }
+    return val;
+}

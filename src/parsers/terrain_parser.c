@@ -1,9 +1,14 @@
 #include "terrain_parser.h"
 
+#include "caching.h"
+#include "move_bank_parser.h"
+#include "serialization.h"
+#include "math/path_finding.h"
 #include "matrix/kernels.h"
+#include "matrix/tensor.h"
 
 
-TensorSet *generate_correlated_tensors() {
+TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
     const int terrain_count = 11;
     Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
     const enum landmarkType landmarkTypes[11] = {
@@ -12,7 +17,7 @@ TensorSet *generate_correlated_tensors() {
         MOSS_AND_LICHEN
     };
     for (int i = 0; i < terrain_count; i++) {
-        KernelParameters *parameters = kernel_parameters_terrain(landmarkTypes[i]);
+        KernelParameters *parameters = kernel_parameters_terrain(landmarkTypes[i], mapping);
         ssize_t t_D = parameters->D;
         ssize_t M = parameters->S * 2 + 1;
         tensors[i] = generate_kernels(t_D, M);
@@ -71,9 +76,6 @@ KernelsMap *kernels_map_new(const TerrainMap *terrain, const Matrix *kernel) {
         }
     }
     return kernels_map;
-}
-
-KernelsMap *kernels_map_serialized(const TerrainMap *terrain, const Matrix *kernel) {
 }
 
 KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels) {
@@ -152,7 +154,7 @@ KernelsMap3D *tensor_map_new(const TerrainMap *terrain, const Tensor *kernels) {
 
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized) {
-    size_t M = p->S * 2 + 1;
+    ssize_t M = p->S * 2 + 1;
     if (p->is_brownian) {
         double scale, sigma;
         get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);

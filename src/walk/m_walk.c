@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 #include <time.h>
 #include <sys/stat.h>
 
@@ -115,7 +116,7 @@ static Tensor **m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrai
 }
 
 
-Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map,
+Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersMapping *mapping,
                 const KernelsMap3D *kernels_map, const ssize_t T, const ssize_t start_x,
                 const ssize_t start_y, bool use_serialized, bool recompute, const char *serialize_dir) {
 	if (use_serialized) {
@@ -124,7 +125,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map,
 			printf("Using serialized data from %s\n", serialize_dir);
 			return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 		}
-		tensor_map_terrain_serialize(terrain_map, serialize_dir);
+		tensor_map_terrain_serialize(terrain_map, mapping, serialize_dir);
 		return m_walk_serialized(W, H, terrain_map, T, start_x, start_y, serialize_dir);
 	}
 	assert(terrain_at(start_x, start_y, terrain_map) != WATER);
@@ -407,7 +408,8 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
 	return path;
 }
 
-Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, TerrainMap *terrain, Point2DArray *steps,
+Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, TerrainMap *terrain,
+                                        KernelParametersMapping *mapping, Point2DArray *steps,
                                         bool use_serialized, const char *serialize_dir, const char *dp_folder) {
 	if (!steps || steps->length < 2) {
 		// Add kernel->data check
@@ -433,7 +435,7 @@ Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, Ter
 	size_t index = 0;
 
 	for (size_t step = 0; step < num_steps - 1; step++) {
-		Tensor **c_dp = m_walk(terrain->width, terrain->height, terrain, tensor_map, T, steps->points[step].x,
+		Tensor **c_dp = m_walk(terrain->width, terrain->height, terrain, mapping, tensor_map, T, steps->points[step].x,
 		                       steps->points[step].y, use_serialized, true, serialize_dir);
 		if (!c_dp) {
 			printf("dp calculation failed");

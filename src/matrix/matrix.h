@@ -33,6 +33,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 #include <stdbool.h>
@@ -40,7 +43,7 @@ extern "C" {
 
 #include "parsers/types.h"
 
-Matrix *matrix_new(int32_t width, int32_t height);
+Matrix *matrix_new(ssize_t width, ssize_t height);
 
 void matrix_free(Matrix *matrix);
 
@@ -54,11 +57,11 @@ void matrix_pooling_avg(Matrix *dst, const Matrix *src);
 
 void matrix_copy_to(Matrix *dest, const Matrix *src);
 
-int matrix_in_bounds(const Matrix *m, uint32_t x, uint32_t y);
+int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
 
-double matrix_get(const Matrix *m, uint32_t x, uint32_t y);
+double matrix_get(const Matrix *m, size_t x, size_t y);
 
-void matrix_set(const Matrix *m, uint32_t x, uint32_t y, double val);
+void matrix_set(const Matrix *m, size_t x, size_t y, double val);
 
 void matrix_fill(Matrix *matrix, double value);
 
@@ -86,7 +89,7 @@ void matrix_print(const Matrix *m);
 
 char *matrix_to_string(const Matrix *mat);
 
-uint32_t matrix_save(const Matrix *mat, const char *filename);
+size_t matrix_save(const Matrix *mat, const char *filename);
 
 Matrix *matrix_load(const char *filename);
 

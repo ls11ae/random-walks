@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #define MKDIR(path) mkdir(path, 0755)
 #endif
-#include "../memory_utils.h"
+#include "../utils.h"
 
 #include "../matrix/tensor.h"
 

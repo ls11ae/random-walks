@@ -29,7 +29,7 @@ int landmark_to_index(enum landmarkType terrain_value) {
             return 9;
         case MOSS_AND_LICHEN: // Value 100 (Tundra-like, uneven ground)
             return 10;
-        default: return -1;
+        default: return -1; // should not happen
     }
 }
 
@@ -40,13 +40,13 @@ KernelParametersMapping *create_default_terrain_kernel_mapping(enum animal_type 
         return NULL;
     }
     float bias_factor = 0.0f;
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
         enum landmarkType terrain_value = landmarks[i];
         KernelParameters params;
         float base_step_multiplier;
         switch (terrain_value) {
             case TREE_COVER: // Value 10
-                params.is_brownian = 1; // Correlated (paths, navigating around trees)
+                params.is_brownian = 1; // Brownian (paths, navigating around trees)
                 params.D = 1; // More restricted directions
                 params.diffusity = 0.9f; // Dense, slow spread
                 base_step_multiplier = 0.7f; // Small steps
@@ -161,4 +161,9 @@ void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum 
     if (kernel_mapping->forbidden_landmarks[index] != terrain_value)
         kernel_mapping->forbidden_landmarks_count++;
     kernel_mapping->forbidden_landmarks[index] = terrain_value;
+}
+
+KernelParameters *get_parameters_of_terrain(KernelParametersMapping *mapping, enum landmarkType terrain_value) {
+    const int index = landmark_to_index(terrain_value);
+    return &mapping->parameters[index];
 }

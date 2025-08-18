@@ -2,13 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "move_bank_parser.h"  // Include the header with Point2D and Point2DArray definitions
+#include "move_bank_parser.h"
 
 #include <assert.h>
 #include <math.h>
 
+#include "kernel_terrain_mapping.h"
+#include "utils.h"
 
-Coordinate_array *coordinate_array_new(Coordinate *coordinates, uint32_t length) {
+
+Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t length) {
     Coordinate_array *result = (Coordinate_array *) malloc(sizeof(Coordinate_array));
     if (!result) return NULL;
 
@@ -40,8 +43,8 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
     }
 
     Coordinate *points = NULL;
-    uint32_t capacity = 0;
-    uint32_t count = 0;
+    size_t capacity = 0;
+    size_t count = 0;
 
     while (fgets(line, sizeof(line), file)) {
         Coordinate point = {0, 0}; // Initialize to zero
@@ -55,7 +58,7 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
             if (column == 3 || column == 4) {
                 char *endptr;
                 errno = 0;
-                float val = strtod(token, &endptr);
+                double val = strtod(token, &endptr);
 
                 if (endptr != token && errno != ERANGE) {
                     if (column == 3) {
@@ -72,7 +75,7 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
 
         // Add point to dynamic array
         if (count >= capacity) {
-            uint32_t new_capacity = (capacity == 0) ? 16 : capacity * 2;
+            size_t new_capacity = (capacity == 0) ? 16 : capacity * 2;
             Coordinate *new_points = (Coordinate *) realloc(points, new_capacity * sizeof(Coordinate));
             if (!new_points) {
                 free(points);
@@ -82,6 +85,7 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
             points = new_points;
             capacity = new_capacity;
         }
+        assert(points);
         points[count++] = point;
     }
 
@@ -95,16 +99,16 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
     return result;
 }
 
-Point2DArray *getNormalizedLocations(const Coordinate_array *path, const uint32_t W, const uint32_t H) {
+Point2DArray *getNormalizedLocations(const Coordinate_array *path, const size_t W, const size_t H) {
     if (path->length == 0) return NULL;
     printf("normalizing locations\n");
 
     // Find the min and max values for x and y
-    float minX = path->points[0].x, maxX = path->points[0].x;
-    float minY = path->points[0].y, maxY = path->points[0].y;
+    double minX = path->points[0].x, maxX = path->points[0].x;
+    double minY = path->points[0].y, maxY = path->points[0].y;
 
-    for (uint32_t i = 0; i < path->length; ++i) {
-        const float x = path->points[i].x, y = path->points[i].y;
+    for (size_t i = 0; i < path->length; ++i) {
+        const double x = path->points[i].x, y = path->points[i].y;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -117,12 +121,12 @@ Point2DArray *getNormalizedLocations(const Coordinate_array *path, const uint32_
     normalizedPath->points = points;
     normalizedPath->length = path->length;
 
-    for (uint32_t i = 0; i < path->length; ++i) {
-        const float x = path->points[i].x;
-        const float y = path->points[i].y;
+    for (size_t i = 0; i < path->length; ++i) {
+        const double x = path->points[i].x;
+        const double y = path->points[i].y;
 
-        const int32_t normalizedX = (int32_t) ((x - minX) / (maxX - minX) * (float) W);
-        const int32_t normalizedY = (int32_t) ((y - minY) / (maxY - minY) * (float) H);
+        const ssize_t normalizedX = (ssize_t) ((x - minX) / (maxX - minX) * (float) W);
+        const ssize_t normalizedY = (ssize_t) ((y - minY) / (maxY - minY) * (float) H);
 
         const Point2D normalizedPoint = {normalizedX, normalizedY};
         normalizedPath->points[i] = normalizedPoint;
@@ -131,8 +135,8 @@ Point2DArray *getNormalizedLocations(const Coordinate_array *path, const uint32_
     return normalizedPath;
 }
 
-Point2DArray *extractSteps(Point2DArray *path, const uint32_t step_count) {
-    const uint32_t delta = (path->length - 1) / step_count;
+Point2DArray *extractSteps(const Point2DArray *path, const size_t step_count) {
+    const size_t delta = (path->length - 1) / step_count;
     Point2DArray *gap_path = (Point2DArray *) malloc(sizeof(Point2DArray));
     gap_path->points = (Point2D *) malloc(step_count * sizeof(Point2D));
     gap_path->length = step_count;
@@ -150,291 +154,72 @@ void coordinate_array_free(Coordinate_array *coordinate_array) {
     }
 }
 
-KernelParameters *kernel_parameters_new(int terrain_value, WeatherEntry *weather_entry) {
-    KernelParameters *params = malloc(sizeof(KernelParameters));
+KernelParameters *kernel_parameters_new(const int terrain_value, const WeatherEntry *weather_entry,
+                                        KernelParametersMapping *kernels_mapping) {
+    KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
     if (!params) return NULL;
-    // 5. Calculate diffusivity (environment openness + wind impact)
-    params->diffusity = params->is_brownian ? 0.5f : 1.5f;
+
     params->diffusity += weather_entry->wind_speed * 0.05f;
-    // 2. Calculate base step size based on terrain
-    float base_step = 5.0f;
-    float base_step_multiplier;
-    switch (terrain_value) {
-        case TREE_COVER: // Value 10
-            params->is_brownian = 1; // Correlated (paths, navigating around trees)
-            params->D = 1; // More restricted directions
-            params->diffusity = 0.5f; // Dense, slow spread
-            base_step_multiplier = 0.8f; // Small steps
-            break;
-        case SHRUBLAND: // Value 20
-            params->is_brownian = 0; // Correlated
-            params->D = 8; // Fairly open for navigation
-            params->diffusity = 0.8f; // Moderately slow spread
-            base_step_multiplier = 1.5f; // Moderate steps
-            break;
-        case GRASSLAND: // Value 30
-            params->is_brownian = 1; // Correlated
-            params->D = 1; // Open movement
-            params->diffusity = 2.0f; // Easy spread
-            base_step_multiplier = 1.0f; // Standard steps
-            break;
-        case CROPLAND: // Value 40
-            params->is_brownian = 1; // Correlated (movement along rows/edges)
-            params->D = 1; // Structured movement
-            params->diffusity = 1.2f; // Moderate spread
-            base_step_multiplier = 1.7f; // Moderate steps, possible obstacles
-            break;
-        case BUILT_UP: // Value 50
-            params->is_brownian = 0; // Correlated (streets, paths)
-            params->D = 4; // Grid-like or defined paths
-            params->diffusity = 0.7f; // Many obstacles, slow overall spread
-            base_step_multiplier = 1.6f; // Smaller steps due to structure
-            break;
-        case SPARSE_VEGETATION: // Value 60 (Desert-like, open)
-            params->is_brownian = 0; // Correlated
-            params->D = 8; // Very open
-            params->diffusity = 2.5f; // Very easy spread
-            base_step_multiplier = 1.2f; // Larger steps possible
-            break;
-        case SNOW_AND_ICE: // Value 70
-            params->is_brownian = 1; // Brownian (slippery, difficult to maintain course, or deep snow)
-            params->D = 1; // Convention for Brownian
-            params->diffusity = 0.4f; // Difficult, slow spread
-            base_step_multiplier = 1.3f; // Small, careful steps
-            break;
-        case WATER: // Value 80 (Assuming terrestrial agent, difficult to traverse)
-            params->is_brownian = 1; // Brownian (swimming/wading difficult without aid)
-            params->D = 1;
-            params->diffusity = 0.1f; // Very slow spread/progress
-            base_step_multiplier = 1.1f; // Very small progress
-            break;
-        case HERBACEOUS_WETLAND: // Value 90 (Marshes, bogs)
-            params->is_brownian = 1; // Brownian (slogging, difficult to keep direction)
-            params->D = 1;
-            params->diffusity = 0.3f; // Slow spread due to terrain
-            base_step_multiplier = 1.2f; // Small steps
-            break;
-        case MANGROVES: // Value 95
-            params->is_brownian = 1; // Brownian (extremely dense, roots, water)
-            params->D = 1;
-            params->diffusity = 0.2f; // Very difficult to move/spread
-            base_step_multiplier = 1.15f; // Very small, difficult steps
-            break;
-        case MOSS_AND_LICHEN: // Value 100 (Tundra-like, uneven ground)
-            params->is_brownian = 0; // Correlated (can navigate but ground may be tricky)
-            params->D = 4; // Generally open directionally
-            params->diffusity = 1.0f; // Moderate spread
-            base_step_multiplier = 1.6f; // Moderate steps, accounting for unevenness
-            break;
-        default: // Handle unknown terrain_value
-            // fprintf(stderr, "Warning: Unknown terrain_value %d, using default fallback parameters.\n", terrain_value);
-            params->is_brownian = 1; // Default to Brownian for unknown/unpredictable terrain
-            params->D = 1;
-            params->diffusity = 0.7f; // Assume moderate difficulty
-            base_step_multiplier = 1.5f; // Assume moderate steps
-            break;
-    }
+
     // 6. Calculate wind-driven bias (corrected coordinate system)
-    const float wind_dir_rad = (float) weather_entry->wind_direction * (M_PI / 180.0f);
+    const float wind_dir_rad = weather_entry->wind_direction * ((float) M_PI / 180.0f);
     const float bias_x = weather_entry->wind_speed * sinf(wind_dir_rad);
     const float bias_y = weather_entry->wind_speed * cosf(wind_dir_rad);
     // Kernel dimensions (assuming kernel is square, adjust if rectangular)
-    const int32_t kernel_radius = (params->S - 1) / 2;
-    const float max_bias = (float) kernel_radius / 2;
-    params->bias_x = (int32_t) fmax(-max_bias, fmin(bias_x, max_bias));
-    params->bias_y = (int32_t) fmax(-max_bias, fmin(bias_y, max_bias));
-    // params->bias_x = 0; //(int32_t)fmax(-max_bias, fmin(bias_x, max_bias));
-    // params->bias_y = 0; //(int32_t)fmax(-max_bias, fmin(bias_y, max_bias));
-
-    params->S = (int32_t) (base_step * base_step_multiplier);
-
-    // 7. Handle extreme weather conditions (optional)
-    // if (weather_entry->weather_code >= 95) {
-    //     params->S = 0;
-    //     params->diffusity = 0.0f;
-    //     params->bias_x = 0;
-    //     params->bias_y = 0;
-    // }
+    const float max_bias_x = (float) params->bias_x;
+    const float max_bias_y = (float) params->bias_y;
+    params->bias_x = (ssize_t) fmaxf(-max_bias_x, fminf(bias_x, max_bias_x));
+    params->bias_y = (ssize_t) fmaxf(-max_bias_y, fminf(bias_y, max_bias_y));
 
     return params;
 }
 
-KernelParameters *kernel_parameters_terrain(int terrain_value) {
-    KernelParameters *params = malloc(sizeof(KernelParameters));
+KernelParameters *kernel_parameters_terrain(const int terrain_value, KernelParametersMapping *kernels_mapping) {
+    KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
     if (!params) {
         perror("Failed to allocate memory for KernelParameters");
         return NULL;
     }
-
-    float base_step_multiplier;
-
-    switch (terrain_value) {
-        case TREE_COVER: // Value 10
-            params->is_brownian = 1; // Correlated (paths, navigating around trees)
-            params->D = 1; // More restricted directions
-            params->diffusity = 0.9f; // Dense, slow spread
-            base_step_multiplier = 0.7f; // Small steps
-            break;
-        case SHRUBLAND: // Value 20
-            params->is_brownian = 0; // Correlated
-            params->D = 8; // Fairly open for navigation
-            params->diffusity = 0.8f; // Moderately slow spread
-            base_step_multiplier = 0.5f; // Moderate steps
-            break;
-        case GRASSLAND: // Value 30
-            params->is_brownian = 1; // Correlated
-            params->D = 1; // Open movement
-            params->diffusity = 1.0f; // Easy spread
-            base_step_multiplier = 1.0f; // Standard steps
-            break;
-        case CROPLAND: // Value 40
-            params->is_brownian = 0; // Correlated (movement along rows/edges)
-            params->D = 8; // Structured movement
-            params->diffusity = 1.2f; // Moderate spread
-            base_step_multiplier = 0.7f; // Moderate steps, possible obstacles
-            break;
-        case BUILT_UP: // Value 50
-            params->is_brownian = 0; // Correlated (streets, paths)
-            params->D = 4; // Grid-like or defined paths
-            params->diffusity = 0.7f; // Many obstacles, slow overall spread
-            base_step_multiplier = 0.6f; // Smaller steps due to structure
-            break;
-        case SPARSE_VEGETATION: // Value 60 (Desert-like, open)
-            params->is_brownian = 0; // Correlated
-            params->D = 8; // Very open
-            params->diffusity = 2.5f; // Very easy spread
-            base_step_multiplier = 0.8f; // Larger steps possible
-            break;
-        case SNOW_AND_ICE: // Value 70
-            params->is_brownian = 1; // Brownian (slippery, difficult to maintain course, or deep snow)
-            params->D = 1; // Convention for Brownian
-            params->diffusity = 0.4f; // Difficult, slow spread
-            base_step_multiplier = 0.3f; // Small, careful steps
-            break;
-        case WATER: // Value 80 (Assuming terrestrial agent, difficult to traverse)
-            params->is_brownian = 1; // Brownian (swimming/wading difficult without aid)
-            params->D = 1;
-            params->diffusity = 0.1f; // Very slow spread/progress
-            base_step_multiplier = 0.1f; // Very small progress
-            break;
-        case HERBACEOUS_WETLAND: // Value 90 (Marshes, bogs)
-            params->is_brownian = 1; // Brownian (slogging, difficult to keep direction)
-            params->D = 1;
-            params->diffusity = 0.3f; // Slow spread due to terrain
-            base_step_multiplier = 0.2f; // Small steps
-            break;
-        case MANGROVES: // Value 95
-            params->is_brownian = 1; // Brownian (extremely dense, roots, water)
-            params->D = 1;
-            params->diffusity = 0.2f; // Very difficult to move/spread
-            base_step_multiplier = 0.15f; // Very small, difficult steps
-            break;
-        case MOSS_AND_LICHEN: // Value 100 (Tundra-like, uneven ground)
-            params->is_brownian = 1; // Correlated (can navigate but ground may be tricky)
-            params->D = 8; // Generally open directionally
-            params->diffusity = 1.0f; // Moderate spread
-            base_step_multiplier = 0.6f; // Moderate steps, accounting for unevenness
-            break;
-        default: // Handle unknown terrain_value
-            // fprintf(stderr, "Warning: Unknown terrain_value %d, using default fallback parameters.\n", terrain_value);
-            params->is_brownian = 1; // Default to Brownian for unknown/unpredictable terrain
-            params->D = 1;
-            params->diffusity = 0.7f; // Assume moderate difficulty
-            base_step_multiplier = 0.5f; // Assume moderate steps
-            break;
-    }
-
-    // Calculate final step size
-    float initial_base_step = 9.0f; // An initial reference step size before terrain modification
-    float calculated_step = initial_base_step * base_step_multiplier;
-    params->S = (int32_t) fmaxf(roundf(calculated_step), 3.0f); // Ensure step size is at least 1
-
-    // Bias parameters are ignored for now, can be set to 0 if needed by other parts of code.
-    params->bias_x = 0;
-    params->bias_y = 0;
-
     return params;
 }
 
-KernelParameters *kernel_parameters_biased(const int terrain_value, Point2D *biases) {
-    KernelParameters *terrain_dependant = kernel_parameters_terrain(terrain_value);
-    terrain_dependant->bias_x = biases->x;
-    terrain_dependant->bias_y = biases->y;
+KernelParameters *kernel_parameters_biased(const int terrain_value, const Point2D *biases,
+                                           KernelParametersMapping *kernels_mapping) {
+    KernelParameters *terrain_dependant = kernel_parameters_terrain(terrain_value, kernels_mapping);
+    terrain_dependant->bias_x = biases->x <= terrain_dependant->bias_x ? biases->x : terrain_dependant->bias_x;
+    terrain_dependant->bias_y = biases->y <= terrain_dependant->bias_y ? biases->y : terrain_dependant->bias_y;
     return terrain_dependant;
 }
 
 
-KernelParametersTerrain *get_kernels_terrain(TerrainMap *terrain) {
-    uint32_t width = terrain->width;
-    uint32_t height = terrain->height;
+KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelParametersMapping *kernels_mapping) {
+    size_t width = terrain->width;
+    size_t height = terrain->height;
     KernelParametersTerrain *kernel_parameters = malloc(sizeof(KernelParametersTerrain));
     kernel_parameters->width = width;
     kernel_parameters->height = height;
     KernelParameters ***kernel_parameters_per_cell = malloc(sizeof(KernelParameters **) * height);
-    for (uint32_t i = 0; i < height; i++) {
+    for (size_t i = 0; i < height; i++) {
         kernel_parameters_per_cell[i] = (KernelParameters **) malloc(sizeof(KernelParameters *) * width);
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
-            KernelParameters *parameters = kernel_parameters_terrain(terrain_value);
+            KernelParameters *parameters = get_parameters_of_terrain(kernels_mapping, terrain_value);
             kernel_parameters_per_cell[y][x] = parameters;
         }
     }
     return kernel_parameters;
 }
 
-KernelParametersTerrainWeather *get_kernels_terrain_weather(const TerrainMap *terrain, const WeatherGrid *weather) {
-    const uint32_t width = terrain->width;
-    const uint32_t height = terrain->height;
-    const uint32_t times = weather->entries[0][0]->length;
 
-    KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
-    kernel_parameters->width = width;
-    kernel_parameters->height = height;
-    kernel_parameters->time = times;
-    KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
-    for (uint32_t h = 0; h < height; h++) {
-        kernel_parameters_per_cell[h] = (KernelParameters ***) malloc(sizeof(KernelParameters **) * width);
-        for (uint32_t w = 0; w < width; w++) {
-            kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
-        }
-    }
-    kernel_parameters->data = kernel_parameters_per_cell;
-
-    uint32_t delta_x = width / weather->width;
-    uint32_t delta_y = width / weather->height;
-
-    assert(delta_x > 0);
-    assert(delta_y > 0);
-
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
-            const int terrain_value = terrain->data[y][x];
-            // weather indices to terrain grid
-            uint32_t weather_x = (x * weather->width) / terrain->width;
-            uint32_t weather_y = (y * weather->height) / terrain->height;
-
-            // paranoia-check (clamping)
-            if (weather_x >= weather->width) weather_x = weather->width - 1;
-            if (weather_y >= weather->height) weather_y = weather->height - 1;
-
-            for (uint32_t t = 0; t < times; t++) {
-                WeatherEntry *weather_entry = weather->entries[weather_y][weather_x]->data[t];
-                KernelParameters *parameters = kernel_parameters_new(terrain_value, weather_entry);
-                kernel_parameters_per_cell[y][x][t] = parameters;
-            }
-        }
-    }
-    return kernel_parameters;
-}
-
-KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases) {
-    const uint32_t width = terrain->width;
-    const uint32_t height = terrain->height;
-    const uint32_t times = biases->length;
+KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                                           KernelParametersMapping *kernels_mapping) {
+    const size_t width = terrain->width;
+    const size_t height = terrain->height;
+    const size_t times = biases->length;
 
     KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
@@ -442,21 +227,21 @@ KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *ter
     kernel_parameters->time = times;
 
     KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
-    for (uint32_t h = 0; h < height; h++) {
+    for (size_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = (KernelParameters ***) malloc(sizeof(KernelParameters **) * width);
-        for (uint32_t w = 0; w < width; w++) {
+        for (size_t w = 0; w < width; w++) {
             kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
 
-            for (uint32_t t = 0; t < times; t++) {
+            for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->points[t];
-                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias);
+                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias, kernels_mapping);
                 kernel_parameters_per_cell[y][x][t] = parameters;
             }
         }
@@ -465,13 +250,14 @@ KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *ter
 }
 
 KernelParametersTerrainWeather *
-get_kernels_terrain_biased_grid(const TerrainMap *terrain, Point2DArrayGrid *biases) {
-    const uint32_t width = terrain->width;
-    const uint32_t height = terrain->height;
-    const uint32_t times = biases->data[0][0]->length;
+get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGrid *biases,
+                                KernelParametersMapping *kernels_mapping) {
+    const size_t width = terrain->width;
+    const size_t height = terrain->height;
+    const size_t times = biases->data[0][0]->length;
 
-    const uint32_t bias_grid_width = biases->width;
-    const uint32_t bias_grid_height = biases->height;
+    const size_t bias_grid_width = biases->width;
+    const size_t bias_grid_height = biases->height;
 
     KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
@@ -479,19 +265,19 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, Point2DArrayGrid *bia
     kernel_parameters->time = times;
 
     KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
-    for (uint32_t h = 0; h < height; h++) {
+    for (size_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = malloc(sizeof(KernelParameters **) * width);
-        for (uint32_t w = 0; w < width; w++) {
+        for (size_t w = 0; w < width; w++) {
             kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
             // Mapping terrain cell (x, y) to grid cell (gx, gy)
-            uint32_t gx = x * bias_grid_width / width;
-            uint32_t gy = y * bias_grid_height / height;
+            size_t gx = x * bias_grid_width / width;
+            size_t gy = y * bias_grid_height / height;
 
             // Clamp to ensure in bounds due to possible rounding
             if (gx >= bias_grid_width) gx = bias_grid_width - 1;
@@ -499,9 +285,9 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, Point2DArrayGrid *bia
 
             const int terrain_value = terrain->data[y][x];
 
-            for (uint32_t t = 0; t < times; t++) {
+            for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->data[gy][gx]->points[t];
-                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias);
+                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias, kernels_mapping);
                 kernel_parameters_per_cell[y][x][t] = parameters;
             }
         }
@@ -514,6 +300,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, Point2DArrayGrid *bia
 WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
     printf("start parsing\n");
     if (csv_data == NULL || num_entries == NULL) {
+        assert(num_entries);
         *num_entries = 0;
         printf("file not found");
         return NULL;
@@ -558,7 +345,7 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
         char *start = line;
         int col = 0;
         while (start && *start) {
-            char *token = start;
+            const char *token = start;
             char *next_comma = strchr(start, ',');
             if (next_comma) {
                 *next_comma = '\0';
@@ -569,28 +356,28 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
 
             switch (col) {
                 case 3:
-                    entry->temperature = atof(token);
+                    entry->temperature = (float) safe_strtod(token);
                     break;
                 case 4:
-                    entry->humidity = atoi(token);
+                    entry->humidity = (int) safe_strtol(token);
                     break;
                 case 5:
-                    entry->precipitation = atof(token);
+                    entry->precipitation = (float) safe_strtod(token);
                     break;
                 case 6:
-                    entry->wind_speed = atof(token);
+                    entry->wind_speed = (float) safe_strtod(token);
                     break;
                 case 7:
-                    entry->wind_direction = atof(token);
+                    entry->wind_direction = (float) safe_strtod(token);
                     break;
                 case 8:
-                    entry->snow_fall = atof(token);
+                    entry->snow_fall = (float) safe_strtod(token);
                     break;
                 case 9:
-                    entry->weather_code = atoi(token);
+                    entry->weather_code = (int) safe_strtol(token);
                     break;
                 case 10:
-                    entry->cloud_cover = atoi(token);
+                    entry->cloud_cover = (int) safe_strtol(token);
                     break;
                 default:
                     break;
@@ -613,11 +400,11 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
 
 
 void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain) {
-    uint32_t width = kernel_parameters_terrain->width;
-    uint32_t height = kernel_parameters_terrain->height;
+    const size_t width = kernel_parameters_terrain->width;
+    const size_t height = kernel_parameters_terrain->height;
     KernelParameters ***kernel_parameters_per_cell = kernel_parameters_terrain->data;
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
             free(kernel_parameters_per_cell[y][x]);
         }
         free(kernel_parameters_per_cell[y]);
@@ -627,13 +414,13 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
 }
 
 void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain) {
-    uint32_t width = kernel_parameters_terrain->width;
-    uint32_t height = kernel_parameters_terrain->height;
-    uint32_t times = kernel_parameters_terrain->time;
+    size_t width = kernel_parameters_terrain->width;
+    size_t height = kernel_parameters_terrain->height;
+    size_t times = kernel_parameters_terrain->time;
     KernelParameters ****kernel_parameters_per_cell = kernel_parameters_terrain->data;
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
-            for (uint32_t z = 0; z < times; z++) {
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
+            for (size_t z = 0; z < times; z++) {
                 free(kernel_parameters_per_cell[y][x][z]);
             }
             free(kernel_parameters_per_cell[y][x]);
@@ -644,11 +431,11 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 }
 
 
-Point2D *weather_entry_to_bias(WeatherEntry *entry, int32_t max_bias) {
+Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     if (entry == NULL) return NULL;
     // Adjust these parameters based on your data range
-    const float MAX_WIND_SPEED = 20.0; // Reduced from 40 since your winds are weaker
-    const float MIN_BIAS_THRESHOLD = 0.3; // Minimum bias magnitude to consider
+    const float MAX_WIND_SPEED = 20.0f; // Reduced from 40 since your winds are weaker
+    const float MIN_BIAS_THRESHOLD = 0.3f; // Minimum bias magnitude to consider
     float wind_speed = entry->wind_speed;
     float wind_direction = entry->wind_direction;
     // Normalize wind speed to 0-5 range based on MAX_WIND_SPEED
@@ -662,14 +449,14 @@ Point2D *weather_entry_to_bias(WeatherEntry *entry, int32_t max_bias) {
         normalized_magnitude = (float) max_bias;
     }
     // Convert direction to radians (meteorological convention)
-    float radians = (270.0 - wind_direction) * M_PI / 180.0; // Convert to math convention
+    const float radians = (270.0f - wind_direction) * (float) M_PI / 180.0f; // Convert to math convention
     // Calculate components
-    float bias_x = normalized_magnitude * cos(radians);
-    float bias_y = normalized_magnitude * sin(radians);
+    const float bias_x = normalized_magnitude * cosf(radians);
+    const float bias_y = normalized_magnitude * sinf(radians);
 
     // Round to nearest integers
-    int32_t x = (int32_t) round(bias_x);
-    int32_t y = (int32_t) round(bias_y);
+    ssize_t x = (ssize_t) roundf(bias_x);
+    ssize_t y = (ssize_t) roundf(bias_y);
 
     return point_2d_new(x, y);
 }

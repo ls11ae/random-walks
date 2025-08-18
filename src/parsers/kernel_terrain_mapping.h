@@ -19,7 +19,9 @@ void set_landmark_mapping(KernelParametersMapping *kernel_mapping, enum landmark
 
 int landmark_to_index(enum landmarkType terrain_value);
 
-void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum landmarkType terrain_value);
+void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value);
+
+KernelParameters *get_parameters_of_terrain(KernelParametersMapping *mapping, enum landmarkType terrain_value);
 #ifdef __cplusplus
 }
 #endif

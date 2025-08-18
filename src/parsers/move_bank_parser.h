@@ -6,43 +6,48 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 
-KernelParametersTerrain* get_kernels_terrain(TerrainMap* terrain);
+KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelParametersMapping *kernels_mapping);
 
-KernelParameters* kernel_parameters_biased(const int terrain_value, Point2D* biases);
+KernelParameters *kernel_parameters_biased(int terrain_value, const Point2D *biases,
+                                           KernelParametersMapping *kernels_mapping);
 
-KernelParametersTerrainWeather* get_kernels_terrain_weather(const TerrainMap* terrain, const WeatherGrid* weather);
+KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                                           KernelParametersMapping *kernels_mapping);
 
-KernelParametersTerrainWeather* get_kernels_terrain_biased(const TerrainMap* terrain, const Point2DArray* biases);
+WeatherEntry *parse_csv(const char *csv_data, int *num_entries);
 
-WeatherEntry* parse_csv(const char* csv_data, int* num_entries);
+KernelParametersTerrainWeather *
+get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGrid *biases,
+                                KernelParametersMapping *kernels_mapping);
 
-KernelParametersTerrainWeather*
-get_kernels_terrain_biased_grid(const TerrainMap* terrain, Point2DArrayGrid* biases);
+void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain);
 
-void kernel_parameters_terrain_free(KernelParametersTerrain* kernel_parameters_terrain);
+void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain);
 
-void kernel_parameters_mixed_free(KernelParametersTerrainWeather* kernel_parameters_terrain);
+KernelParameters *kernel_parameters_terrain(int terrain_value, KernelParametersMapping *kernels_mapping);
 
-KernelParameters* kernel_parameters_terrain(int terrain_value);
+KernelParameters *kernel_parameters_new(int terrain_value, const WeatherEntry *weather_entry,
+                                        KernelParametersMapping *kernels_mapping);
 
-KernelParameters* kernel_parameters_new(int terrain_value, WeatherEntry* weather_entry);
+Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char *animal_id);
 
-Coordinate_array* extractLocationsFromCSV(const char* csv_file_path, const char* animal_id);
+Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t length);
 
-Coordinate_array* coordinate_array_new(Coordinate* coordinates, uint32_t length);
+Point2DArray *getNormalizedLocations(const Coordinate_array *path, size_t W, size_t H);
 
-Point2DArray* getNormalizedLocations(const Coordinate_array* path, uint32_t W, uint32_t H);
+Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);
 
-Point2DArray* extractSteps(Point2DArray* path, uint32_t step_count);
+void coordinate_array_free(Coordinate_array *coordinate_array);
 
-void coordinate_array_free(Coordinate_array* coordinate_array);
+Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias);
 
-Point2D* weather_entry_to_bias(WeatherEntry* entry, int32_t max_bias);
-
-void weather_entry_free(WeatherEntry* entry);
+void weather_entry_free(WeatherEntry *entry);
 
 #ifdef __cplusplus
 }

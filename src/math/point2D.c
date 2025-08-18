@@ -9,7 +9,7 @@
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
 
-Point2D *point_2d_new(const int32_t x, const int32_t y) {
+Point2D *point_2d_new(const ssize_t x, const ssize_t y) {
     Point2D *result = malloc(sizeof(Point2D));
     result->x = x;
     result->y = y;
@@ -21,7 +21,7 @@ void point_2d_free(Point2D *p) {
 }
 
 
-Point2DArray *point_2d_array_new(Point2D *points, uint32_t length) {
+Point2DArray *point_2d_array_new(Point2D *points, size_t length) {
     Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
 
@@ -38,7 +38,7 @@ Point2DArray *point_2d_array_new(Point2D *points, uint32_t length) {
     return result;
 }
 
-Point2DArray *point_2d_array_new_empty(uint32_t length) {
+Point2DArray *point_2d_array_new_empty(size_t length) {
     Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
     if (!result) return NULL;
 
@@ -52,7 +52,7 @@ Point2DArray *point_2d_array_new_empty(uint32_t length) {
     return result;
 }
 
-Point2DArrayGrid *point_2d_array_grid_new(uint32_t width, uint32_t height, uint32_t times) {
+Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t times) {
     Point2DArrayGrid *result = (Point2DArrayGrid *) malloc(sizeof(Point2DArrayGrid));
     if (!result) return NULL;
 
@@ -62,12 +62,12 @@ Point2DArrayGrid *point_2d_array_grid_new(uint32_t width, uint32_t height, uint3
         return NULL;
     }
 
-    for (uint32_t i = 0; i < height; i++) {
+    for (size_t i = 0; i < height; i++) {
         data[i] = (Point2DArray **) malloc(sizeof(Point2DArray *) * width);
         if (!data[i]) {
             // Cleanup previously allocated memory
-            for (uint32_t k = 0; k < i; k++) {
-                for (uint32_t j = 0; j < width; j++) {
+            for (size_t k = 0; k < i; k++) {
+                for (size_t j = 0; j < width; j++) {
                     point2d_array_free(data[k][j]);
                 }
                 free(data[k]);
@@ -77,12 +77,12 @@ Point2DArrayGrid *point_2d_array_grid_new(uint32_t width, uint32_t height, uint3
             return NULL;
         }
 
-        for (uint32_t j = 0; j < width; j++) {
+        for (size_t j = 0; j < width; j++) {
             data[i][j] = point_2d_array_new_empty(times);
             if (!data[i][j]) {
                 // Cleanup previously allocated memory
-                for (uint32_t k = 0; k <= i; k++) {
-                    for (uint32_t l = 0; l < (k == i ? j : width); l++) {
+                for (size_t k = 0; k <= i; k++) {
+                    for (size_t l = 0; l < (k == i ? j : width); l++) {
                         point2d_array_free(data[k][l]);
                     }
                     free(data[k]);
@@ -108,7 +108,7 @@ void point2d_array_print(const Point2DArray *array) {
         return;
     }
     printf("%u\n", array->length);
-    for (uint32_t i = 0; i < array->length; ++i) {
+    for (size_t i = 0; i < array->length; ++i) {
         printf("(%d, %d),\n", array->points[i].x, array->points[i].y);
         fflush(stdout);
     }
@@ -125,8 +125,8 @@ void point2d_array_free(Point2DArray *array) {
 void point_2d_array_grid_free(Point2DArrayGrid *grid) {
     if (!grid) return;
 
-    for (uint32_t i = 0; i < grid->height; i++) {
-        for (uint32_t j = 0; j < grid->width; j++) {
+    for (size_t i = 0; i < grid->height; i++) {
+        for (size_t j = 0; j < grid->width; j++) {
             point2d_array_free(grid->data[i][j]);
         }
         free(grid->data[i]);
@@ -156,7 +156,7 @@ char *read_file_to_string(const char *filename) {
     return buffer;
 }
 
-Point2DArray *bias_from_csv(const char *file_content, int32_t max_bias, int times) {
+Point2DArray *bias_from_csv(const char *file_content, ssize_t max_bias, int times) {
     // Parse CSV content
     int num_entries;
     WeatherEntry *entries = parse_csv(file_content, &num_entries);

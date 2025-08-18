@@ -14,7 +14,7 @@ void mixed_walk_time_serialized(ssize_t W, ssize_t H,
                                 const ssize_t start_y,
                                 const char *serialized_path) {
 	char tensor_dir[FILENAME_MAX];
-	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start_x, start_y);
+	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%ld_X%ld_Y%ld", serialized_path, T, start_x, start_y);
 
 	struct stat st;
 	if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
@@ -29,7 +29,6 @@ void mixed_walk_time_serialized(ssize_t W, ssize_t H,
 	snprintf(meta_path, sizeof(meta_path), "%s/meta.info", serialized_path);
 	KernelMapMeta meta = read_kernel_map_meta(meta_path);
 	assert(terrain_map->width == meta.width && terrain_map->height == meta.height);
-	W = terrain_map->width, H = terrain_map->height;
 	size_t max_D = meta.max_D;
 
 	W = terrain_map->width;
@@ -58,7 +57,7 @@ void mixed_walk_time_serialized(ssize_t W, ssize_t H,
 				Tensor *tensor_at_t = tensor_at_xyt(serialized_path, x, y, t);
 
 				assert(tensor_at_t != NULL && "Tensor at time step is NULL");
-				const size_t D = tensor_at_t->len;
+				const ssize_t D = (ssize_t) tensor_at_t->len;
 				assert(D <= max_D && "Direction count exceeds max_D");
 				Vector2D *dir_cell_set = get_dir_kernel(D, tensor_at_t->data[0]->width);
 
@@ -97,7 +96,7 @@ void mixed_walk_time_serialized(ssize_t W, ssize_t H,
 		}
 		// Speichere current als Schritt t
 		char step_path[FILENAME_MAX];
-		snprintf(step_path, sizeof(step_path), "%s/step_%d", tensor_dir, t - 1);
+		snprintf(step_path, sizeof(step_path), "%s/step_%ld", tensor_dir, t - 1);
 		ensure_dir_exists_for(step_path);
 		FILE *file = fopen(step_path, "wb");
 		serialize_tensor(file, prev);
@@ -107,7 +106,7 @@ void mixed_walk_time_serialized(ssize_t W, ssize_t H,
 		prev = current;
 		current = tmp;
 
-		printf("(%d/%d)\n", t, T);
+		printf("(%ld/%ld)\n", t, T);
 	}
 
 	char final_step_folder[FILENAME_MAX];
@@ -130,7 +129,7 @@ Tensor **mixed_walk_time(ssize_t W, ssize_t H,
                          const char *serialized_path) {
 	if (use_serialized) {
 		char tensor_dir[FILENAME_MAX];
-		snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%d_X%d_Y%d", serialized_path, T, start_x, start_y);
+		snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%ld_X%ld_Y%ld", serialized_path, T, start_x, start_y);
 
 		struct stat st;
 		if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
@@ -149,9 +148,6 @@ Tensor **mixed_walk_time(ssize_t W, ssize_t H,
 	if (use_serialized) {
 		meta = read_kernel_map_meta(serialized_path);
 		max_D = 8; //meta.max_D;
-		//T = meta.timesteps;
-		W = meta.width;
-		H = meta.height;
 	} else {
 		max_D = kernels_map->max_D;
 	}
@@ -476,7 +472,7 @@ Point2DArray *backtrace_time_walk_serialized(const char *dp_folder, const ssize_
 
 
 Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
-                            const char *serialized_path,
+                            const char *serialized_path, KernelParametersMapping *mapping,
                             int grid_x, int grid_y,
                             Point2D start, Point2D goal,
                             bool use_serialized) {
@@ -505,7 +501,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, goal.x, goal.y, 0, serialized_path);
 		} else if (!(stat(kmap_path, &st) == 0 && S_ISDIR(st.st_mode))) {
 			printf("[time_walk_geo] Branch: use_serialized && !dp exists && !kmap exists\n");
-			tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
+			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
 			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, T, start.x, start.y, serialized_path);
 			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, goal.x, goal.y, 0, serialized_path);
 		} else {
@@ -515,7 +511,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 		}
 	} else {
 		printf("[time_walk_geo] Branch: !use_serialized\n");
-		kmap = tensor_map_terrain_biased_grid(&terrain, grid);
+		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
 		dp = mixed_walk_time(terrain.width, terrain.height, &terrain, kmap, T, start.x, start.y, use_serialized,
 		                     serialized_path);
 
@@ -539,7 +535,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 
 
 Point2DArray *time_walk_geo_multi(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
-                                  int grid_x, int grid_y,
+                                  KernelParametersMapping *mapping, int grid_x, int grid_y,
                                   Point2DArray *steps, bool use_serialized, const char *serialized_path) {
 	if (steps->length < 2) {
 		return point_2d_array_new_empty(0); // Leeres Array bei unvollständiger Route
@@ -562,7 +558,7 @@ Point2DArray *time_walk_geo_multi(ssize_t T, const char *csv_path, const char *t
 		snprintf(kmap_path, sizeof(kmap_path), "%s/tensors", serialized_path);
 		struct stat st;
 		if (stat(kmap_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
-			tensor_map_terrain_biased_grid_serialized(&terrain, grid, serialized_path);
+			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
 		}
 
 		// Verarbeite jeden Routenabschnitt
@@ -581,7 +577,7 @@ Point2DArray *time_walk_geo_multi(ssize_t T, const char *csv_path, const char *t
 		}
 	} else {
 		// Kernel einmalig laden
-		kmap = tensor_map_terrain_biased_grid(&terrain, grid);
+		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
 		for (int i = 0; i < steps->length - 1; i++) {
 			Point2D start = steps->points[i];
 			Point2D goal = steps->points[i + 1];

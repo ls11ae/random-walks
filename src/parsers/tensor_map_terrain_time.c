@@ -1,11 +1,19 @@
+#include <inttypes.h>
+#include <libgen.h>
 #include <unistd.h>
 
+#include "caching.h"
+#include "move_bank_parser.h"
+#include "serialization.h"
+#include "math/path_finding.h"
+#include "matrix/matrix.h"
 #include "parsers/terrain_parser.h"
 
 
-KernelsMap4D *tensor_map_terrain_biased(TerrainMap *terrain, Point2DArray *biases) {
+KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                        KernelParametersMapping *mapping) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased(terrain, biases);
+    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased(terrain, biases, mapping);
     const ssize_t terrain_width = terrain->width;
     const ssize_t terrain_height = terrain->height;
     const ssize_t time_steps = (ssize_t) tensor_set->time;
@@ -38,7 +46,7 @@ KernelsMap4D *tensor_map_terrain_biased(TerrainMap *terrain, Point2DArray *biase
     kernels_map->max_D = maxD;
 
     int recomputed = 0;
-    TensorSet *ck = generate_correlated_tensors();
+    TensorSet *ck = generate_correlated_tensors(mapping);
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(3) reduction(+:recomputed) schedule(dynamic)
@@ -97,9 +105,10 @@ KernelsMap4D *tensor_map_terrain_biased(TerrainMap *terrain, Point2DArray *biase
 }
 
 
-KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGrid *biases) {
+KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGrid *biases,
+                                             KernelParametersMapping *mapping) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(terrain, biases);
+    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(terrain, biases, mapping);
     const ssize_t terrain_width = terrain->width;
     const ssize_t terrain_height = terrain->height;
     const ssize_t time_steps = (ssize_t) tensor_set->time;
@@ -120,7 +129,7 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
         }
     }
 
-    TensorSet *correlated_kernels = generate_correlated_tensors();
+    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 
     Cache *cache = cache_create(20000);
 
@@ -191,17 +200,18 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
 
 
 void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArrayGrid *biases,
+                                               KernelParametersMapping *mapping,
                                                const char *output_path) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(terrain, biases);
+    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(terrain, biases, mapping);
     const ssize_t terrain_width = terrain->width;
     const ssize_t terrain_height = terrain->height;
     const ssize_t time_steps = (ssize_t) tensor_set->time;
     printf("kernel parameters set\n");
 
-    TensorSet *correlated_kernels = generate_correlated_tensors();
+    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    ssize_t maxD = 0;
+    size_t maxD = 0;
     for (ssize_t i = 0; i < correlated_kernels->len; i++)
         if ((size_t) correlated_kernels->data[i]->len > maxD)
             maxD = correlated_kernels->data[i]->len;
@@ -302,11 +312,12 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
 }
 
 void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain,
+                                       KernelParametersMapping *mapping,
                                        const char *output_path) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
-    ssize_t time_steps = tensor_set_time->time;
+    size_t time_steps = tensor_set_time->time;
 
     // Bestimme maxD über alle Zeitschritte und Positionen
     size_t maxD = 0;
@@ -321,7 +332,7 @@ void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_se
         }
     }
 
-    TensorSet *correlated_kernels = generate_correlated_tensors();
+    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 
     // Hauptschleife über Zeit
     for (ssize_t t = 0; t < time_steps; t++) {

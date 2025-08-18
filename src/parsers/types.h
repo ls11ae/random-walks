@@ -115,6 +115,8 @@ typedef struct {
     ssize_t bias_y;
 } KernelParameters;
 
+#define LAND_MARKS_COUNT  11
+
 enum landmarkType {
     TREE_COVER = 10,
     SHRUBLAND = 20,
@@ -127,20 +129,18 @@ enum landmarkType {
     HERBACEOUS_WETLAND = 90,
     MANGROVES = 95,
     MOSS_AND_LICHEN = 100,
-    LAVA = WATER
 };
 
-static enum landmarkType landmarks[12] = {
+static enum landmarkType landmarks[LAND_MARKS_COUNT] = {
     TREE_COVER, SHRUBLAND, GRASSLAND, CROPLAND, BUILT_UP, SPARSE_VEGETATION,
-    SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN,
-    LAVA
+    SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN
 };
 
 typedef struct {
-    enum landmarkType forbidden_landmarks[12];
+    enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
     bool has_forbidden_landmarks;
     int forbidden_landmarks_count;
-    KernelParameters parameters[12];
+    KernelParameters parameters[LAND_MARKS_COUNT];
 } KernelParametersMapping;
 
 enum animal_type {
