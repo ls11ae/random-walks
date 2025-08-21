@@ -21,7 +21,6 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
         ssize_t t_D = parameters->D;
         ssize_t M = parameters->S * 2 + 1;
         tensors[i] = generate_kernels(t_D, M);
-        free(parameters);
     }
     TensorSet *correlated_kernels = tensor_set_new(terrain_count, tensors);
     return correlated_kernels;

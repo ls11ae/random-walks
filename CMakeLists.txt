@@ -70,10 +70,10 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # Executable
- add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
+add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
 if (ENABLE_CUDA)
-   target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
+    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
 endif ()
 
 # Tests

@@ -6,8 +6,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-
-
 #endif
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,

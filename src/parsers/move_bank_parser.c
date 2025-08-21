@@ -411,13 +411,9 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
 
 
 void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain) {
-    const size_t width = kernel_parameters_terrain->width;
     const size_t height = kernel_parameters_terrain->height;
     KernelParameters ***kernel_parameters_per_cell = kernel_parameters_terrain->data;
     for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
-            free(kernel_parameters_per_cell[y][x]);
-        }
         free(kernel_parameters_per_cell[y]);
     }
     free(kernel_parameters_per_cell);

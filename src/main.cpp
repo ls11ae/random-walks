@@ -220,16 +220,15 @@ int serialize_tensor() {
 }
 
 void test_mixed() {
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
     Point2D steps[3];
-    steps[0] = (Point2D){200, 200};
-    steps[1] = (Point2D){380, 380};
-    steps[2] = (Point2D){200, 340};
+    steps[0] = (Point2D){150, 150};
+    steps[1] = (Point2D){80, 80};
     auto kernel = generate_kernels(8, 15);
-    Point2DArray *step_arr = point_2d_array_new(steps, 3);
+    Point2DArray *step_arr = point_2d_array_new(steps, 2);
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    auto t_map = tensor_map_new(terrain, mapping, kernel);
+    auto t_map = tensor_map_terrain(terrain, mapping);
     auto walk = m_walk_backtrace_multiple(100, t_map, terrain, mapping, step_arr, false, "", "");
     point2d_array_print(walk);
     terrain_map_free(terrain);
@@ -419,8 +418,8 @@ int main(int argc, char **argv) {
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
     //brownian_cuda();
-    //test_mixed();
-    test_geo_multi();
+    test_mixed();
+    //test_geo_multi();
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");

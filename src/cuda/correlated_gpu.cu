@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <cstdio>
 #include <cstdlib>
-#include <c++/15.1.1/chrono>
+#include <chrono>
 
 #include "math/kernel_slicing.h"
 #include "math/math_utils.h"
