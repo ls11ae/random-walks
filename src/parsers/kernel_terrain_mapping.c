@@ -144,6 +144,11 @@ KernelParametersMapping *create_default_mapping(enum animal_type animal_type,
                                                 int base_step_size,
                                                 enum kernel_mode mode) {
     KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        params_mapping->forbidden_landmarks[i] = 0;
+    }
+    params_mapping->forbidden_landmarks_count = 0;
+    params_mapping->has_forbidden_landmarks = false;
     if (!params_mapping) {
         perror("malloc");
         return NULL;
