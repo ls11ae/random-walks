@@ -1,5 +1,6 @@
 #include "parsers/kernel_terrain_mapping.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -109,7 +110,7 @@ static KernelParameters make_kernel_params(enum landmarkType terrain_value,
             base_step_multiplier = 0.15f;
             break;
         case MOSS_AND_LICHEN:
-            is_brownian = 1;
+            is_brownian = 0;
             D = 8;
             diffusity = 1.0f;
             base_step_multiplier = 0.6f;
@@ -205,6 +206,7 @@ KernelParametersMapping *create_default_correlated_mapping(enum animal_type anim
 
 void set_landmark_mapping(KernelParametersMapping *kernel_mapping, const enum landmarkType terrain_value,
                           const KernelParameters *params) {
+    assert((!params->is_brownian && params->D > 1) || (params->is_brownian && params->D == 1));
     const int index = landmark_to_index(terrain_value);
     kernel_mapping->parameters[index] = *params;
 }

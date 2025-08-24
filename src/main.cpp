@@ -220,9 +220,9 @@ int serialize_tensor() {
 }
 
 void test_mixed() {
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     Point2D steps[3];
-    steps[0] = (Point2D){150, 150};
+    steps[0] = (Point2D){250, 250};
     steps[1] = (Point2D){80, 80};
     auto kernel = generate_kernels(8, 15);
     Point2DArray *step_arr = point_2d_array_new(steps, 2);

@@ -9,15 +9,11 @@
 
 
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
-    const int terrain_count = 11;
+    const int terrain_count = LAND_MARKS_COUNT;
     Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
-    const enum landmarkType landmarkTypes[11] = {
-        TREE_COVER, SHRUBLAND, GRASSLAND, CROPLAND, BUILT_UP, SPARSE_VEGETATION, SNOW_AND_ICE, WATER,
-        HERBACEOUS_WETLAND, MANGROVES,
-        MOSS_AND_LICHEN
-    };
+
     for (int i = 0; i < terrain_count; i++) {
-        KernelParameters *parameters = kernel_parameters_terrain(landmarkTypes[i], mapping);
+        KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
         ssize_t t_D = parameters->D;
         ssize_t M = parameters->S * 2 + 1;
         tensors[i] = generate_kernels(t_D, M);
@@ -151,6 +147,15 @@ KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping 
     return kernels_map;
 }
 
+static inline int landmark_to_index_from_value(int terrain_value) {
+    if (terrain_value == MANGROVES) return 9;
+    if (terrain_value == MOSS_AND_LICHEN) return 10;
+    if (terrain_value >= 10 && terrain_value <= 90 && terrain_value % 10 == 0)
+        return terrain_value / 10 - 1;
+    return -1; // invalid
+}
+
+
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized) {
     ssize_t M = p->S * 2 + 1;
@@ -169,9 +174,9 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
         return result;
     }
 
-    int index;
-    if (terrain_value == MANGROVES) index = 9;
-    else index = terrain_value / 10 - 1;
+    int index = landmark_to_index_from_value(terrain_value);
+    assert(index >= 0 && index < LAND_MARKS_COUNT);
+
     Tensor *result = correlated_tensors->data[index];
     assert(result);
     if (serialized) {
