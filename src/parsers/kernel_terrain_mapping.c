@@ -58,7 +58,7 @@ enum kernel_mode {
     MODE_CORRELATED
 };
 
-static KernelParameters make_kernel_params(const enum landmarkType terrain_value,
+static KernelParameters make_kernel_params(const enum landmarkType terrain_value, enum animal_type animal_type,
                                            const int base_step_size,
                                            const enum kernel_mode mode) {
     KernelParameters params;
@@ -68,8 +68,8 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
 
     switch (terrain_value) {
         case TREE_COVER:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 8;
             diffusity = 0.9f;
             base_step_multiplier = 0.7f;
             break;
@@ -80,8 +80,8 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             base_step_multiplier = 0.5f;
             break;
         case GRASSLAND:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 6;
             diffusity = 1.0f;
             base_step_multiplier = 1.0f;
             break;
@@ -104,28 +104,28 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             base_step_multiplier = 0.8f;
             break;
         case SNOW_AND_ICE:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 10;
             diffusity = 0.4f;
-            base_step_multiplier = 0.3f;
+            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.3f;
             break;
         case WATER:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 8;;
             diffusity = 0.1f;
-            base_step_multiplier = 0.1f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.1f;
             break;
         case HERBACEOUS_WETLAND:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 8;;
             diffusity = 0.3f;
-            base_step_multiplier = 0.2f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.0f : 0.2f;
             break;
         case MANGROVES:
-            is_brownian = 1;
-            D = 1;
+            is_brownian = animal_type != AIRBORNE;
+            D = animal_type != AIRBORNE ? 1 : 5;;
             diffusity = 0.2f;
-            base_step_multiplier = 0.15f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.15f;
             break;
         case MOSS_AND_LICHEN:
             is_brownian = 0;
@@ -134,7 +134,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             base_step_multiplier = 0.6f;
             break;
         default:
-            is_brownian = 1;
+            is_brownian = animal_type != AIRBORNE;
             D = 1;
             diffusity = 1.0f;
             base_step_multiplier = 1.0f;
@@ -201,7 +201,7 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
     }
 
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters params = make_kernel_params(landmarks[i], base_step_size, mode);
+        KernelParameters params = make_kernel_params(landmarks[i], animal_type, base_step_size, mode);
         params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
         params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
         params_mapping->data.parameters[i] = params;
@@ -328,7 +328,7 @@ static KernelParametersMapping *create_default_kernels_internal(enum animal_type
     }
 
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters params = make_kernel_params(landmarks[i], base_step_size, mode);
+        KernelParameters params = make_kernel_params(landmarks[i], animal_type, base_step_size, mode);
         // Apply animal-specific bias as in parameters mapping
         params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
         params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
