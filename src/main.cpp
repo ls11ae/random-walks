@@ -229,6 +229,8 @@ void test_mixed() {
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     auto t_map = tensor_map_terrain(terrain, mapping);
+    tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
+    return;
     auto walk = m_walk_backtrace_multiple(100, t_map, terrain, mapping, step_arr, false, "", "");
     point2d_array_print(walk);
     terrain_map_free(terrain);
@@ -419,7 +421,22 @@ int main(int argc, char **argv) {
     //test_brownian();
     //brownian_cuda();
     test_mixed();
+    return 0;
     //test_geo_multi();
+    Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);
+    for (int i = 0; i < matrix->len; i++) {
+        if (matrix->data[i] < 0.005) {
+            matrix->data[i] = 0.0;
+        }
+    }
+    matrix_normalize_L1(matrix);
+    matrix_print(matrix);
+    printf("_____________________________________________\n");
+    Tensor *tensor = generate_kernels_from_matrix(matrix, 8);
+    for (int i = 0; i < tensor->len; i++) {
+        printf("d = %d \n", i);
+        matrix_print(tensor->data[i]);
+    }
     return 0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");

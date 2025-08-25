@@ -18,8 +18,17 @@ KernelParametersMapping *create_default_brownian_mapping(enum animal_type animal
 
 KernelParametersMapping *create_default_correlated_mapping(enum animal_type animal_type, int base_step_size);
 
+KernelParametersMapping *create_default_mixed_kernels(enum animal_type animal_type, int base_step_size);
+
+KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal_type, int base_step_size);
+
+KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size);
+
 void set_landmark_mapping(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
                           const KernelParameters *params);
+
+void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
+                         Matrix *kernel, ssize_t dirs);
 
 int landmark_to_index(enum landmarkType terrain_value);
 

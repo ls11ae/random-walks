@@ -5,6 +5,24 @@
 #include <stdlib.h>
 
 #include "move_bank_parser.h"
+#include "matrix/kernels.h"
+#include "matrix/matrix.h"
+
+// Helper: wrap a single Matrix into a Tensor (len = 1)
+static Tensor *tensor_from_single_matrix(Matrix *m) {
+    Tensor *t = (Tensor *) malloc(sizeof(Tensor));
+    if (!t) return NULL;
+    t->len = 1;
+    t->data = (Matrix **) malloc(sizeof(Matrix *));
+    if (!t->data) {
+        free(t);
+        return NULL;
+    }
+    t->data[0] = m;
+    t->dir_kernel = NULL;
+    return t;
+}
+
 
 int landmark_to_index(enum landmarkType terrain_value) {
     switch (terrain_value) {
@@ -40,9 +58,9 @@ enum kernel_mode {
     MODE_CORRELATED
 };
 
-static KernelParameters make_kernel_params(enum landmarkType terrain_value,
-                                           int base_step_size,
-                                           enum kernel_mode mode) {
+static KernelParameters make_kernel_params(const enum landmarkType terrain_value,
+                                           const int base_step_size,
+                                           const enum kernel_mode mode) {
     KernelParameters params;
     float base_step_multiplier;
     float diffusity;
@@ -141,19 +159,19 @@ static KernelParameters make_kernel_params(enum landmarkType terrain_value,
     return params;
 }
 
-KernelParametersMapping *create_default_mapping(enum animal_type animal_type,
-                                                int base_step_size,
-                                                enum kernel_mode mode) {
+KernelParametersMapping *create_default_mapping(const enum animal_type animal_type,
+                                                const int base_step_size, const enum kernel_mode mode) {
     KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
+    if (!params_mapping) {
+        perror("malloc kernels mapping");
+        return NULL;
+    }
+    params_mapping->kind = KPM_KIND_PARAMETERS;
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
         params_mapping->forbidden_landmarks[i] = 0;
     }
     params_mapping->forbidden_landmarks_count = 0;
     params_mapping->has_forbidden_landmarks = false;
-    if (!params_mapping) {
-        perror("malloc");
-        return NULL;
-    }
 
     float bias_factor;
     switch (animal_type) {
@@ -186,7 +204,7 @@ KernelParametersMapping *create_default_mapping(enum animal_type animal_type,
         KernelParameters params = make_kernel_params(landmarks[i], base_step_size, mode);
         params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
         params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
-        params_mapping->parameters[i] = params;
+        params_mapping->data.parameters[i] = params;
     }
 
     return params_mapping;
@@ -208,7 +226,19 @@ void set_landmark_mapping(KernelParametersMapping *kernel_mapping, const enum la
                           const KernelParameters *params) {
     assert((!params->is_brownian && params->D > 1) || (params->is_brownian && params->D == 1));
     const int index = landmark_to_index(terrain_value);
-    kernel_mapping->parameters[index] = *params;
+    kernel_mapping->data.parameters[index] = *params;
+}
+
+void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
+                         Matrix *kernel, ssize_t dirs) {
+    const int index = landmark_to_index(terrain_value);
+    Tensor *tensor;
+    if (dirs == 1) {
+        tensor = tensor_from_single_matrix(kernel);
+    } else {
+        tensor = generate_kernels_from_matrix(kernel, dirs);
+    }
+    kernel_mapping->data.kernels[index] = tensor;
 }
 
 void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum landmarkType terrain_value) {
@@ -229,5 +259,96 @@ bool is_forbidden_landmark(const enum landmarkType terrain_value, const KernelPa
 
 KernelParameters *get_parameters_of_terrain(KernelParametersMapping *mapping, enum landmarkType terrain_value) {
     const int index = landmark_to_index(terrain_value);
-    return &mapping->parameters[index];
+    return &mapping->data.parameters[index];
+}
+
+
+// Helper: build a default kernel Tensor for terrain/settings
+static Tensor *build_default_kernel_for(enum landmarkType terrain_value, const KernelParameters *p) {
+    // Enforce the invariant: brownian => D == 1
+    const bool is_brownian = (p->is_brownian || p->D <= 1);
+    const ssize_t S = p->S;
+    const ssize_t M = 2 * S + 1;
+
+    if (is_brownian) {
+        double sigma = 0.0, scale = 1.0;
+        get_gaussian_parameters((double) p->diffusity, (int) terrain_value, &sigma, &scale);
+        Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, scale, p->bias_x, p->bias_y);
+        return tensor_from_single_matrix(m);
+    }
+    return generate_kernels(p->D, M);
+}
+
+static KernelParametersMapping *create_default_kernels_internal(enum animal_type animal_type,
+                                                                int base_step_size,
+                                                                enum kernel_mode mode) {
+    KernelParametersMapping *mapping = (KernelParametersMapping *) malloc(sizeof(KernelParametersMapping));
+    if (!mapping) {
+        perror("malloc kernels mapping");
+        return NULL;
+    }
+
+    mapping->kind = KPM_KIND_KERNELS;
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        mapping->forbidden_landmarks[i] = 0;
+    }
+    mapping->forbidden_landmarks_count = 0;
+    mapping->has_forbidden_landmarks = false;
+
+    float bias_factor;
+    switch (animal_type) {
+        case AIRBORNE:
+            bias_factor = 0.6f;
+            mapping->has_forbidden_landmarks = false;
+            mapping->forbidden_landmarks_count = 0;
+            break;
+        case HEAVY:
+            bias_factor = 0.2f;
+            mapping->has_forbidden_landmarks = true;
+            mapping->forbidden_landmarks[0] = WATER;
+            mapping->forbidden_landmarks_count = 1;
+            break;
+        case MEDIUM:
+            bias_factor = 0.4f;
+            mapping->has_forbidden_landmarks = true;
+            mapping->forbidden_landmarks[0] = WATER;
+            mapping->forbidden_landmarks_count = 1;
+            break;
+        case AMPHIBIAN:
+            bias_factor = 0.0f;
+            mapping->has_forbidden_landmarks = false;
+            mapping->forbidden_landmarks_count = 0;
+            break;
+        default:
+            bias_factor = 0.6f;
+            mapping->has_forbidden_landmarks = true;
+            mapping->forbidden_landmarks[0] = WATER;
+            mapping->forbidden_landmarks_count = 1;
+            break;
+    }
+
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        KernelParameters params = make_kernel_params(landmarks[i], base_step_size, mode);
+        // Apply animal-specific bias as in parameters mapping
+        params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
+        params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
+
+        // Construct Tensor* kernel per landmark
+        Tensor *kernel = build_default_kernel_for(landmarks[i], &params);
+        mapping->data.kernels[i] = kernel;
+    }
+
+    return mapping;
+}
+
+KernelParametersMapping *create_default_mixed_kernels(enum animal_type animal_type, int base_step_size) {
+    return create_default_kernels_internal(animal_type, base_step_size, MODE_MIXED);
+}
+
+KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal_type, int base_step_size) {
+    return create_default_kernels_internal(animal_type, base_step_size, MODE_BROWNIAN);
+}
+
+KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size) {
+    return create_default_kernels_internal(animal_type, base_step_size, MODE_CORRELATED);
 }

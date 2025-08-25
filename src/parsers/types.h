@@ -136,11 +136,22 @@ static enum landmarkType landmarks[LAND_MARKS_COUNT] = {
     SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN
 };
 
+typedef enum {
+    KPM_KIND_PARAMETERS,
+    KPM_KIND_KERNELS
+} KernelMapKind;
+
 typedef struct {
     enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
     bool has_forbidden_landmarks;
     int forbidden_landmarks_count;
-    KernelParameters parameters[LAND_MARKS_COUNT];
+
+    KernelMapKind kind;
+
+    union {
+        KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
+        Tensor *kernels[LAND_MARKS_COUNT]; // when kind == KPM_KIND_KERNELS
+    } data;
 } KernelParametersMapping;
 
 enum animal_type {
