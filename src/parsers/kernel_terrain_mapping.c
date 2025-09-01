@@ -228,7 +228,9 @@ void set_landmark_mapping(KernelParametersMapping *kernel_mapping, const enum la
     const int index = landmark_to_index(terrain_value);
     kernel_mapping->data.parameters[index] = *params;
     if (is_forbidden_landmark(terrain_value, kernel_mapping)) {
-        kernel_mapping->forbidden_landmarks[index] = 0;
+        for (int i = 0; i < LAND_MARKS_COUNT; ++i)
+            if (kernel_mapping->forbidden_landmarks[i] == terrain_value)
+                kernel_mapping->forbidden_landmarks[i] = 0;
         kernel_mapping->forbidden_landmarks_count--;
         if (kernel_mapping->forbidden_landmarks_count == 0) {
             kernel_mapping->has_forbidden_landmarks = false;
