@@ -227,6 +227,13 @@ void set_landmark_mapping(KernelParametersMapping *kernel_mapping, const enum la
     assert((!params->is_brownian && params->D > 1) || (params->is_brownian && params->D == 1));
     const int index = landmark_to_index(terrain_value);
     kernel_mapping->data.parameters[index] = *params;
+    if (is_forbidden_landmark(terrain_value, kernel_mapping)) {
+        kernel_mapping->forbidden_landmarks[index] = 0;
+        kernel_mapping->forbidden_landmarks_count--;
+        if (kernel_mapping->forbidden_landmarks_count == 0) {
+            kernel_mapping->has_forbidden_landmarks = false;
+        }
+    }
 }
 
 void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
@@ -250,7 +257,7 @@ void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum 
 }
 
 bool is_forbidden_landmark(const enum landmarkType terrain_value, const KernelParametersMapping *kernel_mapping) {
-    for (int i = 0; i < kernel_mapping->forbidden_landmarks_count; i++) {
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
         if (kernel_mapping->forbidden_landmarks[i] == terrain_value)
             return true;
     }
