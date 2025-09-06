@@ -52,7 +52,6 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
             if (is_forbidden_landmark(terrain_val, mapping)) {
-                printf("terrain_val = %zd\n", terrain_val);
                 kernels_map->kernels[y][x] = NULL;
                 continue;
             }
