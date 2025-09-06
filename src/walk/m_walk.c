@@ -103,7 +103,9 @@ static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_ma
 		prev = current;
 		current = tmp;
 
-		printf("(%ld/%ld)\n", t, T);
+		if ((t * 10) / T > ((t - 1) * 10) / T) {
+			printf("(%ld/%ld)\n", t, T);
+		}
 	}
 	char final_step_folder[FILENAME_MAX];
 	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%ld", tensor_dir, T - 1);
@@ -181,7 +183,9 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 				free_Vector2D(dir_cell_set);
 			}
 		}
-		printf("(%ld/%ld)\n", t, T);
+		if ((t * 10) / T > ((t - 1) * 10) / T) {
+			printf("(%ld/%ld)\n", t, T);
+		}
 	}
 	//printf("DP calculation finished\n");
 	return DP_mat;

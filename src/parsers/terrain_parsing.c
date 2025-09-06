@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <tgmath.h>
 
 #include "parsers/terrain_parser.h"
 
@@ -284,3 +285,29 @@ TerrainMap *get_terrain_map(const char *file, const char delimiter) {
     }
     return terrain_map;
 }
+
+TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor) {
+    if (!terrain_map || factor <= 0.0) return NULL;
+
+    const ssize_t srcW = terrain_map->width;
+    const ssize_t srcH = terrain_map->height;
+
+    const ssize_t dstW = (ssize_t) llround((double)srcW * factor);
+    const ssize_t dstH = (ssize_t) llround((double)srcH * factor);
+    if (dstW <= 0 || dstH <= 0) return NULL;
+
+    TerrainMap *upscaled_map = terrain_map_new(dstW, dstH);
+    if (!upscaled_map) return NULL;
+
+    for (ssize_t y = 0; y < dstH; ++y) {
+        const ssize_t sy = (ssize_t) ((double) y / factor);
+        const ssize_t srcY = sy < 0 ? 0 : (sy >= srcH ? srcH - 1 : sy);
+        for (ssize_t x = 0; x < dstW; ++x) {
+            const ssize_t sx = (ssize_t) ((double) x / factor);
+            const ssize_t srcX = sx < 0 ? 0 : (sx >= srcW ? srcW - 1 : sx);
+            terrain_set(upscaled_map, x, y, terrain_at(srcX, srcY, terrain_map));
+        }
+    }
+    return upscaled_map;
+}
+

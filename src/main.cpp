@@ -420,7 +420,8 @@ int main(int argc, char **argv) {
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
     //brownian_cuda();
-    test_mixed();
+    TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
+    upscale_terrain_map(terrain3, 2.0);
     return 0;
     //test_geo_multi();
     Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);

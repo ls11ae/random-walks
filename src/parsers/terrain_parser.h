@@ -41,6 +41,8 @@ void kernels_map4d_free(KernelsMap4D *map);
 
 TerrainMap *get_terrain_map(const char *file, char delimiter);
 
+TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor);
+
 int terrain_at(ssize_t x, ssize_t y, const TerrainMap *terrain_map);
 
 void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value);
