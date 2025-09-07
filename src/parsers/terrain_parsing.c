@@ -311,3 +311,20 @@ TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor) {
     return upscaled_map;
 }
 
+TerrainMap *extract_terrain_from_endpoints(TerrainMap *terrain_map, ssize_t start_x, ssize_t start_y, ssize_t end_x,
+                                           ssize_t end_y) {
+    if (start_x < 0 || start_y < 0 || end_x < 0 || end_y < 0 || start_x >= terrain_map->width || start_y >= terrain_map
+        ->height || end_x >= terrain_map->width || end_y >= terrain_map->height) {
+        return NULL;
+    }
+    TerrainMap *terrain_subset = terrain_map_new(end_x - start_x + 1, end_y - start_y + 1);
+    if (!terrain_subset) {
+        return NULL;
+    }
+    for (ssize_t y = 0; y < terrain_subset->height; ++y) {
+        for (ssize_t x = 0; x < terrain_subset->width; ++x) {
+            terrain_set(terrain_subset, x, y, terrain_at(start_x + x, start_y + y, terrain_map));
+        }
+    }
+    return terrain_subset;
+}

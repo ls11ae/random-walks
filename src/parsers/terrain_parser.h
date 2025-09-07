@@ -43,6 +43,9 @@ TerrainMap *get_terrain_map(const char *file, char delimiter);
 
 TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor);
 
+TerrainMap *extract_terrain_from_endpoints(TerrainMap *terrain_map, ssize_t start_x, ssize_t start_y, ssize_t end_x,
+                                           ssize_t end_y);
+
 int terrain_at(ssize_t x, ssize_t y, const TerrainMap *terrain_map);
 
 void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value);
