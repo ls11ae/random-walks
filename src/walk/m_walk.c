@@ -153,7 +153,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
+				if (terrain_at(x, y, terrain_map) == 0) continue;
 
 				Tensor *current_tensor = kernels_map->kernels[y][x];
 				const size_t D = current_tensor->len;
@@ -305,7 +305,7 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
                                const ssize_t end_x, const ssize_t end_y,
                                const ssize_t dir, bool use_serialized, const char *serialize_dir,
                                const char *dp_folder) {
-	assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain), mapping));
+	//assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain), mapping));
 	if (use_serialized) {
 		return backtrace_serialized(dp_folder, T, terrain, mapping, end_x, end_y, dir, serialize_dir);
 	}
@@ -354,7 +354,7 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
 					continue;
 				}
-				if (is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping) || d >= previous_tensor->len)
+				if (terrain_at(prev_x, prev_y, terrain) == 0 || d >= previous_tensor->len)
 					continue;
 
 				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
