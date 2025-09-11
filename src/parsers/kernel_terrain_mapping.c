@@ -70,7 +70,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case TREE_COVER:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 8;
-            diffusity = 0.9f;
+            diffusity = 2.9f;
             base_step_multiplier = 0.7f;
             break;
         case SHRUBLAND:
@@ -106,12 +106,12 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case SNOW_AND_ICE:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 10;
-            diffusity = 0.4f;
-            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.3f;
+            diffusity = 2.4f;
+            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.7f;
             break;
         case WATER:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 4;;
+            is_brownian = 0;
+            D = 4;;
             diffusity = 0.1f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
             break;
@@ -185,9 +185,9 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
             params_mapping->forbidden_landmarks_count = 1;
             break;
         case MEDIUM: bias_factor = 0.4f;
-            params_mapping->has_forbidden_landmarks = false;
-            // params_mapping->forbidden_landmarks[0] = WATER;
-            params_mapping->forbidden_landmarks_count = 0;
+            params_mapping->has_forbidden_landmarks = true;
+            params_mapping->forbidden_landmarks[0] = WATER;
+            params_mapping->forbidden_landmarks_count = 1;
             break;
         case AMPHIBIAN: bias_factor = 0.0f;
             params_mapping->has_forbidden_landmarks = false;

@@ -450,7 +450,9 @@ Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, Ter
 			return NULL;
 		}
 
+
 		printf("dp calculation success\n");
+		printf("%f", matrix_get(c_dp[T - 1]->data[0], steps->points[step + 1].x, steps->points[step + 1].y));
 		fflush(stdout);
 
 		Point2DArray *points = m_walk_backtrace(c_dp, T, tensor_map, terrain, mapping, steps->points[step + 1].x,
