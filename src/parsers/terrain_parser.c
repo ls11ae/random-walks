@@ -12,13 +12,16 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
     const int terrain_count = LAND_MARKS_COUNT;
     Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
 
+    size_t max_D = 0;
     for (int i = 0; i < terrain_count; i++) {
         KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
         ssize_t t_D = parameters->D;
         ssize_t M = parameters->S * 2 + 1;
         tensors[i] = generate_kernels(t_D, M);
+        max_D = max_D > t_D ? max_D : t_D;
     }
     TensorSet *correlated_kernels = tensor_set_new(terrain_count, tensors);
+    correlated_kernels->max_D = max_D;
     return correlated_kernels;
 }
 

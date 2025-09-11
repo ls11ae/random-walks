@@ -220,22 +220,19 @@ int serialize_tensor() {
 }
 
 void test_mixed() {
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
-    Point2D steps[3];
-    steps[0] = (Point2D){250, 250};
-    steps[1] = (Point2D){80, 80};
-    auto kernel = generate_kernels(8, 15);
+    TerrainMap *terrain = create_terrain_map("../../resources/river.txt", ' ');
+    Point2D steps[2];
+    steps[0] = (Point2D){332, 196};
+    steps[1] = (Point2D){200, 200};
     Point2DArray *step_arr = point_2d_array_new(steps, 2);
-    const int S = 7;
+    const int S = 5;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     auto t_map = tensor_map_terrain(terrain, mapping);
-    tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
-    return;
     auto walk = m_walk_backtrace_multiple(100, t_map, terrain, mapping, step_arr, false, "", "");
+    save_walk_to_json(step_arr, walk, terrain, "mwalk_river.json");
     point2d_array_print(walk);
     terrain_map_free(terrain);
     point2d_array_free(walk);
-    tensor_free(kernel);
 }
 
 void test_sym_link() {
@@ -420,8 +417,7 @@ int main(int argc, char **argv) {
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
     //brownian_cuda();
-    TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
-    upscale_terrain_map(terrain3, 2.0);
+    test_mixed();
     return 0;
     //test_geo_multi();
     Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);

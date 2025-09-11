@@ -70,7 +70,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case TREE_COVER:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 8;
-            diffusity = 0.9f;
+            diffusity = 2.9f;
             base_step_multiplier = 0.7f;
             break;
         case SHRUBLAND:
@@ -106,14 +106,14 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case SNOW_AND_ICE:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 10;
-            diffusity = 0.4f;
-            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.3f;
+            diffusity = 2.4f;
+            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.7f;
             break;
         case WATER:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 8;;
+            is_brownian = 0;
+            D = 4;;
             diffusity = 0.1f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.1f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
             break;
         case HERBACEOUS_WETLAND:
             is_brownian = animal_type != AIRBORNE;
@@ -259,6 +259,7 @@ void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum 
 }
 
 bool is_forbidden_landmark(const enum landmarkType terrain_value, const KernelParametersMapping *kernel_mapping) {
+    if (terrain_value == 0) return true;
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
         if (kernel_mapping->forbidden_landmarks[i] == terrain_value)
             return true;
