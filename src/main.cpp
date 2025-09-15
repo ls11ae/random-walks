@@ -134,7 +134,7 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mapping);
 
     Point2D start = {200, 200};
-    Point2D goal = {390, 332};
+    Point2D goal = {390, 380};
 
     const char *path = "";
     auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false, path);
@@ -220,19 +220,30 @@ int serialize_tensor() {
 }
 
 void test_mixed() {
+    const int S = 7;
+
     TerrainMap *terrain = create_terrain_map("../../resources/river.txt", ' ');
-    Point2D steps[2];
-    steps[0] = (Point2D){332, 196};
-    steps[1] = (Point2D){200, 200};
-    Point2DArray *step_arr = point_2d_array_new(steps, 2);
-    const int S = 5;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
+    // matrix_print(m);
+    // return;
+
+    Point2D steps[5];
+    steps[0] = (Point2D){373, 375};
+    steps[1] = (Point2D){250, 250};
+    steps[2] = (Point2D){182, 61};
+    steps[3] = (Point2D){182, 180};
+    steps[4] = (Point2D){350, 50};
+    auto kernel = generate_kernels(8, 15);
+    Point2DArray *step_arr = point_2d_array_new(steps, 5);
     auto t_map = tensor_map_terrain(terrain, mapping);
-    auto walk = m_walk_backtrace_multiple(100, t_map, terrain, mapping, step_arr, false, "", "");
-    save_walk_to_json(step_arr, walk, terrain, "mwalk_river.json");
+    //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
+    auto walk = m_walk_backtrace_multiple(200, t_map, terrain, mapping, step_arr, false, "", "");
+    save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
     point2d_array_print(walk);
     terrain_map_free(terrain);
     point2d_array_free(walk);
+    tensor_free(kernel);
 }
 
 void test_sym_link() {
@@ -413,11 +424,37 @@ Vector2D *vector2D_new(size_t count) {
 }
 
 
+static inline void print_progress(size_t count, size_t max) {
+    const int bar_width = 50;
+
+    float progress = (float) count / max;
+    int bar_length = progress * bar_width;
+
+    printf("\rProgress: [");
+    for (int i = 0; i < bar_length; ++i) {
+        printf("#");
+    }
+    for (int i = bar_length; i < bar_width; ++i) {
+        printf(" ");
+    }
+    printf("] %.2f%%", progress * 100);
+
+    fflush(stdout);
+}
+
 int main(int argc, char **argv) {
+    int max = 100;
+    printf("progress\n");
+    for (int i = 0; i < max; ++i) {
+        print_progress(i, max);
+        sleep(1);
+    }
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
     //brownian_cuda();
-    test_mixed();
+    // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
+    // upscale_terrain_map(terrain3, 2.0);
+    //test_mixed();
     return 0;
     //test_geo_multi();
     Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);

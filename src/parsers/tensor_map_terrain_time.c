@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "caching.h"
+#include "kernel_terrain_mapping.h"
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
@@ -55,7 +56,7 @@ KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2D
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
             for (size_t t = 0; t < time_steps; t++) {
-                if (terrain_val == WATER) {
+                if (terrain_val == 0) {
                     kernels_map->kernels[y][x][t] = NULL;
                     continue;
                 }
@@ -131,20 +132,10 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
     }
 
     TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
+    kernels_map->max_D = (ssize_t) correlated_kernels->max_D;
 
     Cache *cache = cache_create(20000);
-
-    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    ssize_t maxD = 0;
-    for (ssize_t i = 0; i < tensor_set->height; i++)
-        for (ssize_t j = 0; j < tensor_set->width; j++)
-            for (ssize_t t = 0; t < tensor_set->time; t++)
-                if ((size_t) tensor_set->data[i][j][t]->D > maxD)
-                    maxD = tensor_set->data[i][j][t]->D;
-    kernels_map->max_D = maxD;
-
     int recomputed = 0;
-
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
@@ -152,42 +143,54 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
             for (size_t t = 0; t < time_steps; t++) {
-                if (terrain_val == WATER) {
+                if (terrain_val == 0) {
                     kernels_map->kernels[y][x][t] = NULL;
                     continue;
                 }
 
-                // a) Einzel-Hashes
-                uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
-                Matrix *reach_mat = get_reachability_kernel(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
-                                                            mapping);
-                uint64_t h_reach = compute_matrix_hash(reach_mat);
-                uint64_t pre_combined = hash_combine(h_params, h_reach);
-
-                // b) Cache‐Lookup
-                CacheEntry *entry = cache_lookup_entry(cache, pre_combined);
                 Tensor *arr;
-                if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x][t]->D) {
-                    arr = entry->data.array;
-                } else {
-                    // c) Cache‐Miss → neu berechnen und einfügen
-                    recomputed++;
-                    ssize_t D = tensor_set->data[y][x][t]->D;
-                    arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true, correlated_kernels, true);
-                    for (ssize_t d = 0; d < D; d++) {
-                        Matrix *m = matrix_elementwise_mul(
-                            arr->data[d],
-                            reach_mat
-                        );
-                        matrix_normalize_L1(m);
-                        matrix_free(arr->data[d]);
-                        arr->data[d] = m;
+                Matrix *soft_reach_mat;
+                if (mapping->kind == KPM_KIND_PARAMETERS) {
+                    // a) Einzel-Hashes
+                    uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
+                    soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
+                                                                  mapping);
+                    uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
+                    uint64_t pre_combined = hash_combine(h_params, h_reach);
+
+                    // b) Cache‐Lookup
+                    CacheEntry *entry = cache_lookup_entry(cache, pre_combined);
+                    if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x][t]->D) {
+                        arr = entry->data.array;
+                    } else {
+                        // c) Cache‐Miss → neu berechnen und einfügen
+                        recomputed++;
+                        ssize_t D = tensor_set->data[y][x][t]->D;
+                        arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true, correlated_kernels,
+                                              true);
+                        for (ssize_t d = 0; d < D; d++) {
+                            Matrix *m = matrix_elementwise_mul(
+                                arr->data[d],
+                                soft_reach_mat
+                            );
+                            matrix_normalize_L1(m);
+                            matrix_free(arr->data[d]);
+                            arr->data[d] = m;
+                        }
+                        cache_insert(cache, pre_combined, arr, true, D);
                     }
-                    cache_insert(cache, pre_combined, arr, true, D);
+                } else {
+                    const int index = landmark_to_index(terrain_val);
+                    arr = mapping->data.tensor_at_time[t][index];
+                    soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
+                    for (ssize_t d = 0; d < arr->len; d++) {
+                        matrix_mul_inplace(arr->data[d], soft_reach_mat);
+                        matrix_normalize_L1(arr->data[d]);
+                    }
                 }
 
                 // d) Aufräumen und Zuordnung
-                matrix_free(reach_mat);
+                matrix_free(soft_reach_mat);
                 kernels_map->kernels[y][x][t] = arr;
             }
         }
@@ -238,7 +241,7 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArray
         for (ssize_t y = 0; y < terrain_height; y++) {
             for (ssize_t x = 0; x < terrain_width; x++) {
                 size_t terrain_val = terrain_at(x, y, terrain);
-                if (terrain_val == WATER) {
+                if (terrain_val == 0) {
                     continue;
                 }
 
@@ -348,7 +351,7 @@ void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_se
         for (ssize_t y = 0; y < terrain_height; y++) {
             for (ssize_t x = 0; x < terrain_width; x++) {
                 size_t terrain_val = terrain_at(x, y, terrain);
-                if (terrain_val == WATER) {
+                if (terrain_val == 0) {
                     continue;
                 }
                 KernelParameters *current_parameters = tensor_set_time->data[y][x][t];

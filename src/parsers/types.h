@@ -151,6 +151,7 @@ typedef struct {
     union {
         KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
         Tensor *kernels[LAND_MARKS_COUNT]; // when kind == KPM_KIND_KERNELS
+        Tensor ***tensor_at_time;
     } data;
 } KernelParametersMapping;
 
