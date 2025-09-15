@@ -29,8 +29,6 @@ static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_ma
 	}
 
 	printf("Start DP calculation for T=%ld, X=%ld, Y=%ld\n", T, start_x, start_y);
-	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map),mapping)
-		&& "walk cannot start on forbidden landmark");
 
 	// Lade Meta-Infos und überprüfe Konsistenz
 	char meta_path[FILENAME_MAX];
@@ -129,7 +127,6 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 		tensor_map_terrain_serialize(terrain_map, mapping, serialize_dir);
 		m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
 	}
-	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
 	size_t max_D;
 	KernelMapMeta meta;
 	max_D = kernels_map->max_D;
@@ -138,7 +135,6 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 	Matrix *map = matrix_new(W, H);
 	const double init_value = 1.0f / (double) start_kernel->len;
 	matrix_set(map, start_x, start_y, init_value);
-	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
 	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
 	for (int i = 0; i < T; i++) {
 		Tensor *current = tensor_new(W, H, max_D);
@@ -194,7 +190,6 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 static Point2DArray *backtrace_serialized(const char *dp_folder, const ssize_t T,
                                           TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t end_x,
                                           ssize_t end_y, ssize_t dir, const char *serialize_dir) {
-	assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain) , mapping));
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	Point2D *points = malloc(sizeof(Point2D) * T);
 	path->points = points;
@@ -305,7 +300,6 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
                                const ssize_t end_x, const ssize_t end_y,
                                const ssize_t dir, bool use_serialized, const char *serialize_dir,
                                const char *dp_folder) {
-	//assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain), mapping));
 	if (use_serialized) {
 		return backtrace_serialized(dp_folder, T, terrain, mapping, end_x, end_y, dir, serialize_dir);
 	}

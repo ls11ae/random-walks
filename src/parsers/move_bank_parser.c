@@ -197,6 +197,9 @@ KernelParameters *kernel_parameters_terrain(const int terrain_value, KernelParam
 KernelParameters *copy_kernel_parameters(const KernelParameters *kernel_parameters) {
     KernelParameters *params = malloc(sizeof(KernelParameters));
     params->diffusity = kernel_parameters->diffusity;
+    params->S = kernel_parameters->S;
+    params->D = kernel_parameters->D;
+    params->is_brownian = kernel_parameters->is_brownian;
     params->bias_x = kernel_parameters->bias_x;
     params->bias_y = kernel_parameters->bias_y;
     return params;
@@ -304,7 +307,11 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGri
             if (gy >= bias_grid_height) gy = bias_grid_height - 1;
 
             const int terrain_value = terrain->data[y][x];
-
+            if (terrain_value == 0) {
+                for (size_t t = 0; t < times; t++)
+                    kernel_parameters_per_cell[y][x][t] = NULL;
+                continue;
+            }
             for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->data[gy][gx]->points[t];
                 KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias, kernels_mapping);
@@ -318,7 +325,6 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGri
 
 
 WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
-    printf("start parsing\n");
     if (csv_data == NULL || num_entries == NULL) {
         assert(num_entries);
         *num_entries = 0;

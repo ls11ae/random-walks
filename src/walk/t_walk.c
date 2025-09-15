@@ -251,7 +251,6 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
                                   const KernelsMap4D *kernels_map, const ssize_t end_x, const ssize_t end_y,
                                   const ssize_t dir, bool use_serialized,
                                   const char *serialized_path) {
-	assert(!is_forbidden_landmark(terrain_at(end_x, end_y, terrain), mapping));
 	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
