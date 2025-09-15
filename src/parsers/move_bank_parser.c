@@ -194,9 +194,18 @@ KernelParameters *kernel_parameters_terrain(const int terrain_value, KernelParam
     return params;
 }
 
+KernelParameters *copy_kernel_parameters(const KernelParameters *kernel_parameters) {
+    KernelParameters *params = malloc(sizeof(KernelParameters));
+    params->diffusity = kernel_parameters->diffusity;
+    params->bias_x = kernel_parameters->bias_x;
+    params->bias_y = kernel_parameters->bias_y;
+    return params;
+}
+
 KernelParameters *kernel_parameters_biased(const int terrain_value, const Point2D *biases,
                                            KernelParametersMapping *kernels_mapping) {
-    KernelParameters *terrain_dependant = kernel_parameters_terrain(terrain_value, kernels_mapping);
+    KernelParameters *terrain_dependant = copy_kernel_parameters(
+        kernel_parameters_terrain(terrain_value, kernels_mapping));
     terrain_dependant->bias_x = biases->x <= terrain_dependant->bias_x ? biases->x : terrain_dependant->bias_x;
     terrain_dependant->bias_y = biases->y <= terrain_dependant->bias_y ? biases->y : terrain_dependant->bias_y;
     return terrain_dependant;
@@ -428,7 +437,8 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
     for (size_t y = 0; y < height; y++) {
         for (size_t x = 0; x < width; x++) {
             for (size_t z = 0; z < times; z++) {
-                free(kernel_parameters_per_cell[y][x][z]);
+                if (kernel_parameters_per_cell[y][x][z])
+                    free(kernel_parameters_per_cell[y][x][z]);
             }
             free(kernel_parameters_per_cell[y][x]);
         }

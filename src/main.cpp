@@ -219,6 +219,15 @@ int serialize_tensor() {
     return 0;
 }
 
+void test_time_walk() {
+    auto mapping = create_default_mixed_mapping(MEDIUM, 7);
+    auto walk = time_walk_geo(30, "../../resources/Collar 1630",
+                              "../../resources/landcover_Collar 1630_-5.0_6.7_-4.7_7.0_100.txt",
+                              "../../resources/time_walk.json", "", mapping, 5, 5, Point2D{29, 61}, Point2D{88, 62},
+                              false);
+    point2d_array_print(walk);
+}
+
 void test_mixed() {
     const int S = 7;
 
@@ -443,12 +452,13 @@ static inline void print_progress(size_t count, size_t max) {
 }
 
 int main(int argc, char **argv) {
-    int max = 100;
-    printf("progress\n");
-    for (int i = 0; i < max; ++i) {
-        print_progress(i, max);
-        sleep(1);
-    }
+    test_time_walk();
+    // int max = 100;
+    // printf("progress\n");
+    // for (int i = 0; i < max; ++i) {
+    //     print_progress(i, max);
+    //     sleep(1);
+    // }
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
     //brownian_cuda();
