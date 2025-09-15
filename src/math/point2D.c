@@ -96,6 +96,7 @@ Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t ti
 
     result->height = height;
     result->width = width;
+    result->times = times;
     result->data = data;
     return result;
 }
