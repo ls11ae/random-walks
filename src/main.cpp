@@ -33,6 +33,8 @@ double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
 
+static int count_water_steps(Point2DArray *steps, TerrainMap *terrain);
+
 double test_corr(ssize_t D) {
     double ram = get_mem_available_mib();
     int S = 7;
@@ -231,27 +233,34 @@ void test_time_walk() {
 void test_mixed() {
     const int S = 7;
 
-    TerrainMap *terrain = create_terrain_map("../../resources/river.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
+    std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
+    for (int y = 0; y < terrain->height; y++) {
+        for (int x = 150; x <= 160; ++x) {
+            terrain_set(terrain, x, y, 80);
+        }
+    }
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+
     // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
     // matrix_print(m);
     // return;
 
-    printf("%d", terrain_at(246, 301, terrain));
-
     Point2D steps[5];
-    steps[0] = (Point2D){373, 375};
-    steps[1] = (Point2D){250, 250};
-    // steps[2] = (Point2D){182, 61};
-    // steps[3] = (Point2D){182, 180};
-    // steps[4] = (Point2D){350, 50};
+    steps[0] = (Point2D){30, 30};
+    steps[1] = (Point2D){180, 150};
+    steps[2] = (Point2D){100, 100};
+    steps[3] = (Point2D){180, 50};
+    steps[4] = steps[0];
     auto kernel = generate_kernels(8, 15);
-    Point2DArray *step_arr = point_2d_array_new(steps, 2);
+    Point2DArray *step_arr = point_2d_array_new(steps, 5);
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
-    auto walk = m_walk_backtrace_multiple(200, t_map, terrain, mapping, step_arr, false, "", "");
+    auto walk = m_walk_backtrace_multiple(350, t_map, terrain, mapping, step_arr, false, "", "");
     save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
     point2d_array_print(walk);
+    printf("Steps in water: %i: %f %%\n", count_water_steps(walk, terrain),
+           count_water_steps(walk, terrain) * 100.0 / static_cast<double>(walk->length));
     terrain_map_free(terrain);
     point2d_array_free(walk);
     tensor_free(kernel);
@@ -451,6 +460,16 @@ static inline void print_progress(size_t count, size_t max) {
     printf("] %.2f%%", progress * 100);
 
     fflush(stdout);
+}
+
+static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
+    int result = 0;
+    for (int i = 0; i < steps->length; ++i) {
+        if (terrain_at(steps->points[i].x, steps->points[i].y, terrain) == WATER) {
+            result++;
+        }
+    }
+    return result;
 }
 
 int main(int argc, char **argv) {

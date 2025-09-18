@@ -161,7 +161,7 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
         return result;
     const ssize_t kernel_center = kernel_size / 2;
 
-#define REACHABILITY_NERF 0.2
+#define REACHABILITY_NERF 0.15
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
@@ -180,6 +180,6 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
             matrix_set(result, i, j, factor);
         }
     }
-    //matrix_set(result, kernel_center, kernel_center, 0.0);
+    matrix_set(result, kernel_center, kernel_center, 0.0);
     return result;
 }
