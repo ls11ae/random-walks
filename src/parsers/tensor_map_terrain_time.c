@@ -153,6 +153,7 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
                 if (mapping->kind == KPM_KIND_PARAMETERS) {
                     // a) Einzel-Hashes
                     uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
+                    bool normalize;
                     soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
                                                                   mapping);
                     uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
@@ -182,6 +183,7 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
                 } else {
                     const int index = landmark_to_index(terrain_val);
                     arr = mapping->data.tensor_at_time[t][index];
+                    bool normalize;
                     soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
                     for (ssize_t d = 0; d < arr->len; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);

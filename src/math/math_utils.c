@@ -152,3 +152,4 @@ double euclid_sqr(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t 
 double euclid_origin(const int i, const int j) {
     return sqrt(i * i + j * j);
 }
+

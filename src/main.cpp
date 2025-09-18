@@ -237,14 +237,16 @@ void test_mixed() {
     // matrix_print(m);
     // return;
 
+    printf("%d", terrain_at(246, 301, terrain));
+
     Point2D steps[5];
     steps[0] = (Point2D){373, 375};
     steps[1] = (Point2D){250, 250};
-    steps[2] = (Point2D){182, 61};
-    steps[3] = (Point2D){182, 180};
-    steps[4] = (Point2D){350, 50};
+    // steps[2] = (Point2D){182, 61};
+    // steps[3] = (Point2D){182, 180};
+    // steps[4] = (Point2D){350, 50};
     auto kernel = generate_kernels(8, 15);
-    Point2DArray *step_arr = point_2d_array_new(steps, 5);
+    Point2DArray *step_arr = point_2d_array_new(steps, 2);
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
     auto walk = m_walk_backtrace_multiple(200, t_map, terrain, mapping, step_arr, false, "", "");
@@ -452,7 +454,8 @@ static inline void print_progress(size_t count, size_t max) {
 }
 
 int main(int argc, char **argv) {
-    test_time_walk();
+    test_mixed();
+    //test_time_walk();
     // int max = 100;
     // printf("progress\n");
     // for (int i = 0; i < max; ++i) {

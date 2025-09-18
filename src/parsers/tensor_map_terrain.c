@@ -44,7 +44,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 kernels_map->kernels[y][x] = NULL;
                 continue;
             }
-
+            bool forbidden = is_forbidden_landmark(terrain_val, mapping);
             // a) Einzel-Hashes
             Tensor *arr;
             Matrix *soft_reach_mat;
@@ -66,7 +66,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                     arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels, true);
                     for (ssize_t d = 0; d < D; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                        matrix_normalize_L1(arr->data[d]);
+                        if (!forbidden)
+                            matrix_normalize_L1(arr->data[d]);
                     }
                     cache_insert(cache, combined, arr, true, D);
                 }
@@ -76,7 +77,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
                 for (ssize_t d = 0; d < arr->len; d++) {
                     matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                    matrix_normalize_L1(arr->data[d]);
+                    if (!forbidden)
+                        matrix_normalize_L1(arr->data[d]);
                 }
             }
 

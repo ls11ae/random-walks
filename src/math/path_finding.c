@@ -103,6 +103,11 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     double factor = 1.0;
     int first = 1;
 
+#define WATER_TO_WATER_FACTOR 1.0
+#define WATER_TO_LAND_FACTOR 10.0
+#define LAND_TO_WATER_FACTOR 0.01
+#define LAND_TO_LAND_FACTOR 1.0
+
     while (1) {
         if (!first) {
             // Check boundaries
@@ -116,9 +121,11 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
             int curr_terrain = terrain_at(current_x, current_y, terrain);
 
             if (is_lava(prev_terrain, mapping)) {
-                factor *= is_lava(curr_terrain, mapping) ? 0.01 : 1.0;
+                // from water
+                factor *= is_lava(curr_terrain, mapping) ? WATER_TO_WATER_FACTOR : WATER_TO_LAND_FACTOR;
             } else {
-                factor *= is_lava(curr_terrain, mapping) ? 0.0001 : 1.0;
+                // from terrain
+                factor *= is_lava(curr_terrain, mapping) ? LAND_TO_WATER_FACTOR : LAND_TO_LAND_FACTOR;
             }
 
             prev_x = current_x;
@@ -173,5 +180,6 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
             matrix_set(result, i, j, factor);
         }
     }
+    matrix_set(result, kernel_center, kernel_center, 0.0);
     return result;
 }
