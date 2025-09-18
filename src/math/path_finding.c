@@ -159,9 +159,9 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
 
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height)
         return result;
-
     const ssize_t kernel_center = kernel_size / 2;
 
+#define REACHABILITY_NERF 0.2
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
@@ -175,11 +175,11 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
 
             double factor = get_path_factor(terrain, mapping, x, y, new_x, new_y);
             if (!is_path_clear(terrain, mapping, x, y, new_x, new_y)) {
-                factor *= 0.3;
+                factor *= REACHABILITY_NERF;
             }
             matrix_set(result, i, j, factor);
         }
     }
-    matrix_set(result, kernel_center, kernel_center, 0.0);
+    //matrix_set(result, kernel_center, kernel_center, 0.0);
     return result;
 }
