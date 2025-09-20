@@ -120,6 +120,7 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			if (pool_map.find(t) == pool_map.end()) {
 				pool_map[t] = static_cast<int>(unique_tensors.size());
 				unique_tensors.push_back(t);
+				overall_max_D = std::max(overall_max_D, static_cast<int>(t->len));
 				overall_max_width = std::max(overall_max_width, static_cast<int>(t->data[0]->width));
 			}
 		}
