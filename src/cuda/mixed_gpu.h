@@ -64,7 +64,7 @@ typedef struct {
 KernelPoolC *build_kernel_pool_c(const KernelsMap3D *km,
                                  const TerrainMap *terrain_map);
 
-void kernelpoolc_free(KernelPoolC *pool);
+void kernelpoolc_free(const KernelPoolC *pool);
 
 KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
                                               const TerrainMap *terrain_map);

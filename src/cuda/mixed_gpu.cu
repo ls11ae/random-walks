@@ -83,7 +83,7 @@ extern "C" KernelPoolC *build_kernel_pool_c(const KernelsMap3D *km,
 	return kernelpool_to_c(pool);
 }
 
-extern "C" void kernelpoolc_free(KernelPoolC *pool) {
+extern "C" void kernelpoolc_free(const KernelPoolC *pool) {
 	if (!pool) return;
 	free(pool->kernel_pool);
 	free(pool->kernel_offsets);
@@ -96,7 +96,7 @@ extern "C" void kernelpoolc_free(KernelPoolC *pool) {
 	delete pool;
 }
 
-// Build kernel pool from kernels_map
+// Build the kernel pool from kernels_map
 KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
                                               const TerrainMap *terrain_map) {
 	KernelPool out;
@@ -120,13 +120,12 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			if (pool_map.find(t) == pool_map.end()) {
 				pool_map[t] = static_cast<int>(unique_tensors.size());
 				unique_tensors.push_back(t);
-				overall_max_D = std::max(overall_max_D, static_cast<int>(t->len));
 				overall_max_width = std::max(overall_max_width, static_cast<int>(t->data[0]->width));
 			}
 		}
 	}
 
-	out.max_D = overall_max_D;
+	out.max_D = static_cast<int>(km->max_D);
 	out.max_kernel_width = overall_max_width;
 
 	// Preallocate direction vectors
@@ -276,42 +275,87 @@ static Point2DArray *backtrace_mixed_gpu(
 		/* ... */
 	}
 
-	Point2DArray *path = (Point2DArray *) malloc(sizeof(Point2DArray));
-	Point2D *points = (Point2D *) malloc(sizeof(Point2D) * T);
+	if (!h_dp_flat || !tensor_map || !terrain) {
+		fprintf(stderr, "Error: NULL pointer in backtrace_mixed_gpu\n");
+		return nullptr;
+	}
+
+	auto *path = static_cast<Point2DArray *>(malloc(sizeof(Point2DArray)));
+	if (!path) {
+		perror("malloc failed for path");
+		return nullptr;
+	}
+
+	auto *points = static_cast<Point2D *>(malloc(sizeof(Point2D) * T));
+	if (!points) {
+		perror("malloc failed for points");
+		free(path);
+		return nullptr;
+	}
+
 	path->points = points;
 	path->length = T;
 
 	ssize_t x = end_x;
 	ssize_t y = end_y;
 
-	const ssize_t W = (ssize_t) terrain->width;
-	const ssize_t H = (ssize_t) terrain->height;
-
-	const ssize_t D_global = (ssize_t) tensor_map->max_D; // <-- IMPORTANT
+	const auto W = static_cast<ssize_t>(terrain->width);
+	const auto H = static_cast<ssize_t>(terrain->height);
+	const auto D_global = static_cast<ssize_t>(tensor_map->max_D);
 	ssize_t direction = dir;
 
+	// Gesamtgröße des DP-Arrays
+	const auto total_dp_size = static_cast<size_t>(T * D_global * H * W);
+
 	ssize_t index = T - 1;
-	for (ssize_t t = (ssize_t) T - 1; t >= 1; --t) {
+	for (ssize_t t = T - 1; t >= 1; --t) {
 		const Tensor *current_tensor = tensor_map->kernels[y][x];
-		const ssize_t D_local = (ssize_t) current_tensor->len;
-		const ssize_t kernel_width = (ssize_t) current_tensor->data[0]->width;
+		if (!current_tensor) {
+			fprintf(stderr, "Error: No tensor at (%zd, %zd)\n", x, y);
+			free(path->points);
+			free(path);
+			return nullptr;
+		}
+
+		const auto D_local = static_cast<ssize_t>(current_tensor->len);
+		const auto kernel_width = (ssize_t) current_tensor->data[0]->width;
 		const ssize_t S = kernel_width / 2;
 		const ssize_t max_neighbors = (2 * S + 1) * (2 * S + 1) * D_local;
 
-		ssize_t *movements_x = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
-		ssize_t *movements_y = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
-		double *prev_probs = (double *) malloc(max_neighbors * sizeof(double));
-		int *directions = (int *) malloc(max_neighbors * sizeof(int));
+		auto *movements_x = static_cast<ssize_t *>(malloc(max_neighbors * sizeof(ssize_t)));
+		auto *movements_y = static_cast<ssize_t *>(malloc(max_neighbors * sizeof(ssize_t)));
+		auto *prev_probs = static_cast<double *>(malloc(max_neighbors * sizeof(double)));
+		auto *directions = static_cast<int *>(malloc(max_neighbors * sizeof(int)));
+
+		if (!movements_x || !movements_y || !prev_probs || !directions) {
+			perror("malloc failed for neighbor arrays");
+			free(movements_x);
+			free(movements_y);
+			free(prev_probs);
+			free(directions);
+			free(path->points);
+			free(path);
+			return nullptr;
+		}
 
 		path->points[index].x = x;
 		path->points[index].y = y;
 		--index;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = get_dir_kernel((ssize_t) D_local, (ssize_t) kernel_width);
+		Vector2D *dir_kernel = get_dir_kernel(D_local, kernel_width);
+		if (!dir_kernel) {
+			fprintf(stderr, "Error: Failed to get dir kernel\n");
+			free(movements_x);
+			free(movements_y);
+			free(prev_probs);
+			free(directions);
+			free(path->points);
+			free(path);
+			return nullptr;
+		}
 
 		for (int d = 0; d < D_local; ++d) {
-			// iterate offsets for the *current* direction used in backtrace
 			size_t offs_count = dir_kernel->sizes[direction];
 			for (size_t i = 0; i < offs_count; ++i) {
 				const ssize_t dx = dir_kernel->data[direction][i].x;
@@ -319,25 +363,41 @@ static Point2DArray *backtrace_mixed_gpu(
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
-				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
-				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
+
+				// Grenzen überprüfen
+				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H)
+					continue;
+				if (terrain_at(prev_x, prev_y, terrain) == 0)
+					continue;
 
 				const Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
-				if (!previous_tensor) continue;
-				if (d >= (ssize_t) previous_tensor->len) continue;
+				if (!previous_tensor)
+					continue;
+				if (d >= static_cast<ssize_t>(previous_tensor->len))
+					continue;
 
-				// --- HERE: compute index into flat buffer using D_global,H,W (the same layout as GPU)
-				size_t base_t = (size_t) (t - 1) * (size_t) D_global * (size_t) H * (size_t) W;
-				size_t idx = base_t + (size_t) d * (size_t) H * (size_t) W + (size_t) prev_y * (size_t) W + (size_t)
-				             prev_x;
-				double p_b = (double) h_dp_flat[idx];
+				// Indexberechnung mit zusätzlicher Überprüfung
+				size_t idx = ((t - 1) * D_global * H * W) + (d * H * W) + (prev_y * W) + prev_x;
 
-				// kernel lookup on CPU (previous_tensor)
+				if (idx >= total_dp_size) {
+					fprintf(stderr, "Error: Index out of bounds: %zu >= %zu\n", idx, total_dp_size);
+					continue;
+				}
+
+				const auto p_b = static_cast<double>(h_dp_flat[idx]);
+
 				const ssize_t kx = dx + S;
 				const ssize_t ky = dy + S;
 				const Matrix *current_kernel = previous_tensor->data[d];
-				if (kx < 0 || ky < 0 || kx >= current_kernel->width || ky >= current_kernel->height) continue;
-				double p_b_a = matrix_get(current_kernel, kx, ky);
+
+				if (!current_kernel) {
+					fprintf(stderr, "Error: No kernel at direction %d\n", d);
+					continue;
+				}
+
+				if (kx < 0 || ky < 0 || kx >= current_kernel->width || ky >= current_kernel->height)
+					continue;
+				auto p_b_a = matrix_get(current_kernel, kx, ky);
 
 				movements_x[count] = dx;
 				movements_y[count] = dy;
@@ -346,6 +406,7 @@ static Point2DArray *backtrace_mixed_gpu(
 				++count;
 			}
 		}
+
 		free_Vector2D(dir_kernel);
 
 		if (count == 0) {
@@ -355,12 +416,23 @@ static Point2DArray *backtrace_mixed_gpu(
 			free(directions);
 			free(path->points);
 			free(path);
-			return NULL;
+			return nullptr;
 		}
 
-		ssize_t selected = weighted_random_index(prev_probs, (ssize_t) count);
-		ssize_t pre_x = movements_x[selected];
-		ssize_t pre_y = movements_y[selected];
+		const ssize_t selected = weighted_random_index(prev_probs, static_cast<ssize_t>(count));
+		if (selected < 0 || selected >= count) {
+			fprintf(stderr, "Error: Invalid selection index %zd (count=%zu)\n", selected, count);
+			free(movements_x);
+			free(movements_y);
+			free(prev_probs);
+			free(directions);
+			free(path->points);
+			free(path);
+			return nullptr;
+		}
+
+		const ssize_t pre_x = movements_x[selected];
+		const ssize_t pre_y = movements_y[selected];
 		direction = directions[selected];
 
 		x -= pre_x;
@@ -389,11 +461,11 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
                              const bool serialize,
                              const char *serialization_path, KernelPoolC *pool) {
 	const int n_kernels = static_cast<int>(pool->kernel_offsets_size);
-	const int Dmax = pool->max_D;
+	const int Dmax = static_cast<int>(kernels_map->max_D);
 	const int max_D = Dmax;
 
 	// 2) Allocate & copy device arrays
-	float *__restrict_arr d_kernel_pool = nullptr;
+	float *d_kernel_pool = nullptr;
 	int *d_kernel_offsets = nullptr;
 	int *d_kernel_widths = nullptr;
 	int *d_kernel_Ds = nullptr;
@@ -458,7 +530,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 			cudaMemcpyHostToDevice));
 
 	// 3) Allocate DP buffers on device and host buffer
-	float __restrict_arr *d_dp_prev = nullptr, __restrict_arr *d_dp_current = nullptr;
+	float *d_dp_prev = nullptr, *d_dp_current = nullptr;
 	size_t dp_layer_size = static_cast<size_t>(Dmax) * H * W * sizeof(float);
 	CUDA_CALL(cudaMalloc(&d_dp_prev, dp_layer_size));
 	CUDA_CALL(cudaMalloc(&d_dp_current, dp_layer_size));
@@ -541,20 +613,23 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 
 
 	auto start_backtrace = std::chrono::high_resolution_clock::now();
-	Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
-	Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	                                      serialization_path, "");
-	// auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	//                                 serialization_path, "");
+	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
+	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	//                                       serialization_path, "");
+	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	                                serialization_path, "");
 	auto end_backtrace = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_backtrace - start_backtrace);
 
-	std::cout << "Mixed-walk GPU DP took " << duration.count() << " ms\n";
+	std::cout << "Mixed-walk GPU Backtrace took " << duration.count() << " ms\n";
+
+	printf("kernels_map->max_D = %lu, pool->max_D = %d\n",
+	       kernels_map->max_D, pool->max_D);
 
 	// cleanup
 	if (h_dp_flat) free(h_dp_flat);
 
-	tensor4D_free(host_dp, T);
+	// tensor4D_free(host_dp, T);
 	CUDA_CALL(cudaFree(d_dp_prev));
 	CUDA_CALL(cudaFree(d_dp_current));
 	CUDA_CALL(cudaFree(d_kernel_pool));
