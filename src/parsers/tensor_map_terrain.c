@@ -91,7 +91,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     }
 
     // 5) Abschluss
-    printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
+    // printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
     return kernels_map;

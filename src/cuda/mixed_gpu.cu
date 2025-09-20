@@ -570,12 +570,6 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	dim3 block(8, 8, 8);
 	dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (Dmax + block.z - 1) / block.z);
 
-	// timing
-	cudaEvent_t start_evt, stop_evt;
-	CUDA_CALL(cudaEventCreate(&start_evt));
-	CUDA_CALL(cudaEventCreate(&stop_evt));
-	CUDA_CALL(cudaEventRecord(start_evt));
-
 	for (int t = 1; t < T; ++t) {
 		dp_step_kernel_mixed<<<grid, block>>>(d_dp_prev, d_dp_current,
 		                                      d_kernel_pool, d_kernel_offsets, d_kernel_widths, d_kernel_Ds,
@@ -603,29 +597,11 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 		std::swap(d_dp_prev, d_dp_current);
 	}
 
-	CUDA_CALL(cudaEventRecord(stop_evt));
-	CUDA_CALL(cudaEventSynchronize(stop_evt));
-	float ms = 0.0f;
-	CUDA_CALL(cudaEventElapsedTime(&ms, start_evt, stop_evt));
-	printf("Mixed-walk GPU DP took %.3f ms\n", ms);
-
-	CUDA_CALL(cudaEventDestroy(start_evt));
-	CUDA_CALL(cudaEventDestroy(stop_evt));
-
-
-	auto start_backtrace = std::chrono::high_resolution_clock::now();
 	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
 	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	//                                       serialization_path, "");
 	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	                                serialization_path, "");
-	auto end_backtrace = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_backtrace - start_backtrace);
-
-	std::cout << "Mixed-walk GPU Backtrace took " << duration.count() << " ms\n";
-
-	printf("kernels_map->max_D = %lu, pool->max_D = %d\n",
-	       kernels_map->max_D, pool->max_D);
 
 	// cleanup
 	if (h_dp_flat) free(h_dp_flat);
