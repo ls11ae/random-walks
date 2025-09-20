@@ -26,9 +26,9 @@ typedef struct {
 } Point2D;
 
 typedef struct {
-    Point2D **data;
-    size_t *sizes;
-    size_t count;
+    Point2D **data; // offsets per direction
+    size_t *sizes; // No. offsets per direction
+    size_t count; // D
 } Vector2D;
 
 typedef struct {

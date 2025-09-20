@@ -64,7 +64,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
                     ssize_t D = tensor_set->data[y][x]->D;
-                    arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels, true);
+                    arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels,
+                                          true);
                     for (ssize_t d = 0; d < D; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
                         if (!forbidden)

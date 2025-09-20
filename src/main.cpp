@@ -27,6 +27,7 @@
 
 #include "cuda/brownian_gpu.h"
 #include "cuda/correlated_gpu.h"
+#include "cuda/mixed_gpu.h"
 #include "matrix/kernels.h"
 
 double chi_square_pdf(const double x, const int k) {
@@ -34,6 +35,33 @@ double chi_square_pdf(const double x, const int k) {
 }
 
 static int count_water_steps(Point2DArray *steps, TerrainMap *terrain);
+
+void test_mixed_gpu() {
+    Point2D points[2];
+    points[0] = (Point2D){100, 100};
+    points[1] = (Point2D){550, 550};
+    auto T = 400;
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_700.txt", ' ');
+    auto W = terrain->width;
+    auto H = terrain->height;
+    auto mapping = create_default_mixed_mapping(MEDIUM, 7);
+    auto kmap = tensor_map_terrain(terrain, mapping);
+    std::cout << "max D" << kmap->max_D << "\n";
+    for (T = 100; T < 600; T += 100) {
+        // auto start = std::chrono::high_resolution_clock::now();
+        // auto dp = m_walk(W, H, terrain, mapping, kmap, T, points[0].x, points[0].y, 0, 1, 0);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        // std::cout << "dp_calculation took " << time << " ms\n";
+        // tensor4D_free(dp, T);
+        auto walk = gpu_mixed_walk(T, W, H, points[0].x, points[0].y, points[1].x, points[1].y, kmap, mapping, terrain,
+                                   false, "");
+    }
+    return;
+    //point2d_array_print(walk);
+    Point2DArray *steps = point_2d_array_new(points, 2);
+    //save_walk_to_json(steps, walk, terrain, "timewalk_mixed.json");
+}
 
 double test_corr(ssize_t D) {
     double ram = get_mem_available_mib();
@@ -500,7 +528,8 @@ static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
 int main(int argc, char **argv) {
     //brownian_cuda();
     //correlated_cuda();
-    test_mixed();
+    test_mixed_gpu();
+    //test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");

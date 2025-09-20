@@ -342,13 +342,13 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
 				// Neighbor indices
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
-
-				Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
-
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
 					continue;
 				}
-				if (terrain_at(prev_x, prev_y, terrain) == 0 || d >= previous_tensor->len)
+				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
+				Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
+
+				if (d >= previous_tensor->len)
 					continue;
 
 				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);

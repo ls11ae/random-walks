@@ -6,8 +6,8 @@
 #include <string.h>
 #include <math.h>
 #include "matrix/matrix.h"
-#define INDEX(t, d, y, x) (((t) * D * H * W) + ((d) * H * W) + ((y) * W) + (x))
-#define INDEX_3D(d, y, x) ((d) * H * W + (y) * W + (x))
+#define INDEX(t, d, y, x) (((t) * (D) * (H) * (W)) + ((d) * (H) * (W)) + ((y) * (W)) + (x))
+#define INDEX_3D(d, y, x) ((d) * (H) * (W) + (y) * (W) + (x))
 #define KERNEL_INDEX(d, ky, kx, KERNEL_WIDTH) (((d) * KERNEL_WIDTH * KERNEL_WIDTH) + ((ky) * KERNEL_WIDTH) + (kx))
 
 #ifdef __CUDACC__
