@@ -435,6 +435,27 @@ void brownian_cuda() {
 #endif
 }
 
+void correlated_cuda() {
+#ifdef USE_CUDA
+    auto T = 300;
+    const auto W = 2 * 500 + 1;
+    auto H = 2 * 500 + 1;
+    auto S = 7;
+    auto D = 8;
+    auto kernel = generate_kernels(D, 2 * S + 1);
+    Tensor *anglemask = tensor_new(15, 15, D);
+    compute_overlap_percentages(2 * S + 1, D, anglemask);
+    auto dirkernel = get_dir_kernel(D, 15);
+    auto path = gpu_correlated_walk(T, W, H, T, T, T / 5, T / 5, kernel,
+                                    anglemask, dirkernel, false, "");
+
+    point2d_array_print(path);
+    point2d_array_free(path);
+#else
+    printf("you need an NVIDIA GPU for this :P\n");
+#endif
+}
+
 Vector2D *vector2D_new(size_t count) {
     Vector2D *v = (Vector2D *) malloc(sizeof(Vector2D));
     v->count = count;
@@ -473,7 +494,9 @@ static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
 }
 
 int main(int argc, char **argv) {
-    test_mixed();
+    //brownian_cuda();
+    correlated_cuda();
+    //test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");
@@ -483,7 +506,6 @@ int main(int argc, char **argv) {
     // }
     //create_default_terrain_kernel_mapping(AIRBORNE, 7);
     //test_brownian();
-    //brownian_cuda();
     // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();

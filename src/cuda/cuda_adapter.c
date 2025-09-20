@@ -63,7 +63,7 @@ void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_siz
     }
 }
 
-Tensor **convert_dp_host_to_tensor(const double *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W) {
+Tensor **convert_dp_host_to_tensor(const float *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W) {
     Tensor **DP_Matrix = (Tensor **) malloc(T * sizeof(Tensor *));
 
     for (ssize_t t = 0; t < T; ++t) {

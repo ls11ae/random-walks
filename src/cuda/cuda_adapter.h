@@ -20,6 +20,9 @@ typedef struct {
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 typedef struct {
     int2 *offsets;
@@ -34,7 +37,7 @@ Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_wid
 
 void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D);
 
-Tensor **convert_dp_host_to_tensor(const double *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W);
+Tensor **convert_dp_host_to_tensor(const float *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W);
 #ifdef __cplusplus
 }
 #endif

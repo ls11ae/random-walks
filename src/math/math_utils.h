@@ -1,9 +1,13 @@
 #pragma once
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 typedef struct {
@@ -14,7 +18,7 @@ typedef struct {
 // Funktion, um einen Punkt um einen beliebigen Mittelpunkt (offset_x, offset_y) zu drehen
 Point rotate_point(Point p, double theta);
 
-ssize_t weighted_random_index_float(const float *array, size_t len);
+ssize_t weighted_random_index_float(const float *array, u_int32_t len);
 
 ssize_t weighted_random_index(const double *array, size_t length);
 

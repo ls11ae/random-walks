@@ -2,15 +2,12 @@
 #include "cuda/correlated_gpu.h"
 #include <cuda_runtime.h>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
-#include <chrono>
+#include <c++/15.2.1/chrono>
 
-#include "math/kernel_slicing.h"
 #include "math/math_utils.h"
-#include "matrix/kernels.h"
 #include "parsers/serialization.h"
-#include "parsers/walk_json.h"
-#include "walk/c_walk.h"
 
 
 __global__ void dp_step_kernel(
@@ -20,7 +17,7 @@ __global__ void dp_step_kernel(
 	const float *angle_mask,
 	const int2 *offsets,
 	const int *sizes,
-	int D, int H, int W, int S
+	const int D, const int H, const int W, const int S
 ) {
 	const int x = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 	const int y = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
@@ -77,8 +74,6 @@ Point2DArray *backtrace_correlated_gpu(const float *DP_Matrix, const float *angl
 	const int32_t kernel_width = 2 * S + 1;
 	uint32_t index = T - 1;
 	for (int64_t t = T - 1; t >= 1; --t) {
-		//if (is_serialized) printf(">> %lu >>\n", t);
-
 		float *current_layer = nullptr;
 		if (is_serialized) {
 			char fpath[1024];
@@ -169,37 +164,6 @@ Point2DArray *backtrace_correlated_gpu(const float *DP_Matrix, const float *angl
 	return path;
 }
 
-Point2DArray *backtrace_correlated_gpu_wrapped(const char *dp_path, const int64_t T,
-                                               const int32_t S, const uint32_t W, const uint32_t H,
-                                               const float *kernel, const int32_t end_x, const int32_t end_y,
-                                               const int32_t dir,
-                                               const int32_t D) {
-	int kernel_width = 2 * S + 1;
-	Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-	uint32_t actual_D = 0;
-	int2 *h_offsets;
-	int *h_sizes;
-	dir_kernel_to_cuda(dir_kernel, &h_offsets, &h_sizes, &actual_D);
-	Tensor *kernels = generate_kernels(D, kernel_width);
-	Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-	compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
-	auto *h_kernel = static_cast<float *>(malloc(sizeof(float) * kernel_width * kernel_width * D));
-	tensor_flat(kernels, h_kernel);
-	auto *h_mask = static_cast<float *>(malloc(sizeof(float) * kernel_width * kernel_width * kernels->len));
-	tensor_flat(kernels, h_mask);
-	Point2DArray *walk = backtrace_correlated_gpu_serialized(dp_path, h_mask, h_offsets, h_sizes, T, S, W, H, kernel,
-	                                                         end_x, end_y,
-	                                                         dir, D);
-	free(h_mask);
-	free(h_offsets);
-	free(h_sizes);
-	free(h_kernel);
-	tensor_free(angles_mask);
-	tensor_free(kernels);
-	free_Vector2D(dir_kernel);
-	return walk;
-}
-
 Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const float *angle_mask,
                                                   const int2 *offsets,
                                                   const int *sizes,
@@ -212,20 +176,35 @@ Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const flo
 	                                dp_path, true);
 }
 
-Point2DArray *gpu_correlated_walk(const int T, const int S, const int D, const int W, const int H, const int start_x,
-                                  const int start_y,
-                                  const int end_x, const int end_y, const float *h_kernel, const float *h_mask,
-                                  const int2 *h_offsets,
-                                  const int *h_sizes, const bool serialize, const char *serialization_path) {
+Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const int start_x, const int start_y,
+                                  const int end_x, const int end_y,
+                                  const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
+                                  const Vector2D *dir_kernel_data, const bool serialize,
+                                  const char *serialization_path) {
 	float *d_kernel, *d_mask;
 	int2 *d_offsets;
 	int *d_sizes;
 
-	int KERNEL_WIDTH = 2 * S + 1;
-	int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
+	const ssize_t tensor_width = kernel_tensor->data[0]->width;
+	auto *h_kernel = static_cast<float *>(malloc(kernel_tensor->len * tensor_width * tensor_width * sizeof(float)));
+	auto *h_mask = static_cast<float *>(malloc(angle_mask_tensor->len * tensor_width * tensor_width * sizeof(float)));
+
+	tensor_flat(kernel_tensor, h_kernel);
+	tensor_flat(angle_mask_tensor, h_mask);
+
+	const auto D = static_cast<int32_t>(kernel_tensor->len);
+	const int S = static_cast<int>(kernel_tensor->data[0]->width) / 2;
+	const int KERNEL_WIDTH = 2 * S + 1;
+	const int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
+
+	// Extract directional kernel
+	uint32_t actual_D = 0;
+	int2 *h_offsets;
+	int *h_sizes;
+	dir_kernel_to_cuda(dir_kernel_data, &h_offsets, &h_sizes, &actual_D);
 
 	// Initialize offsets array
-	int2 *h_offsets_expanded = static_cast<int2 *>(malloc(D * max_neighbors * sizeof(int2)));
+	const auto h_offsets_expanded = static_cast<int2 *>(malloc(D * max_neighbors * sizeof(int2)));
 	memset(h_offsets_expanded, 0, D * max_neighbors * sizeof(int2));
 
 	int idx = 0;
@@ -334,15 +313,19 @@ Point2DArray *gpu_correlated_walk(const int T, const int S, const int D, const i
 	printf("start backtracking \n");
 	const auto start_time = std::chrono::high_resolution_clock::now();
 	Point2DArray *path_gpu = backtrace_correlated_gpu(h_dp_flat, h_mask, h_offsets_expanded, h_sizes, T, S, W, H,
-	                                                  h_kernel, end_x, end_y, 0, (int32_t) D, serialization_path,
+	                                                  h_kernel, end_x, end_y, 0, static_cast<int32_t>(D),
+	                                                  serialization_path,
 	                                                  serialize);
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	const auto end_time = std::chrono::high_resolution_clock::now();
+	const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 	printf("DP calculation took %.3f ms\n", milliseconds);
 	printf("Backtracking took %3f ms\n", static_cast<float>(duration.count()) / 1000.0f);
-
 	// Cleanup
 	if (!serialize) free(h_dp_flat);
+	free(h_offsets);
+	free(h_sizes);
+	free(h_kernel);
+	free(h_mask);
 	free(h_offsets_expanded);
 	cudaFree(d_dp_prev);
 	cudaFree(d_dp_current);
@@ -354,47 +337,4 @@ Point2DArray *gpu_correlated_walk(const int T, const int S, const int D, const i
 	cudaDeviceReset();
 
 	return path_gpu;
-}
-
-Point2DArray *correlated_walk_gpu(const int T, const int W, const int H, const int D, const int S,
-                                  const int kernel_width, const int start_x, const int start_y,
-                                  const int end_x, const int end_y, const bool serialize,
-                                  const char *serialization_path,
-                                  const char *walk_json) {
-	ensure_dir_exists_for(serialization_path);
-	Tensor *kernels = generate_kernels(D, kernel_width);
-
-	Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-	uint32_t actual_D = 0;
-	int2 *h_offsets;
-	int *h_sizes;
-	dir_kernel_to_cuda(dir_kernel, &h_offsets, &h_sizes, &actual_D);
-
-	Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-	compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
-	auto *h_kernel = static_cast<float *>(malloc(sizeof(float) * kernel_width * kernel_width * kernels->len));
-	tensor_flat(kernels, h_kernel);
-	auto *h_mask = static_cast<float *>(malloc(sizeof(float) * kernel_width * kernel_width * kernels->len));
-	tensor_flat(kernels, h_mask);
-	Point2DArray *walk = gpu_correlated_walk(T, S, D, W, H, start_x, start_y, end_x, end_y, h_kernel, h_mask, h_offsets,
-	                                         h_sizes,
-	                                         serialize, serialization_path);
-
-	Point2D steps[2];
-	steps[0] = (Point2D){start_x, start_y};
-	steps[1] = (Point2D){end_x, end_y};
-	Point2DArray *steps_arr = point_2d_array_new(steps, 2);
-	TerrainMap *terrain = terrain_map_new(W, H);
-	save_walk_to_json(steps_arr, walk, terrain, walk_json);
-
-	free(h_offsets);
-	free(h_sizes);
-	free(h_kernel);
-	free(h_mask);
-	point2d_array_free(steps_arr);
-	tensor_free(kernels);
-	tensor_free(angles_mask);
-	free_vector2d(dir_kernel);
-	terrain_map_free(terrain);
-	return walk;
 }

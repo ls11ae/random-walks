@@ -36,7 +36,7 @@ ssize_t weighted_random_index(const double *array, size_t len) {
     return length - 1;
 }
 
-ssize_t weighted_random_index_float(const float *array, size_t len) {
+ssize_t weighted_random_index_float(const float *array, u_int32_t len) {
     // Seed the random number generator with the current time
     static int seeded = 0;
     if (!seeded) {
