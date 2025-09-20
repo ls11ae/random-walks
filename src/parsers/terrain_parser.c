@@ -25,6 +25,30 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
     return correlated_kernels;
 }
 
+DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
+    DirKernelsMap *dir_kernels_map = malloc(sizeof(DirKernelsMap));
+
+    ssize_t max_M = 0;
+    ssize_t max_D = 0;
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
+        const ssize_t t_D = parameters->D;
+        const ssize_t m = parameters->S * 2 + 1;
+        max_D = max_D > t_D ? max_D : t_D;
+        max_M = max_M > m ? max_M : m;
+    }
+    dir_kernels_map->max_D = max_D;
+    dir_kernels_map->max_kernel_size = max_M;
+    dir_kernels_map->data = malloc(sizeof(Vector2D *) * (max_D + 1));
+    for (int d = 1; d <= max_D; d++) {
+        dir_kernels_map->data[d] = malloc(sizeof(Vector2D) * (max_M + 1));
+        for (int m = 1; m <= max_M; m++) {
+            dir_kernels_map->data[d][m] = get_dir_kernel(d, m);
+        }
+    }
+    return dir_kernels_map;
+}
+
 TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const ssize_t height) {
     TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
     terrain_map->height = height;

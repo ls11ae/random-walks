@@ -7,9 +7,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-
-
-
 #endif
 
 /**
@@ -170,10 +167,18 @@ typedef struct {
 } KernelsMap;
 
 typedef struct {
+    ssize_t max_D;
+    ssize_t max_kernel_size;
+    Vector2D ***data; // [D][M]
+} DirKernelsMap;
+
+typedef struct {
     Tensor ***kernels; // 3D [y][x][d]
     ssize_t width, height, max_D;
     Cache *cache;
+    DirKernelsMap *dir_kernels;
 } KernelsMap3D;
+
 
 typedef struct {
     Tensor ****kernels; // 4D array [y][x][t][d]

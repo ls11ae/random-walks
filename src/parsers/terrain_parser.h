@@ -62,6 +62,8 @@ TerrainMap *terrain_single_value(int land_type, ssize_t width, ssize_t height);
 
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
 
+DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping);
+
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized);
 

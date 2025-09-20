@@ -34,6 +34,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
 
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
     kernels_map->max_D = (ssize_t) correlated_kernels->max_D;
+    kernels_map->dir_kernels = generate_dir_kernels(mapping);
 
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)

@@ -256,9 +256,13 @@ void test_mixed() {
     Point2DArray *step_arr = point_2d_array_new(steps, 5);
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
+    auto start_time = std::chrono::high_resolution_clock::now();
     auto walk = m_walk_backtrace_multiple(350, t_map, terrain, mapping, step_arr, false, "", "");
     save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
-    point2d_array_print(walk);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    printf("Time: %ld ms\n", duration.count());
+    //point2d_array_print(walk);
     printf("Steps in water: %i: %f %%\n", count_water_steps(walk, terrain),
            count_water_steps(walk, terrain) * 100.0 / static_cast<double>(walk->length));
     terrain_map_free(terrain);
@@ -443,11 +447,11 @@ void correlated_cuda() {
     auto S = 7;
     auto D = 8;
     auto kernel = generate_kernels(D, 2 * S + 1);
-    Tensor *anglemask = tensor_new(15, 15, D);
-    compute_overlap_percentages(2 * S + 1, D, anglemask);
+    Tensor anglemask;
+    compute_overlap_percentages(2 * S + 1, D, &anglemask);
     auto dirkernel = get_dir_kernel(D, 15);
     auto path = gpu_correlated_walk(T, W, H, T, T, T / 5, T / 5, kernel,
-                                    anglemask, dirkernel, false, "");
+                                    &anglemask, dirkernel, true, "../../resources");
 
     point2d_array_print(path);
     point2d_array_free(path);
@@ -495,8 +499,8 @@ static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
 
 int main(int argc, char **argv) {
     //brownian_cuda();
-    correlated_cuda();
-    //test_mixed();
+    //correlated_cuda();
+    test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");

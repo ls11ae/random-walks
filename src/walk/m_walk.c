@@ -144,6 +144,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 		matrix_set(DP_mat[0]->data[d], start_x, start_y, init_value);
 	}
 
+	DirKernelsMap *dir_kernels_map = kernels_map->dir_kernels;
 
 	for (ssize_t t = 1; t < T; t++) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
@@ -151,9 +152,9 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 			for (ssize_t x = 0; x < W; ++x) {
 				if (terrain_at(x, y, terrain_map) == 0) continue;
 
-				Tensor *current_tensor = kernels_map->kernels[y][x];
+				const Tensor *current_tensor = kernels_map->kernels[y][x];
 				const size_t D = current_tensor->len;
-				Vector2D *dir_cell_set = get_dir_kernel(D, current_tensor->data[0]->width);
+				const Vector2D *dir_cell_set = dir_kernels_map->data[D][current_tensor->data[0]->width];
 				for (ssize_t d = 0; d < D; ++d) {
 					double sum = 0.0;
 					for (int di = 0; di < D; di++) {
@@ -176,7 +177,6 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 					}
 					DP_mat[t]->data[d]->data[y * W + x] = sum;
 				}
-				free_Vector2D(dir_cell_set);
 			}
 		}
 		if ((t * 10) / T > ((t - 1) * 10) / T) {
