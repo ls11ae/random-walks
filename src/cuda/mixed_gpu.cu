@@ -601,7 +601,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	//                                       serialization_path, "");
 	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	                              serialization_path, "");
+	                                serialization_path, "");
 
 	// cleanup
 	if (h_dp_flat) free(h_dp_flat);
