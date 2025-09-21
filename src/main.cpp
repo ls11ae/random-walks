@@ -37,6 +37,7 @@ double chi_square_pdf(const double x, const int k) {
 static int count_water_steps(Point2DArray *steps, TerrainMap *terrain);
 
 void test_mixed_gpu() {
+#ifdef USE_CUDA
     Point2D points[2];
     points[0] = (Point2D){390, 131};
     points[1] = (Point2D){432, 163};
@@ -62,9 +63,9 @@ void test_mixed_gpu() {
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "overall " << time << " ms\n";
     save_walk_to_json(steps, walk, terrain, path.c_str());
-
-    return;
-    //point2d_array_print(walk);
+#else
+    std::cout << "No GPU << std::endl;
+#endif
 }
 
 double test_corr(ssize_t D) {

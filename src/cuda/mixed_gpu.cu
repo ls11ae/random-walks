@@ -29,9 +29,9 @@ static KernelPoolC *kernelpool_to_c(const KernelPool &pool) {
 
 	// Copy vectors into malloc'd arrays
 	out->kernel_pool_size = static_cast<int>(pool.kernel_pool.size());
-	out->kernel_pool = static_cast<double *>(malloc(out->kernel_pool_size * sizeof(double)));
+	out->kernel_pool = static_cast<float *>(malloc(out->kernel_pool_size * sizeof(float)));
 	memcpy(out->kernel_pool, pool.kernel_pool.data(),
-	       out->kernel_pool_size * sizeof(double));
+	       out->kernel_pool_size * sizeof(float));
 
 	out->kernel_offsets_size = static_cast<int>(pool.kernel_offsets.size());
 	out->kernel_offsets = static_cast<int *>(malloc(out->kernel_offsets_size * sizeof(int)));
@@ -154,7 +154,7 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			const Matrix *m = t->data[di];
 			const int total = static_cast<int>(m->width * m->width);
 			for (int i = 0; i < total; ++i) {
-				out.kernel_pool.push_back(static_cast<double>(m->data[i]));
+				out.kernel_pool.push_back(static_cast<float>(m->data[i]));
 			}
 		}
 
@@ -199,9 +199,9 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 // ----------------------------------------------------------------------
 extern "C" __global__
 void dp_step_kernel_mixed(
-	const double *dp_prev, // [Dmax][H][W]
-	double *dp_current,
-	const double *kernel_pool,
+	const float *dp_prev, // [Dmax][H][W]
+	float *dp_current,
+	const float *kernel_pool,
 	const int *kernel_offsets, // per kernel_index (element offset)
 	const int *kernel_widths,
 	const int *kernel_Ds,
@@ -236,7 +236,7 @@ void dp_step_kernel_mixed(
 		return;
 	}
 
-	double sum = 0.0f;
+	float sum = 0.0f;
 
 	// Get offsets for current direction d
 	int off_idx = offsets_index_per_kernel_dir[k_idx * Dmax + d];
@@ -253,12 +253,12 @@ void dp_step_kernel_mixed(
 #pragma unroll
 		for (int di = 0; di < kD; ++di) {
 			// fetch dp_prev[di, py, px]
-			double a = dp_prev[(di * H * W) + (py * W) + px];
+			float a = dp_prev[(di * H * W) + (py * W) + px];
 			// kernel value at (di, ky, kx)
 			int kx = rel.x + S;
 			int ky = rel.y + S;
 			int kpos = k_offset + di * k_stride + ky * kw + kx;
-			double b = kernel_pool[kpos];
+			float b = kernel_pool[kpos];
 			sum += a * b;
 		}
 	}
@@ -267,7 +267,7 @@ void dp_step_kernel_mixed(
 }
 
 static Point2DArray *backtrace_mixed_gpu(
-	const double *h_dp_flat, const ssize_t T,
+	const float *h_dp_flat, const ssize_t T,
 	const KernelsMap3D *tensor_map, const TerrainMap *terrain, KernelParametersMapping *mapping,
 	const ssize_t end_x, const ssize_t end_y,
 	const ssize_t dir, bool use_serialized, const char *serialize_dir,
@@ -325,7 +325,7 @@ static Point2DArray *backtrace_mixed_gpu(
 
 		auto *movements_x = static_cast<ssize_t *>(malloc(max_neighbors * sizeof(ssize_t)));
 		auto *movements_y = static_cast<ssize_t *>(malloc(max_neighbors * sizeof(ssize_t)));
-		auto *prev_probs = static_cast<double *>(malloc(max_neighbors * sizeof(double)));
+		auto *prev_probs = static_cast<float *>(malloc(max_neighbors * sizeof(float)));
 		auto *directions = static_cast<int *>(malloc(max_neighbors * sizeof(int)));
 
 		if (!movements_x || !movements_y || !prev_probs || !directions) {
@@ -385,7 +385,7 @@ static Point2DArray *backtrace_mixed_gpu(
 					continue;
 				}
 
-				const auto p_b = static_cast<double>(h_dp_flat[idx]);
+				const auto p_b = static_cast<float>(h_dp_flat[idx]);
 
 				const ssize_t kx = dx + S;
 				const ssize_t ky = dy + S;
@@ -420,7 +420,7 @@ static Point2DArray *backtrace_mixed_gpu(
 			return nullptr;
 		}
 
-		const ssize_t selected = weighted_random_index(prev_probs, static_cast<ssize_t>(count));
+		const ssize_t selected = weighted_random_index_float(prev_probs, static_cast<ssize_t>(count));
 		if (selected < 0 || selected >= count) {
 			fprintf(stderr, "Error: Invalid selection index %zd (count=%zu)\n", selected, count);
 			free(movements_x);
@@ -466,7 +466,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	const int max_D = Dmax;
 
 	// 2) Allocate & copy device arrays
-	double *d_kernel_pool = nullptr;
+	float *d_kernel_pool = nullptr;
 	int *d_kernel_offsets = nullptr;
 	int *d_kernel_widths = nullptr;
 	int *d_kernel_Ds = nullptr;
@@ -477,9 +477,9 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 
 	// kernel_pool elements count
 	size_t kernel_pool_elements = pool->kernel_pool_size;
-	CUDA_CALL(cudaMalloc(&d_kernel_pool, kernel_pool_elements * sizeof(double)));
+	CUDA_CALL(cudaMalloc(&d_kernel_pool, kernel_pool_elements * sizeof(float)));
 	CUDA_CALL(
-		cudaMemcpy(d_kernel_pool, pool->kernel_pool, kernel_pool_elements * sizeof(double), cudaMemcpyHostToDevice
+		cudaMemcpy(d_kernel_pool, pool->kernel_pool, kernel_pool_elements * sizeof(float), cudaMemcpyHostToDevice
 		));
 
 	CUDA_CALL(cudaMalloc(&d_kernel_offsets, n_kernels * sizeof(int)));
@@ -531,14 +531,14 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 			cudaMemcpyHostToDevice));
 
 	// 3) Allocate DP buffers on device and host buffer
-	double *d_dp_prev = nullptr, *d_dp_current = nullptr;
-	size_t dp_layer_size = static_cast<size_t>(Dmax) * H * W * sizeof(double);
+	float *d_dp_prev = nullptr, *d_dp_current = nullptr;
+	size_t dp_layer_size = static_cast<size_t>(Dmax) * H * W * sizeof(float);
 	CUDA_CALL(cudaMalloc(&d_dp_prev, dp_layer_size));
 	CUDA_CALL(cudaMalloc(&d_dp_current, dp_layer_size));
 	// host DP flat if not serializing
-	double *h_dp_flat = nullptr;
+	float *h_dp_flat = nullptr;
 	if (!serialize) {
-		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(T) * dp_layer_size));
+		h_dp_flat = static_cast<float *>(malloc(static_cast<size_t>(T) * dp_layer_size));
 		if (!h_dp_flat) {
 			perror("malloc h_dp_flat failed");
 			exit(EXIT_FAILURE);
@@ -547,13 +547,13 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	}
 
 	// init t=0
-	std::vector<double> host_init_layer(Dmax * H * W, 0.0f);
-	double init_val = 0.0f;
+	std::vector<float> host_init_layer(Dmax * H * W, 0.0f);
+	float init_val = 0.0f;
 	// find start kernel and its D to distribute initial prob across directions
 	int start_k = pool->kernel_index_by_cell[start_y * W + start_x];
 	int start_D = (start_k >= 0) ? pool->kernel_Ds[start_k] : Dmax;
 	if (start_D == 0) start_D = 1;
-	init_val = 1.0f / static_cast<double>(start_D);
+	init_val = 1.0f / static_cast<float>(start_D);
 	for (int d = 0; d < max_D; ++d) {
 		host_init_layer[INDEX3D(d, start_y, start_x, H, W)] = init_val;
 	}
@@ -585,7 +585,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 		}
 		// copy back layer if needed
 		if (serialize) {
-			std::vector<double> temp_layer(Dmax * H * W);
+			std::vector<float> temp_layer(Dmax * H * W);
 			CUDA_CALL(cudaMemcpy(temp_layer.data(), d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost));
 			// serialize temp_layer to file - omitted here (use your serialize_array)
 		} else {
