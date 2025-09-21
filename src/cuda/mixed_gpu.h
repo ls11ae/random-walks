@@ -17,7 +17,7 @@ extern "C" {
 // Host builder: flatten kernels_map into kernel_pool and offsets layout
 // ----------------------------------------------------------------------
 typedef struct {
-    std::vector<float> kernel_pool; // packed kernel elements (float)
+    std::vector<double> kernel_pool; // packed kernel elements (double)
     std::vector<int> kernel_offsets; // offset (in elements) per kernel_index
     std::vector<int> kernel_widths; // width per kernel_index
     std::vector<int> kernel_Ds; // D per kernel_index
@@ -32,7 +32,7 @@ typedef struct {
 } KernelPool;
 
 typedef struct {
-    float *kernel_pool;
+    double *kernel_pool;
     int kernel_pool_size;
 
     int *kernel_offsets;
