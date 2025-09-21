@@ -64,7 +64,7 @@ void test_mixed_gpu() {
     std::cout << "overall " << time << " ms\n";
     save_walk_to_json(steps, walk, terrain, path.c_str());
 #else
-    std::cout << "No GPU << std::endl;
+    std::cout << "No GPU" << std::endl;
 #endif
 }
 
