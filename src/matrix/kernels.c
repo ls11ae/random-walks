@@ -335,14 +335,11 @@ Tensor *generate_kernels(const ssize_t dirs, ssize_t size) {
 	for (size_t i = 0; i < dirs; ++i) {
 		angles[i] = (double) (i) * (360.0 / (double) dirs);
 	}
-	Tensor* angle_mask = malloc(sizeof(Tensor));
-	compute_overlap_percentages(size, dirs, angle_mask);
 	// create rotated combined kernels
 	for (int i = 0; i < dirs; ++i) {
 		const double deg = angles[i];
 		Matrix *rotated_kernel = matrix_copy(combined_kernel);
 		rotate_kernel_ss(rotated_kernel, deg, 10);
-		matrix_mul_inplace(rotated_kernel, angle_mask->data[i]);
 		matrix_normalize_L1(rotated_kernel);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
