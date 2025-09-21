@@ -597,16 +597,16 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 		std::swap(d_dp_prev, d_dp_current);
 	}
 
-	Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
-	Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	                                      serialization_path, "");
-	//auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	//                              serialization_path, "");
+	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
+	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	//                                       serialization_path, "");
+	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	                              serialization_path, "");
 
 	// cleanup
 	if (h_dp_flat) free(h_dp_flat);
 
-	tensor4D_free(host_dp, T);
+	// tensor4D_free(host_dp, T);
 	CUDA_CALL(cudaFree(d_dp_prev));
 	CUDA_CALL(cudaFree(d_dp_current));
 	CUDA_CALL(cudaFree(d_kernel_pool));
