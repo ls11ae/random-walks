@@ -7,6 +7,7 @@
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
+#include "matrix/kernels.h"
 #include "matrix/matrix.h"
 #include "parsers/terrain_parser.h"
 

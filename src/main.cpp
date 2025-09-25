@@ -530,10 +530,51 @@ static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
     return result;
 }
 
+
+static inline int index_to_landmark_value(int index) {
+    if (index == 9) return MANGROVES;
+    if (index == 10) return MOSS_AND_LICHEN;
+    if (index >= 0 && index <= 8)
+        return (index + 1) * 10;
+    return -1; // invalid
+}
+
+
+void display_kernels() {
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+    TensorSet *set = generate_correlated_tensors(mapping);
+
+    for (int i = 0; i < LAND_MARKS_COUNT; ++i) {
+        auto p = mapping->data.parameters[i];
+
+        ssize_t M = p.S * 2 + 1;
+        if (p.is_brownian) {
+            double scale, sigma;
+            get_gaussian_parameters(p.diffusity, index_to_landmark_value(i), &sigma, &scale);
+            Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p.bias_x, p.bias_y);
+
+            Tensor *result = tensor_new(M, M, 1);
+            result->len = 1;
+            result->data[0] = kernel;
+            matrix_print(kernel);
+        }
+    }
+
+    for (int i = 0; i < set->len; ++i) {
+        printf("Index: %d \n", index_to_landmark_value(i));
+        auto d = set->data[i]->len;
+        for (int j = 0; j < d; ++j) {
+            printf("d = %d \n", j);
+            matrix_print(set->data[i]->data[j]);
+        }
+    }
+}
+
 int main(int argc, char **argv) {
+    display_kernels();
     //brownian_cuda();
     //correlated_cuda();
-    test_mixed_gpu();
+    //test_mixed_gpu();
     //test_mixed();
     //test_time_walk();
     // int max = 100;

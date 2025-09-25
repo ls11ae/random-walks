@@ -119,13 +119,13 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 8;;
             diffusity = 0.3f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.0f : 0.2f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.0f : 0.4f;
             break;
         case MANGROVES:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 5;;
             diffusity = 0.2f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.15f;
+            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.45f;
             break;
         case MOSS_AND_LICHEN:
             is_brownian = 0;
@@ -135,7 +135,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             break;
         default:
             is_brownian = animal_type != AIRBORNE;
-            D = 1;
+            D = animal_type != AIRBORNE ? 1 : 6;
             diffusity = 1.0f;
             base_step_multiplier = 1.0f;
             break;

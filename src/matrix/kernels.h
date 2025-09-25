@@ -3,6 +3,8 @@
 #ifdef __cplusplus
 extern "C" {
 
+
+
 #endif
 #include "parsers/types.h"
 
@@ -20,6 +22,8 @@ Matrix *generate_chi_kernel(ssize_t size, ssize_t subsample_size, int k, int d);
 Tensor *generate_kernels(ssize_t dirs, ssize_t size);
 
 Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs);
+
+TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
 
 #ifdef __cplusplus
 }
