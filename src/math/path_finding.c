@@ -1,5 +1,9 @@
 #include "path_finding.h"
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include "math_utils.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/terrain_parser.h" // Bresenham's line algorithm
 
@@ -182,4 +186,87 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
     }
     matrix_set(result, kernel_center, kernel_center, 0.0);
     return result;
+}
+
+int compare_ints(const void *a, const void *b) {
+    return *(int *) a - *(int *) b;
+}
+
+
+static int get_distance_to(const TerrainMap *terrain, ssize_t x0, ssize_t y0,
+                           ssize_t x1, ssize_t y1, int terrain_to) {
+    ssize_t dx = abs(x1 - x0);
+    ssize_t sx = x0 < x1 ? 1 : -1;
+    ssize_t dy = -abs(y1 - y0);
+    ssize_t sy = y0 < y1 ? 1 : -1;
+    ssize_t error = dx + dy;
+    ssize_t current_x = x0;
+    ssize_t current_y = y0;
+    int is_first = 1;
+    int dist = 0;
+    while (1) {
+        if (!is_first) {
+            if (current_x < 0 || current_x >= terrain->width || current_y < 0 || current_y >= terrain->height
+                || terrain_at(current_x, current_y, terrain) != WATER) {
+                return dist;
+            }
+        } else { is_first = 0; }
+        ssize_t e2 = 2 * error;
+        if (e2 >= dy) {
+            error += dy;
+            current_x += sx;
+        }
+        if (e2 <= dx) {
+            error += dx;
+            current_y += sy;
+        }
+        dist++;
+    }
+}
+
+void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const Tensor *kernels) {
+    const size_t D = kernels->len;
+    const float angle_step_size = 360 / (float) D;
+    const ssize_t kernel_width = kernels->data[0]->width;
+    int *closest_path_per_direction = malloc(D * sizeof(int));
+    for (int i = 0; i < D; ++i) {
+        closest_path_per_direction[i] = 10000;
+    }
+    const int to = 10;
+    for (int kx = 0; kx < kernel_width; ++kx) {
+        for (int ky = 0; ky < kernel_width; ++ky) {
+            if (!(kx == 0 || ky == 0 || kx == kernel_width - 1 || ky == kernel_width - 1)) continue;
+            const ssize_t dx = kx - (kernel_width / 2);
+            const ssize_t dy = ky - (kernel_width / 2);
+            const ssize_t new_x = x + dx;
+            const ssize_t new_y = y + dy;
+            if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height)
+                continue;
+            const double angle = compute_angle(dx, dy);
+            const double closest = find_closest_angle(angle, angle_step_size);
+            const size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
+            const int value = get_distance_to(terrain, x, y, new_x, new_y, to);
+            const int old_value = closest_path_per_direction[dir];
+            closest_path_per_direction[dir] = old_value > value ? value : old_value;
+        }
+    }
+
+    float sum = 0;
+    for (int i = 0; i < D; ++i) {
+        if (closest_path_per_direction[i] != 10000)
+            sum += (float) closest_path_per_direction[i];
+    }
+    float *weights = malloc(D * sizeof(float));
+    for (int i = 0; i < D; ++i) {
+        if (closest_path_per_direction[i] == 10000)
+            weights[i] = 0;
+        else
+            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 4.0);
+    }
+    for (int d = 0; d < D; ++d) {
+        for (int j = 0; j < kernels->data[d]->len; ++j)
+            kernels->data[d]->data[j] *= weights[d];
+    }
+    free(closest_path_per_direction);
+    free(weights);
 }

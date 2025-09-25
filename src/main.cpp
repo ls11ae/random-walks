@@ -570,12 +570,32 @@ void display_kernels() {
     }
 }
 
+void generate_and_apply_terrain_kernels() {
+    TerrainMap *terrain1 = create_terrain_map("../../resources/terraintest.txt", ' ');
+    Tensor *tensor1 = generate_kernels(4, 7);
+    FILE *file = fopen("../../resources/kernels.txt", "w");
+    for (int i = 0; i < tensor1->len; ++i) {
+        for (int y = 0; y < tensor1->data[i]->height; ++y) {
+            for (int x = 0; x < tensor1->data[i]->width; ++x) {
+                double val = matrix_get(tensor1->data[i], x, y);
+                fprintf(file, "%.6f ", val);
+            }
+            fprintf(file, "\n");
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+    apply_terrain_bias(13, 6, terrain1, tensor1);
+}
+
 int main(int argc, char **argv) {
-    display_kernels();
+    //generate_and_apply_terrain_kernels();
+
+    //display_kernels();
     //brownian_cuda();
     //correlated_cuda();
     //test_mixed_gpu();
-    //test_mixed();
+    test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");
@@ -588,28 +608,54 @@ int main(int argc, char **argv) {
     // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
-    return 0;
+    return
+            0;
     //test_geo_multi();
     Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);
-    for (int i = 0; i < matrix->len; i++) {
+    for
+    (
+
+
+        int i = 0;
+        i < matrix->len;
+        i
+        ++
+    ) {
         if (matrix->data[i] < 0.005) {
             matrix->data[i] = 0.0;
         }
     }
     matrix_normalize_L1(matrix);
     matrix_print(matrix);
-    printf("_____________________________________________\n");
+    printf(
+
+
+        "_____________________________________________\n"
+    );
     Tensor *tensor = generate_kernels_from_matrix(matrix, 8);
-    for (int i = 0; i < tensor->len; i++) {
+    for
+    (
+
+
+        int i = 0;
+        i < tensor->len;
+        i
+        ++
+    ) {
         printf("d = %d \n", i);
         matrix_print(tensor->data[i]);
     }
-    return 0;
+    return
+            0;
     auto bias = create_bias_array(100, 3, 3);
     test_biased_walk(bias, "../../resources/landcover_142.txt");
-    return 0;
+    return
+            0;
+
     brownian_cuda();
-    return 0;
+
+    return
+            0;
     int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
     int kernel_width = 2 * S + 1;
     int start_x = T, start_y = T;
@@ -617,15 +663,30 @@ int main(int argc, char **argv) {
     Tensor *kernels = generate_kernels(D, kernel_width);
     Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
     Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-    compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+    compute_overlap_percentages((
+
+
+                                    int)
+                                kernel_width
+                                ,
+                                (
+
+
+                                    int)
+                                D
+                                ,
+                                angles_mask
+    );
     auto start = std::chrono::high_resolution_clock::now();
     //auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
     //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
     auto end = std::chrono::high_resolution_clock::now();
     //point2d_array_print(walk);
     Point2D steps[2];
-    steps[0] = (Point2D){start_x, start_y};
-    steps[1] = (Point2D){end_x, end_y};
+    steps[0] =
+            (Point2D){start_x, start_y};
+    steps[1] =
+            (Point2D){end_x, end_y};
     Point2DArray *stepsarr = point_2d_array_new(steps, 2);
     TerrainMap *terrain = terrain_map_new(W, H);
     //save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
@@ -636,6 +697,14 @@ int main(int argc, char **argv) {
     tensor_free(angles_mask);
     free_vector2d(dir_kernel);
     std::chrono::duration<double> duration = end - start;
-    std::cout << duration.count() << "\n";
-    return 0;
+    std::cout
+            <<
+            duration
+            .
+            count()
+
+            <<
+            "\n";
+    return
+            0;
 }
