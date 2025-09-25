@@ -269,7 +269,7 @@ void test_mixed() {
     TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
-        for (int x = 150; x <= 160; ++x) {
+        for (int x = 130; x <= 160; ++x) {
             terrain_set(terrain, x, y, 80);
         }
     }

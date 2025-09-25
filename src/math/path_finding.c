@@ -108,8 +108,8 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     int first = 1;
 
 #define WATER_TO_WATER_FACTOR 1.0
-#define WATER_TO_LAND_FACTOR 10.0
-#define LAND_TO_WATER_FACTOR 0.01
+#define WATER_TO_LAND_FACTOR 1.5
+#define LAND_TO_WATER_FACTOR 0.75
 #define LAND_TO_LAND_FACTOR 1.0
 
     while (1) {
@@ -165,7 +165,7 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
         return result;
     const ssize_t kernel_center = kernel_size / 2;
 
-#define REACHABILITY_NERF 0.15
+#define REACHABILITY_NERF 0.65
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
@@ -186,10 +186,6 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
     }
     matrix_set(result, kernel_center, kernel_center, 0.0);
     return result;
-}
-
-int compare_ints(const void *a, const void *b) {
-    return *(int *) a - *(int *) b;
 }
 
 
@@ -261,7 +257,7 @@ void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const 
         if (closest_path_per_direction[i] == 10000)
             weights[i] = 0;
         else
-            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 4.0);
+            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 9.0);
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)
