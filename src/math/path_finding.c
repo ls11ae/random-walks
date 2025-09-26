@@ -93,7 +93,12 @@ static int is_lava(int terrain, KernelParametersMapping *mapping) {
 
 static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping *mapping,
                               ssize_t x0, ssize_t y0, ssize_t x1, ssize_t y1) {
-    if (x0 == x1 && y0 == y1) return 1.0;
+    if (x0 == x1 && y0 == y1) {
+        // stay probability
+        int terrain_type = terrain_at(x0, y0, terrain);
+        int idx = landmark_to_index(terrain_type);
+        return mapping->stay_probabilities[idx];
+    }
 
     ssize_t dx = abs(x1 - x0);
     ssize_t sx = x0 < x1 ? 1 : -1;
@@ -109,7 +114,7 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
 
 #define WATER_TO_WATER_FACTOR 1.0
 #define WATER_TO_LAND_FACTOR 1.5
-#define LAND_TO_WATER_FACTOR 0.75
+#define LAND_TO_WATER_FACTOR 0.95
 #define LAND_TO_LAND_FACTOR 1.0
 
     while (1) {
@@ -121,15 +126,23 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
             }
 
             // Calculate transition factor
-            int prev_terrain = terrain_at(prev_x, prev_y, terrain);
-            int curr_terrain = terrain_at(current_x, current_y, terrain);
+            const int prev_terrain = terrain_at(prev_x, prev_y, terrain);
+            const int curr_terrain = terrain_at(current_x, current_y, terrain);
 
-            if (is_lava(prev_terrain, mapping)) {
-                // from water
-                factor *= is_lava(curr_terrain, mapping) ? WATER_TO_WATER_FACTOR : WATER_TO_LAND_FACTOR;
+            const int prev_idx = landmark_to_index(prev_terrain);
+            const int curr_idx = landmark_to_index(curr_terrain);
+
+            double transition_prob = mapping->transition_matrix[prev_idx][curr_idx];
+            // water specific transitions
+            if (is_lava(prev_terrain, mapping) || is_lava(curr_terrain, mapping)) {
+                if (is_lava(prev_terrain, mapping)) {
+                    factor *= is_lava(curr_terrain, mapping) ? WATER_TO_WATER_FACTOR : WATER_TO_LAND_FACTOR;
+                } else {
+                    factor *= is_lava(curr_terrain, mapping) ? LAND_TO_WATER_FACTOR : LAND_TO_LAND_FACTOR;
+                }
             } else {
-                // from terrain
-                factor *= is_lava(curr_terrain, mapping) ? LAND_TO_WATER_FACTOR : LAND_TO_LAND_FACTOR;
+                // Normale Transition-Wahrscheinlichkeit
+                factor = transition_prob;
             }
 
             prev_x = current_x;
@@ -159,13 +172,17 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
 Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
                                      const TerrainMap *terrain, KernelParametersMapping *mapping) {
     Matrix *result = matrix_new(kernel_size, kernel_size);
-    matrix_fill(result, 0.0); // Initialize with zeros
+    matrix_fill(result, 0.0);
 
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height)
         return result;
+
     const ssize_t kernel_center = kernel_size / 2;
+    int center_terrain = terrain_at(x, y, terrain);
+    int center_idx = landmark_to_index(center_terrain);
 
 #define REACHABILITY_NERF 0.65
+
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
@@ -178,19 +195,25 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
                 continue;
 
             double factor = get_path_factor(terrain, mapping, x, y, new_x, new_y);
-            if (!is_path_clear(terrain, mapping, x, y, new_x, new_y)) {
+            // forbidden landmark
+            int target_terrain = terrain_at(new_x, new_y, terrain);
+            if (is_forbidden_landmark(target_terrain, mapping)) {
                 factor *= REACHABILITY_NERF;
             }
+
             matrix_set(result, i, j, factor);
         }
     }
-    matrix_set(result, kernel_center, kernel_center, 0.0);
+
+    // stay probability
+    matrix_set(result, kernel_center, kernel_center, mapping->stay_probabilities[center_idx]);
+
     return result;
 }
 
 
 static int get_distance_to(const TerrainMap *terrain, ssize_t x0, ssize_t y0,
-                           ssize_t x1, ssize_t y1, int terrain_to) {
+                           ssize_t x1, ssize_t y1, KernelParametersMapping *mapping) {
     ssize_t dx = abs(x1 - x0);
     ssize_t sx = x0 < x1 ? 1 : -1;
     ssize_t dy = -abs(y1 - y0);
@@ -203,7 +226,7 @@ static int get_distance_to(const TerrainMap *terrain, ssize_t x0, ssize_t y0,
     while (1) {
         if (!is_first) {
             if (current_x < 0 || current_x >= terrain->width || current_y < 0 || current_y >= terrain->height
-                || terrain_at(current_x, current_y, terrain) != WATER) {
+                || !is_forbidden_landmark(terrain_at(current_x, current_y, terrain), mapping)) {
                 return dist;
             }
         } else { is_first = 0; }
@@ -220,7 +243,8 @@ static int get_distance_to(const TerrainMap *terrain, ssize_t x0, ssize_t y0,
     }
 }
 
-void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const Tensor *kernels) {
+void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const Tensor *kernels,
+                        KernelParametersMapping *mapping) {
     const size_t D = kernels->len;
     const float angle_step_size = 360 / (float) D;
     const ssize_t kernel_width = kernels->data[0]->width;
@@ -228,7 +252,7 @@ void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const 
     for (int i = 0; i < D; ++i) {
         closest_path_per_direction[i] = 10000;
     }
-    const int to = 10;
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (int kx = 0; kx < kernel_width; ++kx) {
         for (int ky = 0; ky < kernel_width; ++ky) {
             if (!(kx == 0 || ky == 0 || kx == kernel_width - 1 || ky == kernel_width - 1)) continue;
@@ -241,7 +265,7 @@ void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const 
             const double angle = compute_angle(dx, dy);
             const double closest = find_closest_angle(angle, angle_step_size);
             const size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
-            const int value = get_distance_to(terrain, x, y, new_x, new_y, to);
+            const int value = get_distance_to(terrain, x, y, new_x, new_y, mapping);
             const int old_value = closest_path_per_direction[dir];
             closest_path_per_direction[dir] = old_value > value ? value : old_value;
         }
@@ -257,7 +281,7 @@ void *apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const 
         if (closest_path_per_direction[i] == 10000)
             weights[i] = 0;
         else
-            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 9.0);
+            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 50.0);
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)

@@ -266,10 +266,12 @@ void test_time_walk() {
 void test_mixed() {
     const int S = 7;
 
-    TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
-        for (int x = 130; x <= 160; ++x) {
+        for (int x = 130; x <= 140; ++x) {
             terrain_set(terrain, x, y, 80);
         }
     }
@@ -281,16 +283,16 @@ void test_mixed() {
 
     Point2D steps[5];
     steps[0] = (Point2D){30, 30};
-    steps[1] = (Point2D){180, 150};
+    steps[1] = (Point2D){80, 150};
     steps[2] = (Point2D){100, 100};
-    steps[3] = (Point2D){180, 50};
+    steps[3] = (Point2D){80, 50};
     steps[4] = steps[0];
     auto kernel = generate_kernels(8, 15);
     Point2DArray *step_arr = point_2d_array_new(steps, 5);
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
     auto start_time = std::chrono::high_resolution_clock::now();
-    auto walk = m_walk_backtrace_multiple(350, t_map, terrain, mapping, step_arr, false, "", "");
+    auto walk = m_walk_backtrace_multiple(400, t_map, terrain, mapping, step_arr, false, "", "");
     save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -573,6 +575,7 @@ void display_kernels() {
 void generate_and_apply_terrain_kernels() {
     TerrainMap *terrain1 = create_terrain_map("../../resources/terraintest.txt", ' ');
     Tensor *tensor1 = generate_kernels(4, 7);
+    auto mapping = create_default_mixed_mapping(MEDIUM, 7);
     FILE *file = fopen("../../resources/kernels.txt", "w");
     for (int i = 0; i < tensor1->len; ++i) {
         for (int y = 0; y < tensor1->data[i]->height; ++y) {
@@ -585,12 +588,11 @@ void generate_and_apply_terrain_kernels() {
         fprintf(file, "\n");
     }
     fclose(file);
-    apply_terrain_bias(13, 6, terrain1, tensor1);
+    apply_terrain_bias(13, 6, terrain1, tensor1, mapping);
 }
 
 int main(int argc, char **argv) {
     //generate_and_apply_terrain_kernels();
-
     //display_kernels();
     //brownian_cuda();
     //correlated_cuda();

@@ -24,6 +24,8 @@ KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal
 
 KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size);
 
+void init_transition_matrix(KernelParametersMapping *mapping);
+
 void set_landmark_mapping(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
                           const KernelParameters *params);
 
