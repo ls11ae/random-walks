@@ -19,6 +19,9 @@ Matrix *get_reachability_kernel(ssize_t x, ssize_t y, ssize_t kernel_size, const
 Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
                                      const TerrainMap *terrain, KernelParametersMapping *mapping);
 
+void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const Tensor *kernels,
+                        KernelParametersMapping *mapping);
+
 #ifdef __cplusplus
 }
 #endif

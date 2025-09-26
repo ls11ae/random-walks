@@ -11,6 +11,11 @@
 
 
 KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping) {
+    static bool initialized = false;
+    if (!initialized) {
+        init_transition_matrix(mapping);
+        initialized = true;
+    }
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain *tensor_set = NULL;
     if (mapping->kind == KPM_KIND_PARAMETERS) {
@@ -29,7 +34,6 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
 
     Cache *cache = cache_create(4096);
 
-
     int recomputed = 0;
     TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 
@@ -46,55 +50,68 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 kernels_map->kernels[y][x] = NULL;
                 continue;
             }
-            bool forbidden = is_forbidden_landmark(terrain_val, mapping);
+            bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
             // a) Einzel-Hashes
             Tensor *arr;
-            Matrix *soft_reach_mat;
+            Matrix *soft_reach_mat = NULL;
             if (mapping->kind == KPM_KIND_PARAMETERS) {
-                soft_reach_mat =
-                        get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);
-                uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
-                uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
-                uint64_t combined = hash_combine(h_params, h_reach);
-
-                // b) Cache‐Lookup
-                CacheEntry *entry = cache_lookup_entry(cache, combined);
-                if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x]->D) {
-                    arr = entry->data.array;
+                if (on_forbidden_terrain) {
+                    arr = tensor_clone(correlated_kernels->data[7]);
+                    apply_terrain_bias(x, y, terrain, arr, mapping);
                 } else {
-                    // c) Cache‐Miss → neu berechnen und einfügen
-                    recomputed++;
-                    ssize_t D = tensor_set->data[y][x]->D;
-                    arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels,
-                                          true);
-                    for (ssize_t d = 0; d < D; d++) {
-                        matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                        if (!forbidden)
-                            matrix_normalize_L1(arr->data[d]);
+                    soft_reach_mat =
+                            get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);
+                    uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
+                    uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
+                    uint64_t combined = hash_combine(h_params, h_reach);
+
+                    // b) Cache‐Lookup
+                    CacheEntry *entry = cache_lookup_entry(cache, combined);
+                    if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x]->D) {
+                        arr = entry->data.array;
+                    } else {
+                        // c) Cache‐Miss → neu berechnen und einfügen
+                        recomputed++;
+                        ssize_t D = tensor_set->data[y][x]->D;
+                        arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels,
+                                              true);
+                        for (ssize_t d = 0; d < D; d++) {
+                            matrix_mul_inplace(arr->data[d], soft_reach_mat);
+                            if (!on_forbidden_terrain)
+                                matrix_normalize_L1(arr->data[d]);
+                        }
+                        cache_insert(cache, combined, arr, true, D);
                     }
-                    cache_insert(cache, combined, arr, true, D);
                 }
             } else {
                 const int index = landmark_to_index(terrain_val);
                 arr = mapping->data.kernels[index];
-                soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
-                for (ssize_t d = 0; d < arr->len; d++) {
-                    matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                    if (!forbidden)
-                        matrix_normalize_L1(arr->data[d]);
+                if (terrain_val == WATER) {
+                    arr = tensor_clone(correlated_kernels->data[7]);
+                    apply_terrain_bias(x, y, terrain, arr, mapping);
+                } else {
+                    soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
+                    for (ssize_t d = 0; d < arr->len; d++) {
+                        matrix_mul_inplace(arr->data[d], soft_reach_mat);
+                        if (!on_forbidden_terrain)
+                            matrix_normalize_L1(arr->data[d]);
+                    }
                 }
             }
 
             // d) Aufräumen und Zuordnung
-            matrix_free(soft_reach_mat);
+            if (soft_reach_mat)
+                matrix_free(soft_reach_mat);
             kernels_map->kernels[y][x] = arr;
         }
     }
+
 
     // 5) Abschluss
     // printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
+
     return kernels_map;
 }
 

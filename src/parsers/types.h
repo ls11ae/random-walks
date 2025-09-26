@@ -143,6 +143,9 @@ typedef struct {
     bool has_forbidden_landmarks;
     int forbidden_landmarks_count;
 
+    double stay_probabilities[LAND_MARKS_COUNT];
+    double transition_matrix[LAND_MARKS_COUNT][LAND_MARKS_COUNT];
+
     KernelMapKind kind;
 
     union {

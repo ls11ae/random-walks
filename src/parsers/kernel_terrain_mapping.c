@@ -23,6 +23,41 @@ static Tensor *tensor_from_single_matrix(Matrix *m) {
     return t;
 }
 
+void init_transition_matrix(KernelParametersMapping *mapping) {
+    double default_stay_probabilities[LAND_MARKS_COUNT] = {
+        0.8, // TREE_COVER
+        0.75, // SHRUBLAND
+        0.85, // GRASSLAND
+        0.84, // CROPLAND
+        0.7, // BUILT_UP
+        0.95, // SPARSE_VEGETATION
+        0.8, // SNOW_AND_ICE
+        0.9, // WATER
+        0.8, // HERBACEOUS_WETLAND
+        0.85, // MANGROVES
+        0.7 // MOSS_AND_LICHEN
+    };
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        mapping->stay_probabilities[i] = default_stay_probabilities[i];
+
+        for (int j = 0; j < LAND_MARKS_COUNT; j++) {
+            if (i == j) {
+                mapping->transition_matrix[i][j] = default_stay_probabilities[i];
+            } else {
+                mapping->transition_matrix[i][j] = (1.0 - default_stay_probabilities[i]) / (LAND_MARKS_COUNT - 1);
+            }
+        }
+    }
+
+    int water_idx = landmark_to_index(WATER);
+    mapping->transition_matrix[water_idx][water_idx] = 1.0;
+    for (int j = 0; j < LAND_MARKS_COUNT; j++) {
+        if (j != water_idx) {
+            mapping->transition_matrix[water_idx][j] = 1.0;
+            mapping->transition_matrix[j][water_idx] = 0.0;
+        }
+    }
+}
 
 int landmark_to_index(enum landmarkType terrain_value) {
     switch (terrain_value) {
@@ -82,7 +117,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case GRASSLAND:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 6;
-            diffusity = 1.0f;
+            diffusity = 1.5f;
             base_step_multiplier = 1.0f;
             break;
         case CROPLAND:
@@ -111,7 +146,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             break;
         case WATER:
             is_brownian = 0;
-            D = 4;;
+            D = 4;
             diffusity = 0.1f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
             break;
