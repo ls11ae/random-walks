@@ -114,7 +114,7 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
 
 #define WATER_TO_WATER_FACTOR 1.0
 #define WATER_TO_LAND_FACTOR 1.5
-#define LAND_TO_WATER_FACTOR 0.95
+#define LAND_TO_WATER_FACTOR 0.75
 #define LAND_TO_LAND_FACTOR 1.0
 
     while (1) {
@@ -281,7 +281,7 @@ void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const T
         if (closest_path_per_direction[i] == 10000)
             weights[i] = 0;
         else
-            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 50.0);
+            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 40.0);
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)

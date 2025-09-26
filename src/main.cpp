@@ -38,31 +38,48 @@ static int count_water_steps(Point2DArray *steps, TerrainMap *terrain);
 
 void test_mixed_gpu() {
 #ifdef USE_CUDA
-    Point2D points[2];
-    points[0] = (Point2D){390, 131};
-    points[1] = (Point2D){432, 163};
-    Point2DArray *steps = point_2d_array_new(points, 2);
-    auto T = 74;
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_C2FC0C Solar_16.9_48.2_16.9_48.2_500.txt", ' ');
+    const int S = 7;
+
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
+    std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     auto W = terrain->width;
     auto H = terrain->height;
-    auto mapping = create_default_mixed_mapping(MEDIUM, 5);
-    set_landmark_mapping(mapping, TREE_COVER, kernel_parameters_create(true, 5, 1, 8, 0, 0));
-    auto kmap = tensor_map_terrain(terrain, mapping);
-    std::cout << "max D" << kmap->max_D << "\n";
-    KernelPoolC *pool = build_kernel_pool_c(kmap, terrain);
+    for (int y = 0; y < terrain->height; y++) {
+        for (int x = 130; x <= 140; ++x) {
+            terrain_set(terrain, x, y, 80);
+        }
+    }
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+
+    // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
+    // matrix_print(m);
+    // return;
+
+    Point2D steps[5];
+    steps[0] = (Point2D){30, 30};
+    steps[1] = (Point2D){180, 150};
+    steps[2] = (Point2D){100, 100};
+    steps[3] = (Point2D){80, 50};
+    steps[4] = steps[0];
+    auto kernel = generate_kernels(8, 15);
+    Point2DArray *step_arr = point_2d_array_new(steps, 5);
+    auto t_map = tensor_map_terrain(terrain, mapping);
+    KernelPoolC *pool = build_kernel_pool_c(t_map, terrain);
     // 390 131 432 163
 
     auto start = std::chrono::high_resolution_clock::now();
     // auto dp = m_walk(W, H, terrain, mapping, kmap, T, points[0].x, points[0].y, 0, 1, 0);
     // tensor4D_free(dp, T);
-    auto walk = gpu_mixed_walk(T, W, H, points[0].x, points[0].y, points[1].x, points[1].y, kmap, mapping, terrain,
+    auto walk = gpu_mixed_walk(350, W, H, steps[1].x, steps[1].y, steps[2].x, steps[2].y, t_map, mapping, terrain,
                                false, "", pool);
-    auto path = "timewalk_mixed_gpu" + std::to_string(T) + ".json";
+    auto path = "timewalk_mixed.json";
     auto end = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "overall " << time << " ms\n";
-    save_walk_to_json(steps, walk, terrain, path.c_str());
+    save_walk_to_json(step_arr, walk, terrain, path);
 #else
     std::cout << "No GPU" << std::endl;
 #endif
@@ -267,6 +284,7 @@ void test_mixed() {
     const int S = 7;
 
     //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
@@ -282,8 +300,8 @@ void test_mixed() {
     // return;
 
     Point2D steps[5];
-    steps[0] = (Point2D){30, 30};
-    steps[1] = (Point2D){80, 150};
+    steps[0] = (Point2D){150, 50};
+    steps[1] = (Point2D){80, 50};
     steps[2] = (Point2D){100, 100};
     steps[3] = (Point2D){80, 50};
     steps[4] = steps[0];
@@ -292,7 +310,7 @@ void test_mixed() {
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
     auto start_time = std::chrono::high_resolution_clock::now();
-    auto walk = m_walk_backtrace_multiple(400, t_map, terrain, mapping, step_arr, false, "", "");
+    auto walk = m_walk_backtrace_multiple(350, t_map, terrain, mapping, step_arr, false, "", "");
     save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);

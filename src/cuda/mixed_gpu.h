@@ -32,7 +32,7 @@ typedef struct {
 } KernelPool;
 
 typedef struct {
-    float *kernel_pool;
+    double *kernel_pool;
     int kernel_pool_size;
 
     int *kernel_offsets;

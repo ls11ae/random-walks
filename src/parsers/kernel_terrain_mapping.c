@@ -53,7 +53,7 @@ void init_transition_matrix(KernelParametersMapping *mapping) {
     mapping->transition_matrix[water_idx][water_idx] = 1.0;
     for (int j = 0; j < LAND_MARKS_COUNT; j++) {
         if (j != water_idx) {
-            mapping->transition_matrix[water_idx][j] = 0.0;
+            mapping->transition_matrix[water_idx][j] = 1.0;
             mapping->transition_matrix[j][water_idx] = 0.0;
         }
     }
@@ -117,7 +117,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
         case GRASSLAND:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 6;
-            diffusity = 1.0f;
+            diffusity = 1.5f;
             base_step_multiplier = 1.0f;
             break;
         case CROPLAND:
