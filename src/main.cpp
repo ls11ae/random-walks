@@ -176,7 +176,7 @@ Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t
     return biases;
 }
 
-int test_biased_walk(Point2DArray *biases, const char *filename) {
+int test_biased_walk(Point2DArray *biases, KernelModifier *mods, const char *filename) {
     TerrainMap terrain;
     parse_terrain_map(filename, &terrain, ' ');
     std::cout << terrain.width << " H: " << terrain.height << "\n";
@@ -185,7 +185,7 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     // Kernel Map generieren mit terrain und bias timeline
-    KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mapping);
+    KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mods, mapping);
 
     Point2D start = {200, 200};
     Point2D goal = {390, 380};
@@ -206,7 +206,8 @@ int test_biased_walk(Point2DArray *biases, const char *filename) {
     return 0;
 }
 
-int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t W, ssize_t H, size_t T, Point2D start,
+int test_biased_walk_grid(WeatherInfluenceGrid *grid, const char *filename, ssize_t W, ssize_t H, size_t T,
+                          Point2D start,
                           Point2D goal) {
     TerrainMap terrain;
     parse_terrain_map(filename, &terrain, ' ');
@@ -216,7 +217,7 @@ int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t 
     // Kernel Map generieren mit terrain und bias timeline
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
+    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping, false);
 
     Tensor **dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false,
                                   "");
@@ -240,7 +241,8 @@ int test_serialization_terrain() {
     TerrainMap terrain;
     parse_terrain_map("../../resources/land3.txt", &terrain, ',');
     DateTime dt1, dt2;
-    Point2DArrayGrid *grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, &dt1, &dt2, 40);
+    WeatherInfluenceGrid *grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, &dt1, &dt2,
+                                                   40, false);
     printf("weather grid loaded\n");
 
     const char *output_filename = "terrain_baboons.bin"; // Choose a descriptive filename
@@ -253,7 +255,7 @@ int test_serialization_terrain() {
 
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
+    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping, false);
     serialize_kernels_map_4d(file, kmap);
     auto *loaded_map = deserialize_kernels_map_4d(file);
     std::cout << loaded_map->height << loaded_map->width << std::endl;
@@ -613,21 +615,27 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
+    char walk_path_with_index[256];
+    snprintf(walk_path_with_index, sizeof(walk_path_with_index),
+             "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
+
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-    auto t = 150;
+    auto t = 200;
     auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
     auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
-    auto walk_path = "/home/omar/CLionProjects/random-walks/resources/geo_walk.json";
     auto grid_x = 5, grid_y = 5;
     auto start_point = (TimedLocation){
         .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){50, 50},
     };
     auto goal_point = (TimedLocation){
-        .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0}, .coordinates = (Point2D){125, 125},
+        .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
+        .coordinates = (Point2D){125, 125},
     };
-    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path, NULL, mapping, grid_x, grid_y, start_point,
-                              goal_point, false);
+    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, NULL, mapping, grid_x, grid_y,
+                              start_point,
+                              goal_point, false, true);
     point2d_array_print(walk);
+
     //
     //generate_and_apply_terrain_kernels();
     //display_kernels();
@@ -686,7 +694,7 @@ int main(int argc, char **argv) {
     return
             0;
     auto bias = create_bias_array(100, 3, 3);
-    test_biased_walk(bias, "../../resources/landcover_142.txt");
+    test_biased_walk(bias, NULL, "../../resources/landcover_142.txt");
     return
             0;
 

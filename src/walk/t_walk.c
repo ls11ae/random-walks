@@ -297,8 +297,7 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
 				const Matrix *current_kernel = prev_tensor->data[d];
 
 				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= current_kernel->width || kernel_y >=
-				    current_kernel->
-				    height)
+				    current_kernel->height)
 					continue;
 
 				const double p_b_a = matrix_get(current_kernel, kernel_x, kernel_y);
@@ -321,6 +320,7 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
 			free(directions);
 			free(path->points);
 			free(path);
+			perror("no neighbors");
 			return NULL;
 		}
 
@@ -462,8 +462,10 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
                             const char *serialized_path, KernelParametersMapping *mapping,
                             int grid_x, int grid_y,
                             const TimedLocation start, const TimedLocation goal,
-                            bool use_serialized) {
-	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T);
+                            bool use_serialized, bool full_weather_influence) {
+	WeatherInfluenceGrid *grid =
+			load_weather_grid(csv_path, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T,
+			                  full_weather_influence);
 	printf("weather grid loaded\n");
 
 	char dp_dir[FILENAME_MAX];
@@ -501,7 +503,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 			                                      0, serialized_path);
 		}
 	} else {
-		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
+		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping, full_weather_influence);
 		dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.coordinates.x,
 		                     start.coordinates.y,
 		                     use_serialized,

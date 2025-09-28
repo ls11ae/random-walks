@@ -18,7 +18,7 @@ void point_2d_free(Point2D *p);
 
 Point2DArray *point_2d_array_new(Point2D *points, size_t length);
 
-Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t times);
+WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, size_t times);
 
 Point2DArray *point_2d_array_new_empty(size_t length);
 
@@ -26,13 +26,11 @@ void point2d_array_print(const Point2DArray *array);
 
 void point2d_array_free(Point2DArray *array);
 
-void point_2d_array_grid_free(Point2DArrayGrid *grid);
+void point_2d_array_grid_free(WeatherInfluenceGrid *grid);
 
-Point2DArray *bias_from_csv(const char *file_content, const DateTime *start_date,
-                            const DateTime *end_date, ssize_t max_bias, int times);
 
-Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
-                                    const DateTime *end_date, int times);
+WeatherInfluenceGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
+                                        const DateTime *end_date, int times, bool full_influence);
 
 #ifdef __cplusplus
 }

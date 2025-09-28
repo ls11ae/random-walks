@@ -15,13 +15,13 @@ KernelsMap *kernels_map_new(const TerrainMap *terrain, KernelParametersMapping *
 
 KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Tensor *kernels);
 
-KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases, KernelModifier *mods,
                                         KernelParametersMapping *mapping);
 
-KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGrid *biases,
-                                             KernelParametersMapping *mapping);
+KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, WeatherInfluenceGrid *biases,
+                                             KernelParametersMapping *mapping, bool full_influence);
 
-void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, Point2DArrayGrid *biases,
+void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, WeatherInfluenceGrid *biases,
                                                KernelParametersMapping *mapping,
                                                const char *output_path);
 

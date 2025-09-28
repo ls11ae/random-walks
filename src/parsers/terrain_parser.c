@@ -169,6 +169,7 @@ static inline int landmark_to_index_from_value(int terrain_value) {
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized) {
     ssize_t M = p->S * 2 + 1;
+    Tensor *result = NULL;
     if (p->is_brownian) {
         double scale, sigma;
         get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
@@ -178,16 +179,18 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
         else
             kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
 
-        Tensor *result = tensor_new(M, M, 1);
+        result = tensor_new(M, M, 1);
         result->len = 1;
         result->data[0] = kernel;
-        return result;
+    } else {
+        int index = landmark_to_index_from_value(terrain_value);
+        assert(index >= 0 && index < LAND_MARKS_COUNT);
+
+        result = correlated_tensors->data[index];
+        if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
+            result = generate_kernels(p->D, 2 * p->S + 1);
+        }
     }
-
-    int index = landmark_to_index_from_value(terrain_value);
-    assert(index >= 0 && index < LAND_MARKS_COUNT);
-
-    Tensor *result = correlated_tensors->data[index];
     assert(result);
     if (serialized) {
         return tensor_clone(result);

@@ -89,11 +89,20 @@ typedef struct {
 } Point2DArray;
 
 typedef struct {
+    bool switch_model;
+    float step_size_mod;
+    float directions_mod;
+    float diffusity_mod;
+} KernelModifier;
+
+typedef struct {
     Point2DArray ***data;
+    KernelModifier ***kernel_modifiers;
     size_t width;
     size_t height;
     size_t times;
-} Point2DArrayGrid;
+} WeatherInfluenceGrid;
+
 
 typedef struct {
     double x; // longitude
@@ -203,6 +212,7 @@ typedef struct {
     size_t width;
     size_t height;
     size_t time;
+    size_t max_D;
     KernelParameters ****data; // [y][x][t]
 } KernelParametersTerrainWeather;
 

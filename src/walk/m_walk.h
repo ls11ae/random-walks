@@ -49,7 +49,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path,
                             const char *serialized_path, KernelParametersMapping *mapping,
                             int grid_x, int grid_y,
                             TimedLocation start, TimedLocation goal,
-                            bool use_serialized);
+                            bool use_serialized, bool full_weather_influence);
 
 Point2DArray *time_walk_geo_multi(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
                                   KernelParametersMapping *mapping,

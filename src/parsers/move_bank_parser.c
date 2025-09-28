@@ -206,12 +206,27 @@ KernelParameters *copy_kernel_parameters(const KernelParameters *kernel_paramete
     return params;
 }
 
-KernelParameters *kernel_parameters_biased(const int terrain_value, const Point2D *biases,
-                                           KernelParametersMapping *kernels_mapping) {
+KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D *biases,
+                                          const KernelModifier *modifier,
+                                          KernelParametersMapping *kernels_mapping) {
     KernelParameters *terrain_dependant = copy_kernel_parameters(
         kernel_parameters_terrain(terrain_value, kernels_mapping));
-    terrain_dependant->bias_x = biases->x <= terrain_dependant->bias_x ? biases->x : terrain_dependant->bias_x;
-    terrain_dependant->bias_y = biases->y <= terrain_dependant->bias_y ? biases->y : terrain_dependant->bias_y;
+
+    terrain_dependant->bias_x = (biases->x <= terrain_dependant->bias_x) ? biases->x : terrain_dependant->bias_x;
+    terrain_dependant->bias_y = (biases->y <= terrain_dependant->bias_y) ? biases->y : terrain_dependant->bias_y;
+
+    if (modifier) {
+        const ssize_t MAX_D_ALLOWED = 16; // oder 8, je nach Modell
+        ssize_t new_D = (ssize_t) lroundf(modifier->directions_mod * (float) terrain_dependant->D);
+        if (new_D < 4) new_D = 4;
+        terrain_dependant->D = new_D;
+        terrain_dependant->diffusity *= modifier->diffusity_mod;
+        terrain_dependant->is_brownian = !modifier->switch_model && terrain_dependant->is_brownian;
+        ssize_t new_S = (ssize_t) lroundf(modifier->step_size_mod * (float) terrain_dependant->S);
+        terrain_dependant->S = (new_S < 1) ? 1 : new_S;
+        if (terrain_dependant->is_brownian) terrain_dependant->D = 1;
+    }
+
     return terrain_dependant;
 }
 
@@ -240,6 +255,7 @@ KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelPa
 
 
 KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                                           const KernelModifier *modifiers,
                                                            KernelParametersMapping *kernels_mapping) {
     const size_t width = terrain->width;
     const size_t height = terrain->height;
@@ -265,7 +281,11 @@ KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *ter
 
             for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->points[t];
-                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias, kernels_mapping);
+                const KernelModifier *mod = NULL;
+                if (modifiers)
+                    mod = &modifiers[t];
+
+                KernelParameters *parameters = k_parameters_influenced(terrain_value, bias, mod, kernels_mapping);
                 kernel_parameters_per_cell[y][x][t] = parameters;
             }
         }
@@ -274,14 +294,15 @@ KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *ter
 }
 
 KernelParametersTerrainWeather *
-get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGrid *biases,
-                                KernelParametersMapping *kernels_mapping) {
+get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenceGrid *biases,
+                                KernelParametersMapping *kernels_mapping, bool full_influence) {
     const size_t width = terrain->width;
     const size_t height = terrain->height;
     const size_t times = biases->data[0][0]->length;
 
     const size_t bias_grid_width = biases->width;
     const size_t bias_grid_height = biases->height;
+    ssize_t max_D = 1;
 
     KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
     kernel_parameters->width = width;
@@ -315,12 +336,18 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGri
             }
             for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->data[gy][gx]->points[t];
-                KernelParameters *parameters = kernel_parameters_biased(terrain_value, bias, kernels_mapping);
+                KernelModifier *modifier = &biases->kernel_modifiers[gy][gx][t];
+                KernelParameters *parameters = k_parameters_influenced(terrain_value, bias,
+                                                                       full_influence ? modifier : NULL,
+                                                                       kernels_mapping);
                 kernel_parameters_per_cell[y][x][t] = parameters;
+                if (parameters->D > max_D) {
+                    max_D = parameters->D;
+                }
             }
         }
     }
-
+    kernel_parameters->max_D = max_D;
     return kernel_parameters;
 }
 
@@ -482,7 +509,7 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 }
 
 
-Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
+void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias, Point2D *bias, KernelModifier *modifier) {
     // Adjust these parameters based on your data range
     const float MAX_WIND_SPEED = 120.0f;
     const float MIN_BIAS_THRESHOLD = 1.0f; // Minimum bias magnitude to consider
@@ -492,7 +519,9 @@ Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     float normalized_magnitude = 2 * (wind_speed * (float) max_bias) / MAX_WIND_SPEED;
     // Apply threshold - ignore very small biases
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
-        return (Point2D){0, 0};
+        bias->x = 0;
+        bias->y = 0;
+        return;
     }
     // Cap at maximum bias
     if (normalized_magnitude > (float) max_bias) {
@@ -505,10 +534,47 @@ Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     const float bias_y = normalized_magnitude * sinf(radians);
 
     // Round to nearest integers
-    ssize_t x = (ssize_t) roundf(bias_x);
-    ssize_t y = (ssize_t) roundf(bias_y);
+    const ssize_t x = (ssize_t) roundf(bias_x);
+    const ssize_t y = (ssize_t) roundf(bias_y);
 
-    return (Point2D){x, y};
+    bias->x = x;
+    bias->y = y;
+    if (modifier) {
+        modifier->switch_model = false;
+        modifier->step_size_mod = 1.0f;
+        modifier->directions_mod = 1.0f;
+        modifier->diffusity_mod = 1.0f;
+
+        if (entry->wind_speed > 80.0f || entry->snow_fall > 20.0f || entry->precipitation > 50.0f) {
+            modifier->switch_model = true;
+        }
+
+        if (entry->temperature < -10.0f || entry->temperature > 35.0f) {
+            modifier->step_size_mod = 0.8f;
+        }
+        if (entry->precipitation > 10.0f) {
+            modifier->step_size_mod = 0.9f;
+        }
+        if (entry->snow_fall > 5.0f) {
+            modifier->step_size_mod = 0.7f;
+        }
+
+        if (entry->wind_speed > 30.0f) {
+            modifier->directions_mod = 0.8f;
+            modifier->step_size_mod = 1.2f;
+        }
+        if (entry->wind_speed > 60.0f) {
+            modifier->directions_mod = 0.6f;
+            modifier->step_size_mod = 1.5f;
+        }
+
+        if (entry->cloud_cover > 70) {
+            modifier->diffusity_mod = 1.1f;
+        }
+        if (entry->precipitation > 20.0f || entry->snow_fall > 10.0f) {
+            modifier->diffusity_mod = 1.2f;
+        }
+    }
 }
 
 void weather_entry_free(WeatherEntry *entry) {
