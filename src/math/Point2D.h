@@ -28,6 +28,9 @@ void point2d_array_free(Point2DArray *array);
 
 void point_2d_array_grid_free(Point2DArrayGrid *grid);
 
+Point2DArray *bias_from_csv(const char *file_content, const DateTime *start_date,
+                            const DateTime *end_date, ssize_t max_bias, int times);
+
 Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
                                     const DateTime *end_date, int times);
 

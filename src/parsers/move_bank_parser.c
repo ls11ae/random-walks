@@ -484,12 +484,12 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 
 Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     // Adjust these parameters based on your data range
-    const float MAX_WIND_SPEED = 20.0f; // Reduced from 40 since your winds are weaker
-    const float MIN_BIAS_THRESHOLD = 0.3f; // Minimum bias magnitude to consider
+    const float MAX_WIND_SPEED = 120.0f;
+    const float MIN_BIAS_THRESHOLD = 1.0f; // Minimum bias magnitude to consider
     float wind_speed = entry->wind_speed;
     float wind_direction = entry->wind_direction;
     // Normalize wind speed to 0-5 range based on MAX_WIND_SPEED
-    float normalized_magnitude = 2 * 4 * (wind_speed * (float) max_bias) / MAX_WIND_SPEED;
+    float normalized_magnitude = 2 * (wind_speed * (float) max_bias) / MAX_WIND_SPEED;
     // Apply threshold - ignore very small biases
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
         return (Point2D){0, 0};

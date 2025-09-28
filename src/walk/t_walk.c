@@ -167,7 +167,6 @@ Tensor **mixed_walk_time(ssize_t W, ssize_t H,
 	assert(T >= 1);
 	assert(max_D >= 1);
 	assert(max_D <= 20);
-	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
 
 	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
 	assert(DP_mat != NULL && "Failed to allocate DP_mat");
@@ -187,31 +186,23 @@ Tensor **mixed_walk_time(ssize_t W, ssize_t H,
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
+				if (terrain_map->data[y][x] == 0) continue;
 
 				const Tensor *tensor_at_t = use_serialized
 					                            ? tensor_at_xyt(serialized_path, x, y, t)
 					                            : kernels_map->kernels[y][x][t];
 
-				assert(tensor_at_t != NULL && "Tensor at time step is NULL");
 				const size_t D = tensor_at_t->len;
-				assert(D <= max_D && "Direction count exceeds max_D");
 				Vector2D *dir_cell_set = get_dir_kernel(D, tensor_at_t->data[0]->width);
 
 				for (ssize_t d = 0; d < D; ++d) {
-					assert(d < DP_mat[t]->len && "Direction index out of bounds");
-					assert(DP_mat[t]->data[d] != NULL && "Matrix in tensor is NULL");
 					double sum = 0.0;
 
 					for (int di = 0; di < D; di++) {
-						assert(di < tensor_at_t->len && "Direction index out of bounds");
 						const Matrix *current_kernel = tensor_at_t->data[di];
-						assert(current_kernel != NULL && "Kernel matrix is NULL");
 						const ssize_t kernel_width = current_kernel->width;
-						assert(dir_cell_set != NULL && "Direction cell set is NULL");
 
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							assert(i < dir_cell_set->sizes[d] && "Direction cell index out of bounds");
 							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
 							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
 							const ssize_t xx = x - prev_kernel_x;
@@ -221,20 +212,13 @@ Tensor **mixed_walk_time(ssize_t W, ssize_t H,
 
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
-							assert(kernel_x >= 0 && kernel_x < current_kernel->width && "Kernel x out of bounds");
-							assert(kernel_y >= 0 && kernel_y < current_kernel->height && "Kernel y out of bounds");
 
-							assert(di < DP_mat[t-1]->len && "Previous direction index out of bounds");
-							assert(DP_mat[t-1]->data[di] != NULL && "Previous matrix in tensor is NULL");
-							assert(
-								yy * W + xx < DP_mat[t-1]->data[di]->len && "Matrix index out of bounds");
 							const double a = DP_mat[t - 1]->data[di]->data[yy * W + xx];
 							const double b = current_kernel->data[kernel_y * current_kernel->width + kernel_x];
 
 							sum += a * b;
 						}
 					}
-					assert(y * W + x < DP_mat[t]->data[d]->len && "Matrix index out of bounds");
 					DP_mat[t]->data[d]->data[y * W + x] = sum;
 				}
 				free_Vector2D(dir_cell_set);
@@ -301,7 +285,7 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
 					                      ? tensor_at_xyt(serialized_path, prev_x, prev_y, t - 1)
 					                      : kernels_map->kernels[prev_y][prev_x][t - 1];
 
-				if (is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping)) continue;
+				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
 
 				if (d >= prev_tensor->len) continue;
 

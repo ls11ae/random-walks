@@ -613,32 +613,21 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
-    int count = 10;
-    auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1/weather_grid_y0_x0.csv";
-    auto file_content = read_file_to_string(csv_path);
-    auto start_date = (DateTime){
-        .year = 2021,
-        .month = 9,
-        .day = 27,
-        .hour = 0
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+    auto t = 150;
+    auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
+    auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
+    auto walk_path = "/home/omar/CLionProjects/random-walks/resources/geo_walk.json";
+    auto grid_x = 5, grid_y = 5;
+    auto start_point = (TimedLocation){
+        .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){50, 50},
     };
-
-    auto end_date = (DateTime){
-        .year = 2021,
-        .month = 10,
-        .day = 14,
-        .hour = 0
+    auto goal_point = (TimedLocation){
+        .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0}, .coordinates = (Point2D){125, 125},
     };
-    auto *entries = create_weather_timeline(file_content, &start_date, &end_date, count);
-    std::cout << "count: " << count << "\n";
-    for (int i = 0; i < count; ++i) {
-        std::cout << "T: " << i << "\n";
-        std::cout << entries->data[i].timestamp.year << "-" << entries->data[i].timestamp.month << "-"
-                << entries->data[i].timestamp.day
-                << "T" << entries->data[i].timestamp.hour << ":00\n";
-        weather_entry_print(entries->data[i]);
-        std::cout << "---------------------------------------------\n";
-    }
+    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path, NULL, mapping, grid_x, grid_y, start_point,
+                              goal_point, false);
+    point2d_array_print(walk);
     //
     //generate_and_apply_terrain_kernels();
     //display_kernels();

@@ -203,7 +203,7 @@ typedef struct {
     size_t width;
     size_t height;
     size_t time;
-    KernelParameters ****data;
+    KernelParameters ****data; // [y][x][t]
 } KernelParametersTerrainWeather;
 
 typedef struct {

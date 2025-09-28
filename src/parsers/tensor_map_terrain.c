@@ -11,11 +11,6 @@
 
 
 KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping) {
-    static bool initialized = false;
-    if (!initialized) {
-        init_transition_matrix(mapping);
-        initialized = true;
-    }
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain *tensor_set = NULL;
     if (mapping->kind == KPM_KIND_PARAMETERS) {
@@ -86,15 +81,14 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
             } else {
                 const int index = landmark_to_index(terrain_val);
                 arr = mapping->data.kernels[index];
-                if (terrain_val == WATER) {
+                if (on_forbidden_terrain) {
                     arr = tensor_clone(correlated_kernels->data[7]);
                     apply_terrain_bias(x, y, terrain, arr, mapping);
                 } else {
                     soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
                     for (ssize_t d = 0; d < arr->len; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                        if (!on_forbidden_terrain)
-                            matrix_normalize_L1(arr->data[d]);
+                        matrix_normalize_L1(arr->data[d]);
                     }
                 }
             }

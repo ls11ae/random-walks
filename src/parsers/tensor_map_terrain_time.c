@@ -116,9 +116,6 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
     const ssize_t terrain_height = terrain->height;
     const ssize_t time_steps = (ssize_t) tensor_set->time;
 
-
-    printf("kernel parameters set\n");
-
     // 2) Map und Cache anlegen
     KernelsMap4D *kernels_map = malloc(sizeof(KernelsMap4D));
     kernels_map->width = terrain_width;
@@ -140,7 +137,7 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
-        //printf("(%zd/%zd)\n", y, terrain->height);
+        printf("(%zd/%zd)\n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             size_t terrain_val = terrain_at(x, y, terrain);
             for (size_t t = 0; t < time_steps; t++) {
@@ -148,53 +145,59 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, Point2DArrayGr
                     kernels_map->kernels[y][x][t] = NULL;
                     continue;
                 }
-
+                bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
                 Tensor *arr;
-                Matrix *soft_reach_mat;
+                Matrix *soft_reach_mat = NULL;
                 if (mapping->kind == KPM_KIND_PARAMETERS) {
-                    // a) Einzel-Hashes
-                    uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
-                    bool normalize;
-                    soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1, terrain,
-                                                                  mapping);
-                    uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
-                    uint64_t pre_combined = hash_combine(h_params, h_reach);
-
-                    // b) Cache‐Lookup
-                    CacheEntry *entry = cache_lookup_entry(cache, pre_combined);
-                    if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x][t]->D) {
-                        arr = entry->data.array;
+                    if (on_forbidden_terrain) {
+                        // todo: get forbidden kernel instead of always water
+                        arr = tensor_clone(correlated_kernels->data[7]);
+                        apply_terrain_bias(x, y, terrain, arr, mapping);
                     } else {
-                        // c) Cache‐Miss → neu berechnen und einfügen
-                        recomputed++;
-                        ssize_t D = tensor_set->data[y][x][t]->D;
-                        arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true, correlated_kernels,
-                                              true);
-                        for (ssize_t d = 0; d < D; d++) {
-                            Matrix *m = matrix_elementwise_mul(
-                                arr->data[d],
-                                soft_reach_mat
-                            );
-                            matrix_normalize_L1(m);
-                            matrix_free(arr->data[d]);
-                            arr->data[d] = m;
+                        soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1,
+                                                                      terrain, mapping);
+                        // a) Einzel-Hashes
+                        uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x][t]);
+                        uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
+                        uint64_t pre_combined = hash_combine(h_params, h_reach);
+
+                        // b) Cache‐Lookup
+                        CacheEntry *entry = cache_lookup_entry(cache, pre_combined);
+                        if (entry && entry->is_array && entry->array_size == tensor_set->data[y][x][t]->D) {
+                            arr = entry->data.array;
+                        } else {
+                            // c) Cache‐Miss → neu berechnen und einfügen
+                            recomputed++;
+                            ssize_t D = tensor_set->data[y][x][t]->D;
+                            arr = generate_tensor(tensor_set->data[y][x][t], (int) terrain_val, true,
+                                                  correlated_kernels,
+                                                  true);
+                            for (ssize_t d = 0; d < D; d++) {
+                                matrix_mul_inplace(arr->data[d], soft_reach_mat);
+                                matrix_normalize_L1(arr->data[d]);
+                            }
+                            cache_insert(cache, pre_combined, arr, true, D);
                         }
-                        cache_insert(cache, pre_combined, arr, true, D);
                     }
                 } else {
                     const int index = landmark_to_index(terrain_val);
-                    arr = mapping->data.tensor_at_time[t][index];
-                    bool normalize;
-                    soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
-                    for (ssize_t d = 0; d < arr->len; d++) {
-                        matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                        matrix_normalize_L1(arr->data[d]);
+                    arr = mapping->data.kernels[index];
+                    if (on_forbidden_terrain) {
+                        arr = tensor_clone(correlated_kernels->data[7]);
+                        apply_terrain_bias(x, y, terrain, arr, mapping);
+                    } else {
+                        soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
+                        for (ssize_t d = 0; d < arr->len; d++) {
+                            matrix_mul_inplace(arr->data[d], soft_reach_mat);
+                            matrix_normalize_L1(arr->data[d]);
+                        }
                     }
                 }
 
                 // d) Aufräumen und Zuordnung
-                matrix_free(soft_reach_mat);
                 kernels_map->kernels[y][x][t] = arr;
+                if (soft_reach_mat)
+                    matrix_free(soft_reach_mat);
             }
         }
     }

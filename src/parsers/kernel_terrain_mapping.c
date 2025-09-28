@@ -241,7 +241,7 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
         params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
         params_mapping->data.parameters[i] = params;
     }
-
+    init_transition_matrix(params_mapping);
     return params_mapping;
 }
 
