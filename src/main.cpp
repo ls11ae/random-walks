@@ -18,6 +18,8 @@
 #include "parsers/move_bank_parser.h"
 #include "parsers/walk_json.h"
 #include <sys/time.h>
+
+#include "utils.h"
 #include "math/path_finding.h"
 #include "math/kernel_slicing.h"
 #include "parsers/weather_parser.h"
@@ -237,7 +239,8 @@ int test_biased_walk_grid(Point2DArrayGrid *grid, const char *filename, ssize_t 
 int test_serialization_terrain() {
     TerrainMap terrain;
     parse_terrain_map("../../resources/land3.txt", &terrain, ',');
-    Point2DArrayGrid *grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, 40);
+    DateTime dt1, dt2;
+    Point2DArrayGrid *grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, &dt1, &dt2, 40);
     printf("weather grid loaded\n");
 
     const char *output_filename = "terrain_baboons.bin"; // Choose a descriptive filename
@@ -272,12 +275,12 @@ int serialize_tensor() {
 }
 
 void test_time_walk() {
-    auto mapping = create_default_mixed_mapping(MEDIUM, 7);
-    auto walk = time_walk_geo(30, "../../resources/Collar 1630",
-                              "../../resources/landcover_Collar 1630_-5.0_6.7_-4.7_7.0_100.txt",
-                              "../../resources/time_walk.json", "", mapping, 5, 5, Point2D{29, 61}, Point2D{88, 62},
-                              false);
-    point2d_array_print(walk);
+    // auto mapping = create_default_mixed_mapping(MEDIUM, 7);
+    // auto walk = time_walk_geo(30, "../../resources/Collar 1630",
+    //                           "../../resources/landcover_Collar 1630_-5.0_6.7_-4.7_7.0_100.txt",
+    //                           "../../resources/time_walk.json", "", mapping, 5, 5, Point2D{29, 61}, Point2D{88, 62},
+    //                           false);
+    // point2d_array_print(walk);
 }
 
 void test_mixed() {
@@ -442,16 +445,16 @@ int test_geo_multi() {
     const auto start = std::chrono::high_resolution_clock::now();
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    auto walk = time_walk_geo_multi(T, csv_path, "../../resources/landcover_baboons123_200.txt",
-                                    "../../resources/time_walk_serialized.json", mapping, grid_x, grid_y, steps, true,
-                                    serialized_path);
-
-    //point2d_array_print(walk);
-    //tensor_map_terrain_biased_grid(&terrain, grid);
-    point2d_array_free(walk);
-    const auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    printf("Time: %f seconds\n", duration.count());
+    // auto walk = time_walk_geo_multi(T, csv_path, "../../resources/landcover_baboons123_200.txt",
+    //                                 "../../resources/time_walk_serialized.json", mapping, grid_x, grid_y, steps, true,
+    //                                 serialized_path);
+    //
+    // //point2d_array_print(walk);
+    // //tensor_map_terrain_biased_grid(&terrain, grid);
+    // point2d_array_free(walk);
+    // const auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> duration = end - start;
+    // printf("Time: %f seconds\n", duration.count());
     return 0;
 }
 
@@ -610,12 +613,39 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
+    int count = 10;
+    auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1/weather_grid_y0_x0.csv";
+    auto file_content = read_file_to_string(csv_path);
+    auto start_date = (DateTime){
+        .year = 2021,
+        .month = 9,
+        .day = 27,
+        .hour = 0
+    };
+
+    auto end_date = (DateTime){
+        .year = 2021,
+        .month = 10,
+        .day = 14,
+        .hour = 0
+    };
+    auto *entries = create_weather_timeline(file_content, &start_date, &end_date, count);
+    std::cout << "count: " << count << "\n";
+    for (int i = 0; i < count; ++i) {
+        std::cout << "T: " << i << "\n";
+        std::cout << entries->data[i].timestamp.year << "-" << entries->data[i].timestamp.month << "-"
+                << entries->data[i].timestamp.day
+                << "T" << entries->data[i].timestamp.hour << ":00\n";
+        weather_entry_print(entries->data[i]);
+        std::cout << "---------------------------------------------\n";
+    }
+    //
     //generate_and_apply_terrain_kernels();
     //display_kernels();
     //brownian_cuda();
     //correlated_cuda();
     //test_mixed_gpu();
-    test_mixed();
+    //test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");
@@ -628,8 +658,7 @@ int main(int argc, char **argv) {
     // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
-    return
-            0;
+    return 0;
     //test_geo_multi();
     Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);
     for

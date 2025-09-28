@@ -6,6 +6,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
@@ -19,7 +22,7 @@ KernelParameters *kernel_parameters_biased(int terrain_value, const Point2D *bia
 KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                                            KernelParametersMapping *kernels_mapping);
 
-WeatherEntry *parse_csv(const char *csv_data, int *num_entries);
+WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries);
 
 KernelParametersTerrainWeather *
 get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGrid *biases,
@@ -44,7 +47,7 @@ Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);
 
 void coordinate_array_free(Coordinate_array *coordinate_array);
 
-Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias);
+Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias);
 
 void weather_entry_free(WeatherEntry *entry);
 

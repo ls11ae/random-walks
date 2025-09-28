@@ -7,6 +7,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 /**
@@ -204,6 +207,24 @@ typedef struct {
 } KernelParametersTerrainWeather;
 
 typedef struct {
+    int year;
+    int month;
+    int day;
+    int hour;
+} DateTime;
+
+typedef struct {
+    DateTime timestamp;
+    Point2D coordinates;
+} TimedLocation;
+
+typedef struct {
+    TimedLocation *data;
+    size_t length;
+} TimedLocationArray;
+
+typedef struct {
+    DateTime timestamp;
     float temperature;
     int humidity;
     float precipitation;
@@ -215,14 +236,14 @@ typedef struct {
 } WeatherEntry;
 
 typedef struct {
-    WeatherEntry **data;
+    WeatherEntry *data;
     size_t length;
 } WeatherTimeline;
 
 typedef struct {
     size_t height;
     size_t width;
-    WeatherTimeline ***entries; // Timeline at [y][x]
+    WeatherTimeline **entries; // Timeline at [y][x]
 } WeatherGrid;
 
 typedef struct {

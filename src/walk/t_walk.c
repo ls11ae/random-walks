@@ -477,13 +477,14 @@ Point2DArray *backtrace_time_walk_serialized(const char *dp_folder, const ssize_
 Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
                             const char *serialized_path, KernelParametersMapping *mapping,
                             int grid_x, int grid_y,
-                            Point2D start, Point2D goal,
+                            const TimedLocation start, const TimedLocation goal,
                             bool use_serialized) {
-	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, T);
+	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T);
 	printf("weather grid loaded\n");
 
 	char dp_dir[FILENAME_MAX];
-	snprintf(dp_dir, sizeof(dp_dir), "%s/DP_T%ld_X%ld_Y%ld", serialized_path, T, start.x, start.y);
+	snprintf(dp_dir, sizeof(dp_dir), "%s/DP_T%ld_X%ld_Y%ld", serialized_path, T, start.coordinates.x,
+	         start.coordinates.y);
 
 	// Kernels map path
 	char kmap_path[FILENAME_MAX];
@@ -499,32 +500,34 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 		struct stat st;
 		if ((stat(dp_dir, &st) == 0 && S_ISDIR(st.st_mode))) {
 			// dp exists, backtrace
-			printf("[time_walk_geo] Branch: use_serialized && !recompute || dp exists\n");
-			printf("Using serialized data from %s\n", serialized_path);
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.x, goal.y, 0, serialized_path);
+			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			                                      0, serialized_path);
 		} else if (!(stat(kmap_path, &st) == 0 && S_ISDIR(st.st_mode))) {
-			printf("[time_walk_geo] Branch: use_serialized && !dp exists && !kmap exists\n");
 			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
-			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.x, start.y,
+			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.coordinates.x,
+			                           start.coordinates.y,
 			                           serialized_path);
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.x, goal.y, 0, serialized_path);
+			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			                                      0, serialized_path);
 		} else {
-			printf("[time_walk_geo] Branch: use_serialized && !dp exists && kmap exists\n");
-			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.x, start.y,
+			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.coordinates.x,
+			                           start.coordinates.y,
 			                           serialized_path);
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.x, goal.y, 0, serialized_path);
+			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			                                      0, serialized_path);
 		}
 	} else {
-		printf("[time_walk_geo] Branch: !use_serialized\n");
 		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
-		dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y,
+		dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.coordinates.x,
+		                     start.coordinates.y,
 		                     use_serialized,
 		                     serialized_path);
 
-		walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, use_serialized, "");
+		walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.coordinates.x, goal.coordinates.y, 0,
+		                           use_serialized, "");
 	}
 
-	Point2D points[2] = {start, goal};
+	Point2D points[2] = {start.coordinates, goal.coordinates};
 	Point2DArray *steps = point_2d_array_new(points, 2);
 	save_walk_to_json(steps, walk, &terrain, walk_path);
 
@@ -537,81 +540,4 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 	point_2d_array_grid_free(grid);
 
 	return walk;
-}
-
-
-Point2DArray *time_walk_geo_multi(ssize_t T, const char *csv_path, const char *terrain_path, const char *walk_path,
-                                  KernelParametersMapping *mapping, int grid_x, int grid_y,
-                                  Point2DArray *steps, bool use_serialized, const char *serialized_path) {
-	if (steps->length < 2) {
-		return point_2d_array_new_empty(0); // Leeres Array bei unvollständiger Route
-	}
-
-	// Wetter und Terrain laden
-	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, T);
-	printf("weather grid loaded\n");
-	TerrainMap terrain;
-	parse_terrain_map(terrain_path, &terrain, ' ');
-
-	// Container für Teilwege
-	Point2DArray **part_walks = malloc((steps->length - 1) * sizeof(Point2DArray *));
-	size_t total_length = 0;
-	KernelsMap4D *kmap = NULL;
-
-	if (use_serialized) {
-		// Prüfe auf existierende Kernel-Map
-		char kmap_path[FILENAME_MAX];
-		snprintf(kmap_path, sizeof(kmap_path), "%s/tensors", serialized_path);
-		struct stat st;
-		if (stat(kmap_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
-			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
-		}
-
-		// Verarbeite jeden Routenabschnitt
-		for (int i = 0; i < steps->length - 1; i++) {
-			Point2D start = steps->points[i];
-			Point2D goal = steps->points[i + 1];
-			char dp_dir[FILENAME_MAX];
-			snprintf(dp_dir, sizeof(dp_dir), "%s/DP_T%ld_X%ld_Y%ld", serialized_path, T, start.x, start.y);
-
-			if (stat(dp_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
-				mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.x, start.y,
-				                           serialized_path);
-			}
-			part_walks[i] = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.x, goal.y, 0,
-			                                               serialized_path);
-			total_length += part_walks[i]->length;
-		}
-	} else {
-		// Kernel einmalig laden
-		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
-		for (int i = 0; i < steps->length - 1; i++) {
-			Point2D start = steps->points[i];
-			Point2D goal = steps->points[i + 1];
-			Tensor **dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y,
-			                              false, "");
-			part_walks[i] = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, false, "");
-			total_length += part_walks[i]->length;
-			tensor4D_free(dp, T);
-		}
-		kernels_map4d_free(kmap);
-	}
-
-	// Gesamten Weg aus Teilwegen zusammensetzen
-	Point2DArray *result = point_2d_array_new_empty(total_length);
-	size_t index = 0;
-	for (int i = 0; i < steps->length - 1; i++) {
-		for (size_t j = 0; j < part_walks[i]->length; j++) {
-			result->points[index++] = part_walks[i]->points[j];
-		}
-		point2d_array_free(part_walks[i]); // Teilweg freigeben
-	}
-	free(part_walks);
-
-	// Ergebnis speichern und Ressourcen freigeben
-	save_walk_to_json(steps, result, &terrain, walk_path);
-	point2d_array_print(result);
-	point_2d_array_grid_free(grid);
-
-	return result;
 }

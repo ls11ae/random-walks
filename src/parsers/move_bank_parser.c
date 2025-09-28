@@ -9,6 +9,7 @@
 
 #include "kernel_terrain_mapping.h"
 #include "utils.h"
+#include "weather_parser.h"
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
                                            ssize_t max_bias_y) {
@@ -324,7 +325,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGri
 }
 
 
-WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
+WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries) {
     if (csv_data == NULL || num_entries == NULL) {
         assert(num_entries);
         *num_entries = 0;
@@ -352,25 +353,17 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
     char *line = strtok(data_copy, "\n");
     if (line != NULL) {
         line = strtok(NULL, "\n");
-    } else {
-        printf("strtok failed");
     }
 
     while (line != NULL) {
-        if (count >= capacity) {
-            capacity *= 2;
-            WeatherEntry *temp = realloc(entries, capacity * sizeof(WeatherEntry));
-            if (temp == NULL) {
-                break;
-            }
-            entries = temp;
-        }
+        WeatherEntry entry;
+        memset(&entry, 0, sizeof(WeatherEntry));
 
-        WeatherEntry *entry = &entries[count];
-        memset(entry, 0, sizeof(WeatherEntry));
         char *start = line;
         int col = 0;
-        while (start && *start) {
+        bool valid_entry = true;
+
+        while (start && *start && col <= 10) {
             const char *token = start;
             char *next_comma = strchr(start, ',');
             if (next_comma) {
@@ -381,49 +374,84 @@ WeatherEntry *parse_csv(const char *csv_data, int *num_entries) {
             }
 
             switch (col) {
+                case 2: {
+                    DateTime dt = {0, 0, 0, 0};
+                    int minutes = 0;
+                    int result = sscanf(token, "%4d-%2d-%2dT%2d:%2d", &dt.year, &dt.month, &dt.day, &dt.hour, &minutes);
+
+                    if (result < 3) {
+                        sscanf(token, "%4d-%2d-%2d", &dt.year, &dt.month, &dt.day);
+                        dt.hour = 0;
+                    }
+
+                    if (!within_range(&dt, start_date, end_date)) {
+                        valid_entry = false;
+                    }
+                    entry.timestamp = dt;
+                    break;
+                }
                 case 3:
-                    entry->temperature = (float) safe_strtod(token);
+                    entry.temperature = (float) safe_strtod(token);
                     break;
                 case 4:
-                    entry->humidity = (int) safe_strtol(token);
+                    entry.humidity = (int) safe_strtol(token);
                     break;
                 case 5:
-                    entry->precipitation = (float) safe_strtod(token);
+                    entry.precipitation = (float) safe_strtod(token);
                     break;
                 case 6:
-                    entry->wind_speed = (float) safe_strtod(token);
+                    entry.wind_speed = (float) safe_strtod(token);
                     break;
                 case 7:
-                    entry->wind_direction = (float) safe_strtod(token);
+                    entry.wind_direction = (float) safe_strtod(token);
                     break;
                 case 8:
-                    entry->snow_fall = (float) safe_strtod(token);
+                    entry.snow_fall = (float) safe_strtod(token);
                     break;
                 case 9:
-                    entry->weather_code = (int) safe_strtol(token);
+                    entry.weather_code = (int) safe_strtol(token);
                     break;
                 case 10:
-                    entry->cloud_cover = (int) safe_strtol(token);
+                    entry.cloud_cover = (int) safe_strtol(token);
                     break;
                 default:
                     break;
             }
 
             col++;
-            if (col > 10) {
-                break;
-            }
         }
 
-        count++;
+        if (valid_entry && entry.timestamp.year != 0) {
+            if (count >= capacity) {
+                capacity *= 2;
+                WeatherEntry *temp = realloc(entries, capacity * sizeof(WeatherEntry));
+                if (temp == NULL) {
+                    break;
+                }
+                entries = temp;
+            }
+            entries[count] = entry;
+            count++;
+        }
+
         line = strtok(NULL, "\n");
     }
 
     free(data_copy);
     *num_entries = count;
+
+    if (count > 0) {
+        WeatherEntry *temp = realloc(entries, count * sizeof(WeatherEntry));
+        if (temp != NULL) {
+            entries = temp;
+        }
+    } else {
+        free(entries);
+        entries = NULL;
+    }
+
     return entries;
 }
-
 
 void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain) {
     const size_t height = kernel_parameters_terrain->height;
@@ -454,8 +482,7 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 }
 
 
-Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
-    if (entry == NULL) return NULL;
+Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     // Adjust these parameters based on your data range
     const float MAX_WIND_SPEED = 20.0f; // Reduced from 40 since your winds are weaker
     const float MIN_BIAS_THRESHOLD = 0.3f; // Minimum bias magnitude to consider
@@ -465,7 +492,7 @@ Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     float normalized_magnitude = 2 * 4 * (wind_speed * (float) max_bias) / MAX_WIND_SPEED;
     // Apply threshold - ignore very small biases
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
-        return point_2d_new(0, 0);
+        return (Point2D){0, 0};
     }
     // Cap at maximum bias
     if (normalized_magnitude > (float) max_bias) {
@@ -481,7 +508,7 @@ Point2D *weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias) {
     ssize_t x = (ssize_t) roundf(bias_x);
     ssize_t y = (ssize_t) roundf(bias_y);
 
-    return point_2d_new(x, y);
+    return (Point2D){x, y};
 }
 
 void weather_entry_free(WeatherEntry *entry) {

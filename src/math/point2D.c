@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "utils.h"
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
+#include "parsers/weather_parser.h"
 
 Point2D *point_2d_new(const ssize_t x, const ssize_t y) {
     Point2D *result = malloc(sizeof(Point2D));
@@ -137,41 +139,34 @@ void point_2d_array_grid_free(Point2DArrayGrid *grid) {
     free(grid);
 }
 
-char *read_file_to_string(const char *filename) {
-    FILE *file = fopen(filename, "rb");
-    if (!file) return NULL;
 
-    fseek(file, 0, SEEK_END);
-    long len = ftell(file);
-    rewind(file);
+Point2DArray *bias_from_csv(const char *file_content, const DateTime *start_date,
+                            const DateTime *end_date, ssize_t max_bias, int times) {
+    WeatherTimeline *timeline = create_weather_timeline(file_content, start_date, end_date, times);
+    if (!timeline) return NULL;
 
-    char *buffer = (char *) malloc(len + 1);
-    if (!buffer) {
-        fclose(file);
+    Point2D *points = malloc(sizeof(Point2D) * times);
+    if (!points) {
+        free(timeline->data);
+        free(timeline);
         return NULL;
     }
 
-    fread(buffer, 1, len, file);
-    buffer[len] = '\0';
-    fclose(file);
-    return buffer;
-}
-
-Point2DArray *bias_from_csv(const char *file_content, ssize_t max_bias, int times) {
-    // Parse CSV content
-    int num_entries;
-    WeatherEntry *entries = parse_csv(file_content, &num_entries);
-    int limit = num_entries >= times ? times : num_entries;
-    Point2D *points2 = malloc(sizeof(Point2D) * limit);
-    for (int i = 0; i < limit; i++) {
-        points2[i] = *weather_entry_to_bias(&entries[i], max_bias);
+    for (int i = 0; i < times; i++) {
+        points[i] = weather_entry_to_bias(&timeline->data[i], max_bias);
     }
-    Point2DArray *biases = point_2d_array_new(points2, limit);
+    Point2DArray *biases = point_2d_array_new(points, times);
+
+    free(points);
+    free(timeline->data);
+    free(timeline);
+
     return biases;
 }
 
-Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_y, int grid_x, int times) {
-    Point2DArrayGrid *grid = point_2d_array_grid_new(grid_y, grid_x, times);
+Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
+                                    const DateTime *end_date, int times) {
+    Point2DArrayGrid *grid = point_2d_array_grid_new(grid_x, grid_y, times);
     if (!grid) return NULL;
 
     char filename[512];
@@ -185,7 +180,7 @@ Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_y, int g
                 return NULL;
             }
 
-            Point2DArray *biases = bias_from_csv(file_content, 5, times);
+            Point2DArray *biases = bias_from_csv(file_content, start_date, end_date, 5, times);
             free(file_content);
 
             grid->data[i][j] = biases;

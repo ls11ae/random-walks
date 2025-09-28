@@ -40,3 +40,23 @@ static long safe_strtol(const char *token) {
     }
     return val;
 }
+
+static char *read_file_to_string(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) return NULL;
+
+    fseek(file, 0, SEEK_END);
+    long len = ftell(file);
+    rewind(file);
+
+    char *buffer = (char *) malloc(len + 1);
+    if (!buffer) {
+        fclose(file);
+        return NULL;
+    }
+
+    fread(buffer, 1, len, file);
+    buffer[len] = '\0';
+    fclose(file);
+    return buffer;
+}
