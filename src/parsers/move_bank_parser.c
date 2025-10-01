@@ -226,7 +226,6 @@ KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D
         terrain_dependant->S = (new_S < 1) ? 1 : new_S;
         if (terrain_dependant->is_brownian) terrain_dependant->D = 1;
     }
-
     return terrain_dependant;
 }
 
@@ -521,7 +520,7 @@ void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias, Point2
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
         bias->x = 0;
         bias->y = 0;
-        return;
+        goto skip_bias;
     }
     // Cap at maximum bias
     if (normalized_magnitude > (float) max_bias) {
@@ -539,6 +538,7 @@ void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias, Point2
 
     bias->x = x;
     bias->y = y;
+skip_bias:
     if (modifier) {
         modifier->switch_model = false;
         modifier->step_size_mod = 1.0f;

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <linux/limits.h>
 
 #ifdef __cplusplus

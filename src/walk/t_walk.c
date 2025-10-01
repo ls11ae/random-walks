@@ -489,6 +489,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
 			                                      0, serialized_path);
 		} else if (!(stat(kmap_path, &st) == 0 && S_ISDIR(st.st_mode))) {
+			//
 			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
 			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.coordinates.x,
 			                           start.coordinates.y,

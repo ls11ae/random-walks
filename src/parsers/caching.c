@@ -1,6 +1,6 @@
 #include "caching.h"
 
-uint64_t compute_matrix_hash(const Matrix* m) {
+uint64_t compute_matrix_hash(const Matrix *m) {
     uint64_t h = 146527;
     for (size_t i = 0; i < m->len; i++) {
         uint64_t bits;
@@ -10,7 +10,7 @@ uint64_t compute_matrix_hash(const Matrix* m) {
     return h;
 }
 
-uint64_t compute_parameters_hash(const KernelParameters* params) {
+uint64_t compute_parameters_hash(const KernelParameters *params) {
     uint64_t h = 14695981039346656037ULL;
     h = (h ^ (params->is_brownian)) * 1099511628211ULL;
     h = (h ^ params->S) * 1099511628211ULL;
@@ -26,8 +26,8 @@ uint64_t compute_parameters_hash(const KernelParameters* params) {
     return h;
 }
 
-uint32_t hash_bytes(const void* key, size_t length) {
-    const uint8_t* data = (const uint8_t*)key;
+uint32_t hash_bytes(const void *key, size_t length) {
+    const uint8_t *data = (const uint8_t *) key;
     uint32_t hash = 0;
     for (size_t i = 0; i < length; i++) {
         hash += data[i];
@@ -40,7 +40,7 @@ uint32_t hash_bytes(const void* key, size_t length) {
     return hash;
 }
 
-uint32_t weather_entry_hash(const WeatherEntry* entry) {
+uint32_t weather_entry_hash(const WeatherEntry *entry) {
     uint32_t hash = 0;
     // Hash each field individually and combine them
     hash = hash_bytes(&entry->temperature, sizeof(entry->temperature));
@@ -61,17 +61,17 @@ uint32_t weather_entry_hash(const WeatherEntry* entry) {
 }
 
 
-Cache* cache_create(size_t num_buckets) {
-    Cache* cache = (Cache*)malloc(sizeof(Cache));
+Cache *cache_create(size_t num_buckets) {
+    Cache *cache = (Cache *) malloc(sizeof(Cache));
     cache->num_buckets = num_buckets;
-    cache->buckets = (CacheEntry**)calloc(num_buckets, sizeof(CacheEntry*));
+    cache->buckets = (CacheEntry **) calloc(num_buckets, sizeof(CacheEntry *));
     return cache;
 }
 
-CacheEntry* cache_lookup_entry(Cache* cache, uint64_t hash) {
+CacheEntry *cache_lookup_entry(Cache *cache, uint64_t hash) {
     size_t bucket = hash % cache->num_buckets;
 
-    CacheEntry* entry = cache->buckets[bucket];
+    CacheEntry *entry = cache->buckets[bucket];
 
     while (entry != NULL) {
         if (entry->hash == hash) {
@@ -84,31 +84,30 @@ CacheEntry* cache_lookup_entry(Cache* cache, uint64_t hash) {
     return NULL;
 }
 
-void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_t array_size) {
+void cache_insert(Cache *cache, uint64_t hash, void *data, bool is_array, ssize_t array_size) {
     assert((is_array && data != NULL) || (!is_array && data != NULL));
     size_t bucket = hash % cache->num_buckets;
-    CacheEntry* entry = malloc(sizeof(CacheEntry));
+    CacheEntry *entry = malloc(sizeof(CacheEntry));
     entry->hash = hash;
     entry->is_array = is_array;
     entry->array_size = array_size;
     if (is_array) {
-        entry->data.array = (Tensor*)data;
-    }
-    else {
-        entry->data.single = (Matrix*)data;
+        entry->data.array = (Tensor *) data;
+    } else {
+        entry->data.single = (Matrix *) data;
     }
     entry->next = cache->buckets[bucket];
     cache->buckets[bucket] = entry;
 }
 
-void cache_free(Cache* cache) {
+void cache_free(Cache *cache) {
     if (!cache) return;
 
     for (size_t i = 0; i < cache->num_buckets; i++) {
-        CacheEntry* entry = cache->buckets[i];
+        CacheEntry *entry = cache->buckets[i];
         while (entry != NULL) {
-            CacheEntry* next = entry->next; // Nächsten Eintrag sichern BEVOR wir den aktuellen freigeben
-            
+            CacheEntry *next = entry->next; // Nächsten Eintrag sichern BEVOR wir den aktuellen freigeben
+
             // Ressourcen freigeben
             if (entry->is_array) {
                 if (entry->data.array) {
@@ -119,13 +118,13 @@ void cache_free(Cache* cache) {
                     matrix_free(entry->data.single);
                 }
             }
-            
+
             free(entry);
             entry = next; // Zum nächsten Eintrag gehen
         }
         cache->buckets[i] = NULL; // Bucket leeren
     }
-    
+
     free(cache->buckets);
     free(cache);
 }
@@ -139,9 +138,9 @@ size_t hash_to_bucket(uint64_t hash) {
 }
 
 // Gibt den Pfad zu einem bestehenden Tensor mit gleichem Inhalt zurück, oder NULL, wenn neuer Eintrag
-const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t hash, const char* new_path) {
+const char *hash_cache_lookup_or_insert(HashCache *cache, Tensor *t, uint64_t hash, const char *new_path) {
     size_t bucket = hash_to_bucket(hash);
-    HashEntry* entry = cache->buckets[bucket];
+    HashEntry *entry = cache->buckets[bucket];
 
     // Lineare Suche in der verketteten Liste (für Hash-Kollisionen)
     while (entry) {
@@ -152,7 +151,7 @@ const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t ha
     }
 
     // Kein passender Tensor gefunden → neuen Eintrag anlegen
-    HashEntry* new_entry = malloc(sizeof(HashEntry));
+    HashEntry *new_entry = malloc(sizeof(HashEntry));
     new_entry->hash = hash;
     new_entry->tensor = tensor_clone(t); // Duplizieren, damit Cache überlebt
     strncpy(new_entry->path, new_path, PATH_MAX);
@@ -163,32 +162,32 @@ const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t ha
     return NULL; // Neu eingefügt, kein vorhandener Pfad
 }
 
-const char* hash_cache_lookup_or_insert2(HashCache* cache, uint64_t hash, const char* new_path) {
+const char *hash_cache_lookup_or_insert2(HashCache *cache, uint64_t hash, const char *new_path) {
     size_t bucket = hash % HASH_CACHE_BUCKETS;
-    HashEntry* entry = cache->buckets[bucket];
-    
+    HashEntry *entry = cache->buckets[bucket];
+
     // Durchsuche Kollisionsliste
     while (entry) {
         if (entry->hash == hash) return entry->path; // Gefunden!
         entry = entry->next;
     }
-    
+
     // Neuer Eintrag: Füge hinzu
-    HashEntry* new_entry = malloc(sizeof(HashEntry));
+    HashEntry *new_entry = malloc(sizeof(HashEntry));
     *new_entry = (HashEntry){
         .hash = hash,
-        .path = "",  
+        .path = "",
         .next = cache->buckets[bucket]
     };
-    strncpy(new_entry->path, new_path, PATH_MAX);
-    new_entry->path[PATH_MAX - 1] = '\0';
+    strncpy(new_entry->path, new_path, NAME_MAX);
+    new_entry->path[NAME_MAX - 1] = '\0';
     new_entry->next = cache->buckets[bucket];
     cache->buckets[bucket] = new_entry;
     return NULL;
 }
 
 size_t hash_mix(size_t hash, size_t value) {
-    hash ^= value + 0x9e3779b97f4a7c15 + (hash << 6) + (hash >> 2); 
+    hash ^= value + 0x9e3779b97f4a7c15 + (hash << 6) + (hash >> 2);
     return hash;
 }
 
@@ -198,14 +197,14 @@ uint64_t hash_double(double x) {
     return u;
 }
 
-size_t tensor_hash(const Tensor* t) {
+size_t tensor_hash(const Tensor *t) {
     const size_t FNV_OFFSET = 14695981039346656037ULL;
     size_t hash = FNV_OFFSET;
 
     hash = hash_mix(hash, t->len);
 
     for (size_t i = 0; i < t->len; ++i) {
-        Matrix* m = t->data[i];
+        Matrix *m = t->data[i];
         if (!m) continue;
 
         hash = hash_mix(hash, m->width);
@@ -220,8 +219,8 @@ size_t tensor_hash(const Tensor* t) {
     return hash;
 }
 
-HashCache* hash_cache_create() {
-    HashCache* cache = (HashCache*)malloc(sizeof(HashCache));
+HashCache *hash_cache_create() {
+    HashCache *cache = (HashCache *) malloc(sizeof(HashCache));
     if (!cache) {
         perror("Failed to allocate HashCache");
         exit(EXIT_FAILURE);
@@ -230,13 +229,13 @@ HashCache* hash_cache_create() {
     return cache;
 }
 
-void hash_cache_free(HashCache* cache) {
+void hash_cache_free(HashCache *cache) {
     if (!cache) return;
 
     for (size_t i = 0; i < HASH_CACHE_BUCKETS; ++i) {
-        HashEntry* entry = cache->buckets[i];
+        HashEntry *entry = cache->buckets[i];
         while (entry) {
-            HashEntry* next = entry->next;
+            HashEntry *next = entry->next;
             tensor_free(entry->tensor);
             free(entry);
             entry = next;

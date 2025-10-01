@@ -620,7 +620,7 @@ int main(int argc, char **argv) {
              "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
 
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-    auto t = 200;
+    auto t = 150;
     auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
     auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
     auto grid_x = 5, grid_y = 5;
@@ -631,9 +631,9 @@ int main(int argc, char **argv) {
         .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
         .coordinates = (Point2D){125, 125},
     };
-    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, NULL, mapping, grid_x, grid_y,
-                              start_point,
-                              goal_point, false, true);
+    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping, grid_x,
+                              grid_y,
+                              start_point, goal_point, false, true);
     point2d_array_print(walk);
 
     //
@@ -656,101 +656,4 @@ int main(int argc, char **argv) {
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
     return 0;
-    //test_geo_multi();
-    Matrix *matrix = matrix_generator_gaussian_pdf(15, 15, 6, 1, 6, 0);
-    for
-    (
-
-
-        int i = 0;
-        i < matrix->len;
-        i
-        ++
-    ) {
-        if (matrix->data[i] < 0.005) {
-            matrix->data[i] = 0.0;
-        }
-    }
-    matrix_normalize_L1(matrix);
-    matrix_print(matrix);
-    printf(
-
-
-        "_____________________________________________\n"
-    );
-    Tensor *tensor = generate_kernels_from_matrix(matrix, 8);
-    for
-    (
-
-
-        int i = 0;
-        i < tensor->len;
-        i
-        ++
-    ) {
-        printf("d = %d \n", i);
-        matrix_print(tensor->data[i]);
-    }
-    return
-            0;
-    auto bias = create_bias_array(100, 3, 3);
-    test_biased_walk(bias, NULL, "../../resources/landcover_142.txt");
-    return
-            0;
-
-    brownian_cuda();
-
-    return
-            0;
-    int T = argc > 1 ? atoi(argv[1]) : 200, W = 2 * T + 1, H = 2 * T + 1, D = 16, S = 7;
-    int kernel_width = 2 * S + 1;
-    int start_x = T, start_y = T;
-    int end_x = 20, end_y = 20;
-    Tensor *kernels = generate_kernels(D, kernel_width);
-    Vector2D *dir_kernel = get_dir_kernel(D, kernel_width);
-    Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-    compute_overlap_percentages((
-
-
-                                    int)
-                                kernel_width
-                                ,
-                                (
-
-
-                                    int)
-                                D
-                                ,
-                                angles_mask
-    );
-    auto start = std::chrono::high_resolution_clock::now();
-    //auto walk = gpu_correlated_walk(T, W, H, start_x, start_y, end_x, end_y, kernels, angles_mask, dir_kernel);
-    //auto walk = dp_calculation(W, H, kernels, T, start_x, start_y);
-    auto end = std::chrono::high_resolution_clock::now();
-    //point2d_array_print(walk);
-    Point2D steps[2];
-    steps[0] =
-            (Point2D){start_x, start_y};
-    steps[1] =
-            (Point2D){end_x, end_y};
-    Point2DArray *stepsarr = point_2d_array_new(steps, 2);
-    TerrainMap *terrain = terrain_map_new(W, H);
-    //save_walk_to_json(stepsarr, walk, terrain, "cuda_correlated.json");
-    //tensor4D_free(walk, T);
-    //point2d_array_free(walk);
-    point2d_array_free(stepsarr);
-    tensor_free(kernels);
-    tensor_free(angles_mask);
-    free_vector2d(dir_kernel);
-    std::chrono::duration<double> duration = end - start;
-    std::cout
-            <<
-            duration
-            .
-            count()
-
-            <<
-            "\n";
-    return
-            0;
 }

@@ -8,7 +8,7 @@ ssize_t weighted_random_index(const double *array, size_t len) {
     // Seed the random number generator with the current time
     static int seeded = 0;
     if (!seeded) {
-        srand(((unsigned int) time(NULL))); // Seed only once
+        srand(0); //((unsigned int) time(NULL))); // Seed only once
         seeded = 1;
     }
 

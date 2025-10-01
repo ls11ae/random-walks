@@ -148,14 +148,21 @@ void point_2d_array_grid_free(WeatherInfluenceGrid *grid) {
     free(grid->data);
     free(grid);
 }
+#include <assert.h>
+
+// Add this function declaration after the KernelModifier struct
+static inline void print_kernel_modifier(const KernelModifier *modifier) {
+    printf("KernelModifier: switch_model=%d, step_size_mod=%f, directions_mod=%f, diffusity_mod=%f\n",
+           modifier->switch_model, modifier->step_size_mod, modifier->directions_mod, modifier->diffusity_mod);
+}
 
 
-static void set_weather_influence(const char *file_content, const DateTime *start_date,
-                                  const DateTime *end_date, ssize_t max_bias, int times, Point2DArray *biases,
-                                  KernelModifier *modifiers_at_yx, bool full_influence) {
+void set_weather_influence(const char *file_content, const DateTime *start_date,
+                           const DateTime *end_date, ssize_t max_bias, int times, Point2DArray *biases,
+                           KernelModifier *modifiers_at_yx, bool full_influence) {
     WeatherTimeline *timeline = create_weather_timeline(file_content, start_date, end_date, times);
     if (!timeline) return;
-
+    assert(timeline->length == times);
     Point2D *bias = malloc(sizeof(Point2D) * times);
     if (!bias) {
         free(timeline->data);
@@ -163,11 +170,11 @@ static void set_weather_influence(const char *file_content, const DateTime *star
         return;
     }
 
-    for (int i = 0; i < times; i++) {
+    for (int t = 0; t < times; t++) {
         if (full_influence)
-            apply_weather_influence(&timeline->data[i], max_bias, &bias[i], &modifiers_at_yx[i]);
+            apply_weather_influence(&timeline->data[t], max_bias, &bias[t], &modifiers_at_yx[t]);
         else
-            apply_weather_influence(&timeline->data[i], max_bias, &bias[i], NULL);
+            apply_weather_influence(&timeline->data[t], max_bias, &bias[t], NULL);
     }
     biases->points = bias;
     biases->length = times;
@@ -175,6 +182,7 @@ static void set_weather_influence(const char *file_content, const DateTime *star
     free(timeline->data);
     free(timeline);
 }
+
 
 WeatherInfluenceGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
                                         const DateTime *end_date, int times, bool full_influence) {
@@ -192,7 +200,7 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, int grid_x, i
                 return NULL;
             }
             Point2DArray *biases_at_yx = malloc(sizeof(Point2DArray));
-            KernelModifier *modifiers_at_yx = malloc(sizeof(KernelModifier) * times);
+            KernelModifier *modifiers_at_yx = calloc(times, sizeof(KernelModifier));
             if (!biases_at_yx || !modifiers_at_yx) {
                 perror("Failed to allocate memory");
                 exit(EXIT_FAILURE);
