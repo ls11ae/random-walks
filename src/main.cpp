@@ -185,7 +185,7 @@ int test_biased_walk(Point2DArray *biases, KernelModifier *mods, const char *fil
     const int S = 7;
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
     // Kernel Map generieren mit terrain und bias timeline
-    KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mods, mapping);
+    KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mapping);
 
     Point2D start = {200, 200};
     Point2D goal = {390, 380};
