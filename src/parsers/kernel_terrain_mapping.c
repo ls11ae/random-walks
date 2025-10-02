@@ -146,7 +146,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
             break;
         case WATER:
             is_brownian = 0;
-            D = 4;
+            D = 8;
             diffusity = 0.1f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
             break;

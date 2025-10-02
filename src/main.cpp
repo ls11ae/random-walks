@@ -590,34 +590,36 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
-    char walk_path_with_index[256];
-    snprintf(walk_path_with_index, sizeof(walk_path_with_index),
-             "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
+    goto test_m;
+    {
+        char walk_path_with_index[256];
+        snprintf(walk_path_with_index, sizeof(walk_path_with_index),
+                 "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
 
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-    auto t = 100;
-    auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
-    auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
-    auto grid_x = 3, grid_y = 3;
-    auto start_point = (TimedLocation){
-        .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){70, 70},
-    };
-    auto goal_point = (TimedLocation){
-        .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
-        .coordinates = (Point2D){135, 135},
-    };
-    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping,
-                              grid_x, grid_y, start_point, goal_point, false, true);
-    point2d_array_print(walk);
-
-
+        KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+        auto t = 100;
+        auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
+        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
+        auto grid_x = 3, grid_y = 3;
+        auto start_point = (TimedLocation){
+            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){70, 70},
+        };
+        auto goal_point = (TimedLocation){
+            .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
+            .coordinates = (Point2D){135, 135},
+        };
+        auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping,
+                                  grid_x, grid_y, start_point, goal_point, false, true);
+        point2d_array_print(walk);
+    }
+test_m:
     //
     //generate_and_apply_terrain_kernels();
     //display_kernels();
     //brownian_cuda();
     //correlated_cuda();
     //test_mixed_gpu();
-    //test_mixed();
+    test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");

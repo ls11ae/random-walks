@@ -15,7 +15,7 @@ KernelsMap *kernels_map_new(const TerrainMap *terrain, KernelParametersMapping *
 
 KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Tensor *kernels);
 
-KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases, KernelModifier *mods,
+KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                         KernelParametersMapping *mapping);
 
 KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, WeatherInfluenceGrid *biases,
