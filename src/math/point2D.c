@@ -54,43 +54,52 @@ Point2DArray *point_2d_array_new_empty(size_t length) {
     return result;
 }
 
-Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t times) {
-    Point2DArrayGrid *result = (Point2DArrayGrid *) malloc(sizeof(Point2DArrayGrid));
+WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, size_t times) {
+    WeatherInfluenceGrid *result = (WeatherInfluenceGrid *) malloc(sizeof(WeatherInfluenceGrid));
     if (!result) return NULL;
 
     Point2DArray ***data = (Point2DArray ***) malloc(sizeof(Point2DArray **) * height);
-    if (!data) {
+    KernelModifier ***kernel_modifiers = (KernelModifier ***) malloc(sizeof(KernelModifier **) * height);
+    if (!data || !kernel_modifiers) {
         free(result);
         return NULL;
     }
 
     for (size_t i = 0; i < height; i++) {
         data[i] = (Point2DArray **) malloc(sizeof(Point2DArray *) * width);
-        if (!data[i]) {
+        kernel_modifiers[i] = (KernelModifier **) malloc(sizeof(KernelModifier *) * width);
+        if (!data[i] || !kernel_modifiers[i]) {
             // Cleanup previously allocated memory
             for (size_t k = 0; k < i; k++) {
                 for (size_t j = 0; j < width; j++) {
                     point2d_array_free(data[k][j]);
+                    free(kernel_modifiers[k][j]);
                 }
                 free(data[k]);
+                free(kernel_modifiers[k]);
             }
             free(data);
             free(result);
+            free(kernel_modifiers);
             return NULL;
         }
 
         for (size_t j = 0; j < width; j++) {
             data[i][j] = point_2d_array_new_empty(times);
+            kernel_modifiers[i][j] = malloc(times * sizeof(KernelModifier));
             if (!data[i][j]) {
                 // Cleanup previously allocated memory
                 for (size_t k = 0; k <= i; k++) {
                     for (size_t l = 0; l < (k == i ? j : width); l++) {
                         point2d_array_free(data[k][l]);
+                        free(kernel_modifiers[k][l]);
                     }
                     free(data[k]);
+                    free(kernel_modifiers[k]);
                 }
                 free(data);
                 free(result);
+                free(kernel_modifiers);
                 return NULL;
             }
         }
@@ -100,6 +109,7 @@ Point2DArrayGrid *point_2d_array_grid_new(size_t width, size_t height, size_t ti
     result->width = width;
     result->times = times;
     result->data = data;
+    result->kernel_modifiers = kernel_modifiers;
     return result;
 }
 
@@ -125,65 +135,86 @@ void point2d_array_free(Point2DArray *array) {
     }
 }
 
-void point_2d_array_grid_free(Point2DArrayGrid *grid) {
+void point_2d_array_grid_free(WeatherInfluenceGrid *grid) {
     if (!grid) return;
 
     for (size_t i = 0; i < grid->height; i++) {
         for (size_t j = 0; j < grid->width; j++) {
             point2d_array_free(grid->data[i][j]);
+            free(grid->kernel_modifiers[i][j]);
         }
         free(grid->data[i]);
+        free(grid->kernel_modifiers[i]);
     }
-
+    free(grid->kernel_modifiers);
     free(grid->data);
     free(grid);
 }
 
+#include <assert.h>
 
-Point2DArray *bias_from_csv(const char *file_content, const DateTime *start_date,
-                            const DateTime *end_date, ssize_t max_bias, int times) {
-    WeatherTimeline *timeline = create_weather_timeline(file_content, start_date, end_date, times);
-    if (!timeline) return NULL;
-
-    Point2D *points = malloc(sizeof(Point2D) * times);
-    if (!points) {
-        free(timeline->data);
-        free(timeline);
-        return NULL;
-    }
-
-    for (int i = 0; i < times; i++) {
-        points[i] = weather_entry_to_bias(&timeline->data[i], max_bias);
-    }
-    Point2DArray *biases = point_2d_array_new(points, times);
-
-    free(points);
-    free(timeline->data);
-    free(timeline);
-
-    return biases;
+// Add this function declaration after the KernelModifier struct
+static inline void print_kernel_modifier(const KernelModifier *modifier) {
+    printf("KernelModifier: switch_model=%d, step_size_mod=%f, directions_mod=%f, diffusity_mod=%f\n",
+           modifier->switch_model, modifier->step_size_mod, modifier->directions_mod, modifier->diffusity_mod);
 }
 
-Point2DArrayGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
-                                    const DateTime *end_date, int times) {
-    Point2DArrayGrid *grid = point_2d_array_grid_new(grid_x, grid_y, times);
+
+void set_weather_influence(const char *file_content, const KernelParametersMapping *mapping, const DateTime *start_date,
+                           const DateTime *end_date, ssize_t max_bias, int times, Point2DArray *biases,
+                           KernelModifier *modifiers_at_yx, bool full_influence) {
+    WeatherTimeline *timeline = create_weather_timeline(file_content, start_date, end_date, times);
+    if (!timeline) return;
+    assert(timeline->length == times);
+    Point2D *bias = malloc(sizeof(Point2D) * times);
+    if (!bias) {
+        free(timeline->data);
+        free(timeline);
+        return;
+    }
+
+    for (int t = 0; t < times; t++) {
+        if (full_influence)
+            apply_weather_influence(&timeline->data[t], max_bias, mapping, &bias[t], &modifiers_at_yx[t]);
+        else
+            apply_weather_influence(&timeline->data[t], max_bias, mapping, &bias[t], NULL);
+    }
+    biases->points = bias;
+    biases->length = times;
+
+    free(timeline->data);
+    free(timeline);
+}
+
+
+WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelParametersMapping *mapping, int grid_x,
+                                        int grid_y, const DateTime *start_date,
+                                        const DateTime *end_date, int times, bool full_influence) {
+    WeatherInfluenceGrid *grid = weather_influence_grid_new(grid_x, grid_y, times);
     if (!grid) return NULL;
 
     char filename[512];
 
-    for (int i = 0; i < grid_y; ++i) {
-        for (int j = 0; j < grid_x; ++j) {
-            snprintf(filename, sizeof(filename), "%s/weather_grid_y%d_x%d.csv", filename_base, i, j);
+    for (int y = 0; y < grid_y; ++y) {
+        for (int x = 0; x < grid_x; ++x) {
+            snprintf(filename, sizeof(filename), "%s/weather_grid_y%d_x%d.csv", filename_base, y, x);
             char *file_content = read_file_to_string(filename);
             if (!file_content) {
                 fprintf(stderr, "Failed to open or read file: %s\n", filename);
                 return NULL;
             }
-
-            Point2DArray *biases = bias_from_csv(file_content, start_date, end_date, 5, times);
+            Point2DArray *biases_at_yx = malloc(sizeof(Point2DArray));
+            KernelModifier *modifiers_at_yx = calloc(times, sizeof(KernelModifier));
+            if (!biases_at_yx || !modifiers_at_yx) {
+                perror("Failed to allocate memory");
+                exit(EXIT_FAILURE);
+            }
+            set_weather_influence(file_content, mapping, start_date, end_date, 5, times, biases_at_yx, modifiers_at_yx,
+                                  full_influence);
             free(file_content);
 
-            grid->data[i][j] = biases;
+            grid->data[y][x] = biases_at_yx;
+            grid->kernel_modifiers[y][x] = modifiers_at_yx;
         }
     }
 

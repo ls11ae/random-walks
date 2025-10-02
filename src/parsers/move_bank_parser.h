@@ -16,17 +16,19 @@ KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t 
 
 KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelParametersMapping *kernels_mapping);
 
-KernelParameters *kernel_parameters_biased(int terrain_value, const Point2D *biases,
-                                           KernelParametersMapping *kernels_mapping);
+KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D *biases,
+                                          const KernelModifier *modifier,
+                                          KernelParametersMapping *kernels_mapping);
 
 KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
+                                                           const KernelModifier *modifier,
                                                            KernelParametersMapping *kernels_mapping);
 
 WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries);
 
 KernelParametersTerrainWeather *
-get_kernels_terrain_biased_grid(const TerrainMap *terrain, const Point2DArrayGrid *biases,
-                                KernelParametersMapping *kernels_mapping);
+get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenceGrid *biases,
+                                KernelParametersMapping *kernels_mapping, bool full_influence);
 
 void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain);
 
@@ -47,7 +49,8 @@ Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);
 
 void coordinate_array_free(Coordinate_array *coordinate_array);
 
-Point2D weather_entry_to_bias(const WeatherEntry *entry, ssize_t max_bias);
+void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias,
+                             const KernelParametersMapping *mapping, Point2D *bias, KernelModifier *modifier);
 
 void weather_entry_free(WeatherEntry *entry);
 

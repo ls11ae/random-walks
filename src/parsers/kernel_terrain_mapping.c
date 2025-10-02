@@ -197,6 +197,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
 KernelParametersMapping *create_default_mapping(const enum animal_type animal_type,
                                                 const int base_step_size, const enum kernel_mode mode) {
     KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
+    params_mapping->animal = animal_type;
     if (!params_mapping) {
         perror("malloc kernels mapping");
         return NULL;

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <linux/limits.h>
 
 #ifdef __cplusplus
@@ -89,11 +90,20 @@ typedef struct {
 } Point2DArray;
 
 typedef struct {
+    bool switch_model;
+    float step_size_mod;
+    float directions_mod;
+    float diffusity_mod;
+} KernelModifier;
+
+typedef struct {
     Point2DArray ***data;
+    KernelModifier ***kernel_modifiers;
     size_t width;
     size_t height;
     size_t times;
-} Point2DArrayGrid;
+} WeatherInfluenceGrid;
+
 
 typedef struct {
     double x; // longitude
@@ -141,6 +151,14 @@ typedef enum {
     KPM_KIND_KERNELS
 } KernelMapKind;
 
+enum animal_type {
+    AIRBORNE,
+    AMPHIBIAN,
+    LIGHT,
+    MEDIUM,
+    HEAVY
+};
+
 typedef struct {
     enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
     bool has_forbidden_landmarks;
@@ -150,6 +168,7 @@ typedef struct {
     double transition_matrix[LAND_MARKS_COUNT][LAND_MARKS_COUNT];
 
     KernelMapKind kind;
+    enum animal_type animal;
 
     union {
         KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
@@ -158,13 +177,6 @@ typedef struct {
     } data;
 } KernelParametersMapping;
 
-enum animal_type {
-    AIRBORNE,
-    AMPHIBIAN,
-    LIGHT,
-    MEDIUM,
-    HEAVY
-};
 
 typedef struct {
     Matrix ***kernels;
@@ -203,6 +215,7 @@ typedef struct {
     size_t width;
     size_t height;
     size_t time;
+    size_t max_D;
     KernelParameters ****data; // [y][x][t]
 } KernelParametersTerrainWeather;
 

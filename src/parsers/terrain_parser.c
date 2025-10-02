@@ -169,6 +169,7 @@ static inline int landmark_to_index_from_value(int terrain_value) {
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized) {
     ssize_t M = p->S * 2 + 1;
+    Tensor *result = NULL;
     if (p->is_brownian) {
         double scale, sigma;
         get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
@@ -178,16 +179,18 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
         else
             kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
 
-        Tensor *result = tensor_new(M, M, 1);
+        result = tensor_new(M, M, 1);
         result->len = 1;
         result->data[0] = kernel;
-        return result;
+    } else {
+        int index = landmark_to_index_from_value(terrain_value);
+        assert(index >= 0 && index < LAND_MARKS_COUNT);
+
+        result = correlated_tensors->data[index];
+        if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
+            result = generate_kernels(p->D, 2 * p->S + 1);
+        }
     }
-
-    int index = landmark_to_index_from_value(terrain_value);
-    assert(index >= 0 && index < LAND_MARKS_COUNT);
-
-    Tensor *result = correlated_tensors->data[index];
     assert(result);
     if (serialized) {
         return tensor_clone(result);
@@ -230,7 +233,32 @@ void kernels_map3d_free(KernelsMap3D *map) {
 }
 
 void kernels_map4d_free(KernelsMap4D *km) {
-    cache_free(km->cache);
+    if (!km) return;
+
+    // Free the 4D array of tensor pointers
+    if (km->kernels) {
+        for (ssize_t y = 0; y < km->height; y++) {
+            if (km->kernels[y]) {
+                for (ssize_t x = 0; x < km->width; x++) {
+                    if (km->kernels[y][x]) {
+                        // Free the time dimension array
+                        free(km->kernels[y][x]);
+                    }
+                }
+                // Free the x dimension array
+                free(km->kernels[y]);
+            }
+        }
+        // Free the y dimension array
+        free(km->kernels);
+    }
+
+    // Free the cache (this will free the actual tensor data)
+    if (km->cache) {
+        cache_free(km->cache);
+    }
+
+    // Free the structure itself
     free(km);
 }
 

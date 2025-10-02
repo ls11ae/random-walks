@@ -297,8 +297,7 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
 				const Matrix *current_kernel = prev_tensor->data[d];
 
 				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= current_kernel->width || kernel_y >=
-				    current_kernel->
-				    height)
+				    current_kernel->height)
 					continue;
 
 				const double p_b_a = matrix_get(current_kernel, kernel_x, kernel_y);
@@ -321,6 +320,7 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const Ter
 			free(directions);
 			free(path->points);
 			free(path);
+			perror("no neighbors");
 			return NULL;
 		}
 
@@ -462,8 +462,10 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
                             const char *serialized_path, KernelParametersMapping *mapping,
                             int grid_x, int grid_y,
                             const TimedLocation start, const TimedLocation goal,
-                            bool use_serialized) {
-	Point2DArrayGrid *grid = load_weather_grid(csv_path, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T);
+                            bool use_serialized, bool full_weather_influence) {
+	WeatherInfluenceGrid *grid =
+			load_weather_grid(csv_path, mapping, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T,
+			                  full_weather_influence);
 	printf("weather grid loaded\n");
 
 	char dp_dir[FILENAME_MAX];
@@ -474,8 +476,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 	char kmap_path[FILENAME_MAX];
 	snprintf(kmap_path, sizeof(kmap_path), "%s/tensors", serialized_path);
 
-	TerrainMap terrain;
-	parse_terrain_map(terrain_path, &terrain, ' ');
+	TerrainMap *terrain = create_terrain_map(terrain_path, ' ');
 	Tensor **dp = NULL;
 	KernelsMap4D *kmap = NULL;
 	Point2DArray *walk = NULL;
@@ -484,36 +485,37 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 		struct stat st;
 		if ((stat(dp_dir, &st) == 0 && S_ISDIR(st.st_mode))) {
 			// dp exists, backtrace
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			walk = backtrace_time_walk_serialized(dp_dir, T, terrain, mapping, goal.coordinates.x, goal.coordinates.y,
 			                                      0, serialized_path);
 		} else if (!(stat(kmap_path, &st) == 0 && S_ISDIR(st.st_mode))) {
-			tensor_map_terrain_biased_grid_serialized(&terrain, grid, mapping, serialized_path);
-			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.coordinates.x,
+			//
+			tensor_map_terrain_biased_grid_serialized(terrain, grid, mapping, serialized_path);
+			mixed_walk_time_serialized(terrain->width, terrain->height, terrain, mapping, T, start.coordinates.x,
 			                           start.coordinates.y,
 			                           serialized_path);
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			walk = backtrace_time_walk_serialized(dp_dir, T, terrain, mapping, goal.coordinates.x, goal.coordinates.y,
 			                                      0, serialized_path);
 		} else {
-			mixed_walk_time_serialized(terrain.width, terrain.height, &terrain, mapping, T, start.coordinates.x,
+			mixed_walk_time_serialized(terrain->width, terrain->height, terrain, mapping, T, start.coordinates.x,
 			                           start.coordinates.y,
 			                           serialized_path);
-			walk = backtrace_time_walk_serialized(dp_dir, T, &terrain, mapping, goal.coordinates.x, goal.coordinates.y,
+			walk = backtrace_time_walk_serialized(dp_dir, T, terrain, mapping, goal.coordinates.x, goal.coordinates.y,
 			                                      0, serialized_path);
 		}
 	} else {
-		kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping);
-		dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.coordinates.x,
+		kmap = tensor_map_terrain_biased_grid(terrain, grid, mapping, full_weather_influence);
+		dp = mixed_walk_time(terrain->width, terrain->height, terrain, mapping, kmap, T, start.coordinates.x,
 		                     start.coordinates.y,
 		                     use_serialized,
 		                     serialized_path);
 
-		walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.coordinates.x, goal.coordinates.y, 0,
+		walk = backtrace_time_walk(dp, T, terrain, mapping, kmap, goal.coordinates.x, goal.coordinates.y, 0,
 		                           use_serialized, "");
 	}
 
 	Point2D points[2] = {start.coordinates, goal.coordinates};
 	Point2DArray *steps = point_2d_array_new(points, 2);
-	save_walk_to_json(steps, walk, &terrain, walk_path);
+	save_walk_to_json(steps, walk, terrain, walk_path);
 
 	point2d_array_print(walk);
 	if (dp != NULL) tensor4D_free(dp, T);
@@ -522,6 +524,7 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 		kernels_map4d_free(kmap);
 	}
 	point_2d_array_grid_free(grid);
+	terrain_map_free(terrain);
 
 	return walk;
 }
