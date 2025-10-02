@@ -508,31 +508,25 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 }
 
 
-void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias, Point2D *bias, KernelModifier *modifier) {
-    // Adjust these parameters based on your data range
+void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias,
+                             const KernelParametersMapping *mapping, Point2D *bias, KernelModifier *modifier) {
     const float MAX_WIND_SPEED = 120.0f;
-    const float MIN_BIAS_THRESHOLD = 1.0f; // Minimum bias magnitude to consider
+    const float MIN_BIAS_THRESHOLD = 1.0f;
     float wind_speed = entry->wind_speed;
     float wind_direction = entry->wind_direction;
-    // Normalize wind speed to 0-5 range based on MAX_WIND_SPEED
     float normalized_magnitude = 2 * (wind_speed * (float) max_bias) / MAX_WIND_SPEED;
-    // Apply threshold - ignore very small biases
     if (normalized_magnitude < MIN_BIAS_THRESHOLD) {
         bias->x = 0;
         bias->y = 0;
         goto skip_bias;
     }
-    // Cap at maximum bias
     if (normalized_magnitude > (float) max_bias) {
         normalized_magnitude = (float) max_bias;
     }
-    // Convert direction to radians (meteorological convention)
     const float radians = (270.0f - wind_direction) * (float) M_PI / 180.0f; // Convert to math convention
-    // Calculate components
     const float bias_x = normalized_magnitude * cosf(radians);
     const float bias_y = normalized_magnitude * sinf(radians);
 
-    // Round to nearest integers
     const ssize_t x = (ssize_t) roundf(bias_x);
     const ssize_t y = (ssize_t) roundf(bias_y);
 
@@ -545,35 +539,54 @@ skip_bias:
         modifier->directions_mod = 1.0f;
         modifier->diffusity_mod = 1.0f;
 
-        if (entry->wind_speed > 80.0f || entry->snow_fall > 20.0f || entry->precipitation > 50.0f) {
+        float temp_factor = 1.0f - fabsf(entry->temperature - 15.0f) / 50.0f; // ideal ~15°C
+        if (temp_factor < 0.5f) temp_factor = 0.5f;
+
+        float wind_factor = entry->wind_speed / 120.0f;
+        float rain_factor = entry->precipitation / 100.0f;
+        float snow_factor = entry->snow_fall / 50.0f;
+        float cloud_factor = entry->cloud_cover / 100.0f;
+
+        if (wind_factor > 0.8f || snow_factor > 0.6f || rain_factor > 0.7f)
             modifier->switch_model = true;
+
+        switch (mapping->animal) {
+            case AIRBORNE:
+                modifier->directions_mod = 1.0f - 0.7f * wind_factor;
+                modifier->step_size_mod = 1.0f + 0.5f * wind_factor;
+                modifier->diffusity_mod = 1.0f + 0.3f * cloud_factor;
+                break;
+
+            case AMPHIBIAN:
+                modifier->step_size_mod = 1.0f - 0.6f * rain_factor - 0.3f * snow_factor;
+                modifier->directions_mod = 1.0f - 0.2f * wind_factor;
+                modifier->diffusity_mod = 1.0f + 0.5f * rain_factor;
+                break;
+
+            case LIGHT:
+                modifier->step_size_mod = 1.0f - 0.4f * rain_factor + 0.3f * wind_factor;
+                modifier->directions_mod = 1.0f - 0.5f * wind_factor;
+                modifier->diffusity_mod = 1.0f + 0.4f * cloud_factor;
+                break;
+
+            case MEDIUM:
+                modifier->step_size_mod = 1.0f - 0.3f * rain_factor - 0.2f * snow_factor;
+                modifier->directions_mod = 1.0f - 0.3f * wind_factor;
+                modifier->diffusity_mod = 1.0f + 0.3f * (cloud_factor + rain_factor);
+                break;
+
+            case HEAVY:
+                modifier->step_size_mod = 1.0f - 0.5f * snow_factor;
+                modifier->directions_mod = 1.0f - 0.1f * wind_factor;
+                modifier->diffusity_mod = 1.0f + 0.2f * cloud_factor;
+                break;
         }
 
-        if (entry->temperature < -10.0f || entry->temperature > 35.0f) {
-            modifier->step_size_mod = 0.8f;
-        }
-        if (entry->precipitation > 10.0f) {
-            modifier->step_size_mod = 0.9f;
-        }
-        if (entry->snow_fall > 5.0f) {
-            modifier->step_size_mod = 0.7f;
-        }
+        modifier->step_size_mod *= temp_factor;
 
-        if (entry->wind_speed > 30.0f) {
-            modifier->directions_mod = 0.8f;
-            modifier->step_size_mod = 1.2f;
-        }
-        if (entry->wind_speed > 60.0f) {
-            modifier->directions_mod = 0.6f;
-            modifier->step_size_mod = 1.5f;
-        }
-
-        if (entry->cloud_cover > 70) {
-            modifier->diffusity_mod = 1.1f;
-        }
-        if (entry->precipitation > 20.0f || entry->snow_fall > 10.0f) {
-            modifier->diffusity_mod = 1.2f;
-        }
+        if (modifier->step_size_mod < 0.1f) modifier->step_size_mod = 0.1f;
+        if (modifier->directions_mod < 0.1f) modifier->directions_mod = 0.1f;
+        if (modifier->diffusity_mod < 0.5f) modifier->diffusity_mod = 0.5f;
     }
 }
 

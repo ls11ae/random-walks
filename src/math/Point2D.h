@@ -29,7 +29,8 @@ void point2d_array_free(Point2DArray *array);
 void point_2d_array_grid_free(WeatherInfluenceGrid *grid);
 
 
-WeatherInfluenceGrid *load_weather_grid(const char *filename_base, int grid_x, int grid_y, const DateTime *start_date,
+WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelParametersMapping *mapping, int grid_x,
+                                        int grid_y, const DateTime *start_date,
                                         const DateTime *end_date, int times, bool full_influence);
 
 #ifdef __cplusplus

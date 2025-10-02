@@ -237,31 +237,6 @@ int test_biased_walk_grid(WeatherInfluenceGrid *grid, const char *filename, ssiz
 }
 
 
-int test_serialization_terrain() {
-    TerrainMap terrain;
-    parse_terrain_map("../../resources/land3.txt", &terrain, ',');
-    DateTime dt1, dt2;
-    WeatherInfluenceGrid *grid = load_weather_grid("../../resources/my_gridded_weather_grid_csvs/", 3, 3, &dt1, &dt2,
-                                                   40, false);
-    printf("weather grid loaded\n");
-
-    const char *output_filename = "terrain_baboons.bin"; // Choose a descriptive filename
-    FILE *file = fopen(output_filename, "w+b"); // Open in write binary mode
-
-    if (file == NULL) {
-        perror("Error opening file for serialization");
-        return 1; // Indicate an error
-    }
-
-    const int S = 7;
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping, false);
-    serialize_kernels_map_4d(file, kmap);
-    auto *loaded_map = deserialize_kernels_map_4d(file);
-    std::cout << loaded_map->height << loaded_map->width << std::endl;
-    return 0;
-}
-
 int serialize_tensor() {
     // --- Create a KernelsMap4D instance for serialization ---
     FILE *fp = fopen("../../resources/tensor.bin", "w+b");
@@ -620,21 +595,21 @@ int main(int argc, char **argv) {
              "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
 
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-    auto t = 150;
+    auto t = 100;
     auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
     auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
-    auto grid_x = 5, grid_y = 5;
+    auto grid_x = 3, grid_y = 3;
     auto start_point = (TimedLocation){
-        .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){50, 50},
+        .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){70, 70},
     };
     auto goal_point = (TimedLocation){
         .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
-        .coordinates = (Point2D){125, 125},
+        .coordinates = (Point2D){135, 135},
     };
-    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping, grid_x,
-                              grid_y,
-                              start_point, goal_point, false, true);
+    auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping,
+                              grid_x, grid_y, start_point, goal_point, false, true);
     point2d_array_print(walk);
+
 
     //
     //generate_and_apply_terrain_kernels();

@@ -151,6 +151,14 @@ typedef enum {
     KPM_KIND_KERNELS
 } KernelMapKind;
 
+enum animal_type {
+    AIRBORNE,
+    AMPHIBIAN,
+    LIGHT,
+    MEDIUM,
+    HEAVY
+};
+
 typedef struct {
     enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
     bool has_forbidden_landmarks;
@@ -160,6 +168,7 @@ typedef struct {
     double transition_matrix[LAND_MARKS_COUNT][LAND_MARKS_COUNT];
 
     KernelMapKind kind;
+    enum animal_type animal;
 
     union {
         KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
@@ -168,13 +177,6 @@ typedef struct {
     } data;
 } KernelParametersMapping;
 
-enum animal_type {
-    AIRBORNE,
-    AMPHIBIAN,
-    LIGHT,
-    MEDIUM,
-    HEAVY
-};
 
 typedef struct {
     Matrix ***kernels;

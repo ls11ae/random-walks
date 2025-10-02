@@ -49,7 +49,8 @@ Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);
 
 void coordinate_array_free(Coordinate_array *coordinate_array);
 
-void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias, Point2D *bias, KernelModifier *modifier);
+void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias,
+                             const KernelParametersMapping *mapping, Point2D *bias, KernelModifier *modifier);
 
 void weather_entry_free(WeatherEntry *entry);
 
