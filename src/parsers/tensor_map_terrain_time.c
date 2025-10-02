@@ -12,10 +12,10 @@
 #include "parsers/terrain_parser.h"
 
 
-KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases, KernelModifier *mods,
+KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                         KernelParametersMapping *mapping) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased(terrain, biases, mods, mapping);
+    KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased(terrain, biases, NULL, mapping);
     const ssize_t terrain_width = terrain->width;
     const ssize_t terrain_height = terrain->height;
     const ssize_t time_steps = (ssize_t) tensor_set->time;

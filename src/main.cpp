@@ -264,8 +264,8 @@ void test_mixed() {
     const int S = 7;
 
     //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
-    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
