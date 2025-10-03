@@ -1,3 +1,7 @@
+#pragma once
+
+#include<stddef.h>
+
 /**
  * @file distribution.h
  * @brief Provides data structures and functions for various probability distributions.
