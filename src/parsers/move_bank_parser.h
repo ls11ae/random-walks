@@ -43,6 +43,14 @@ Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char 
 
 Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t length);
 
+WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelParametersMapping *mapping, int grid_x,
+                                        int grid_y, const DateTime *start_date,
+                                        const DateTime *end_date, int times, bool full_influence);
+
+void point_2d_array_grid_free(WeatherInfluenceGrid *grid);
+
+WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, size_t times);
+
 Point2DArray *getNormalizedLocations(const Coordinate_array *path, size_t W, size_t H);
 
 Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);

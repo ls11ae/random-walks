@@ -6,6 +6,7 @@
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
 #include "parsers/walk_json.h"
+#include "parsers/move_bank_parser.h"
 #include "walk/m_walk.h"
 
 

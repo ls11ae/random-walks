@@ -1,3 +1,6 @@
+/** @brief Bunch of mathematical / statistical functions
+*/
+
 #pragma once
 #include <stddef.h>
 #include <stdio.h>

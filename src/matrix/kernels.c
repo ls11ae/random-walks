@@ -262,7 +262,7 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const ssize_t subsampling,
 		}
 	}
 
-	matrix_normalize_01(kernel);
+	matrix_normalize_L1(kernel);
 	matrix_free(values);
 
 	return kernel;
@@ -308,7 +308,7 @@ Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
 		}
 	}
 
-	matrix_normalize_01(kernel);
+	matrix_normalize_L1(kernel);
 	matrix_free(values);
 	return kernel;
 }
@@ -320,7 +320,7 @@ Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel)
 	}
 	Matrix *combined = matrix_new(length_kernel->width, length_kernel->height);
 	matrix_convolution(length_kernel, angle_kernel, combined);
-	matrix_normalize_01(combined);
+	matrix_normalize_L1(combined);
 	return combined;
 }
 

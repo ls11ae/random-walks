@@ -314,20 +314,6 @@ void matrix_normalize_L1(Matrix *m) {
     }
 }
 
-void matrix_normalize_01(Matrix *m) {
-    if (!m || !m->data || m->len == 0) return;
-
-    double sum = 0;
-
-    // Minimum und Maximum finden
-    for (size_t i = 0; i < m->len; i++) {
-        sum += m->data[i];
-    }
-    // Werte normalisieren
-    for (size_t i = 0; i < m->len; i++) {
-        m->data[i] /= sum;
-    }
-}
 
 char *matrix_to_string(const Matrix *mat) {
     const char presition = 4;
