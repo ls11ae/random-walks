@@ -1,0 +1,13 @@
+PROJECT_NAME           = "@PROJECT_NAME@"
+PROJECT_BRIEF          = "Random Walk Simulation Library"
+OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIR@"
+GENERATE_LATEX         = NO
+GENERATE_HTML          = YES
+GENERATE_XML           = NO
+RECURSIVE              = YES
+INPUT                  = @PROJECT_SOURCE_DIR@/src
+FILE_PATTERNS          = *.h *.hpp *.c *.cpp *.cu
+EXTRACT_ALL            = YES
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = YES
+GENERATE_TREEVIEW      = YES
