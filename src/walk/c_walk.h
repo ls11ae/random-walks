@@ -54,9 +54,8 @@ Point2DArray *corr_terrain(TerrainMap *terrain, KernelParametersMapping *mapping
                            ssize_t end_x, ssize_t end_y);
 
 Tensor **c_walk_init_terrain(ssize_t W, ssize_t H, const Tensor *kernel, const TerrainMap *terrain_map,
-                             KernelParametersMapping *mapping,
-
-                             const KernelsMap3D *kernels_map, ssize_t T, ssize_t start_x, ssize_t start_y);
+                             KernelParametersMapping *mapping, const KernelsMap3D *kernels_map, ssize_t T,
+                             ssize_t start_x, ssize_t start_y);
 
 Point2DArray *c_walk_backtrace_multiple_no_terrain(ssize_t T_c, ssize_t W_c, ssize_t H_c, Tensor *kernel_c,
                                                    Point2DArray *steps_c);
