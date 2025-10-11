@@ -215,16 +215,14 @@ void kernels_map_free(KernelsMap *kernels_map) {
 void kernels_map3d_free(KernelsMap3D *map) {
     if (!map) return;
 
-    // Zuerst die einzelnen Tensoren freigeben (nur die Pointer, nicht die Daten)
+    // only pointers first
     if (map->kernels) {
         for (ssize_t y = 0; y < map->height; y++) {
-            // Die Tensor-Pointer werden vom Cache verwaltet, nicht hier freigeben
-            free(map->kernels[y]); // Nur das zweite Array freigeben
+            free(map->kernels[y]);
         }
-        free(map->kernels); // Das Hauptarray freigeben
+        free(map->kernels);
     }
 
-    // Dann den Cache freigeben (dies gibt auch die Tensor-Daten frei)
     if (map->cache) {
         cache_free(map->cache);
     }

@@ -106,7 +106,7 @@ void cache_free(Cache *cache) {
     for (size_t i = 0; i < cache->num_buckets; i++) {
         CacheEntry *entry = cache->buckets[i];
         while (entry != NULL) {
-            CacheEntry *next = entry->next; // Nächsten Eintrag sichern BEVOR wir den aktuellen freigeben
+            CacheEntry *next = entry->next;
 
             // Ressourcen freigeben
             if (entry->is_array) {
