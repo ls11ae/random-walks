@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #include "math/math_utils.h"
@@ -516,7 +517,8 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 
 	Point2D points[2] = {start.coordinates, goal.coordinates};
 	Point2DArray *steps = point_2d_array_new(points, 2);
-	save_walk_to_json(steps, walk, terrain, walk_path);
+	if (!strcmp(walk_path, "NULL"))
+		save_walk_to_json(steps, walk, terrain, walk_path);
 
 	point2d_array_print(walk);
 	if (dp != NULL) tensor4D_free(dp, T);

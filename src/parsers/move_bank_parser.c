@@ -335,9 +335,11 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
             }
             for (size_t t = 0; t < times; t++) {
                 Point2D *bias = &biases->data[gy][gx]->points[t];
-                KernelModifier *modifier = &biases->kernel_modifiers[gy][gx][t];
+                KernelModifier *modifier = NULL;
+                if (full_influence)
+                    modifier = &biases->kernel_modifiers[gy][gx][t];
                 KernelParameters *parameters = k_parameters_influenced(terrain_value, bias,
-                                                                       full_influence ? modifier : NULL,
+                                                                       modifier,
                                                                        kernels_mapping);
                 kernel_parameters_per_cell[y][x][t] = parameters;
                 if (parameters->D > max_D) {
@@ -352,6 +354,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
 
 
 WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries) {
+    printf("parse_csv: start_date=%d-%d-%d \n", start_date->year, start_date->month, start_date->day);
     if (csv_data == NULL || num_entries == NULL) {
         assert(num_entries);
         *num_entries = 0;
@@ -390,7 +393,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
         bool valid_entry = true;
 
         while (start && *start && col <= 10) {
-            const char *token = start;
+            char *token = start;
             char *next_comma = strchr(start, ',');
             if (next_comma) {
                 *next_comma = '\0';
@@ -399,16 +402,20 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
                 start = NULL;
             }
 
+            if (token[0] == '"' && token[strlen(token) - 1] == '"') {
+                token[strlen(token) - 1] = '\0';
+                token++;
+            }
+
             switch (col) {
                 case 2: {
                     DateTime dt = {0, 0, 0, 0};
                     int minutes = 0;
                     int result = sscanf(token, "%4d-%2d-%2dT%2d:%2d", &dt.year, &dt.month, &dt.day, &dt.hour, &minutes);
-
-                    if (result < 3) {
-                        sscanf(token, "%4d-%2d-%2d", &dt.year, &dt.month, &dt.day);
-                        dt.hour = 0;
-                    }
+                    if (result < 3)
+                        result = sscanf(token, "%4d-%2d-%2d %2d:%2d", &dt.year, &dt.month, &dt.day, &dt.hour, &minutes);
+                    if (result < 3)
+                        result = sscanf(token, "%4d-%2d-%2d", &dt.year, &dt.month, &dt.day);
 
                     if (!within_range(&dt, start_date, end_date)) {
                         valid_entry = false;
@@ -475,6 +482,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
         free(entries);
         entries = NULL;
     }
+    printf("number of entries %i\n", *num_entries);
 
     return entries;
 }

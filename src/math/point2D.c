@@ -206,7 +206,7 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelP
             Point2DArray *biases_at_yx = malloc(sizeof(Point2DArray));
             KernelModifier *modifiers_at_yx = calloc(times, sizeof(KernelModifier));
             if (!biases_at_yx || !modifiers_at_yx) {
-                perror("Failed to allocate memory");
+                perror("Failed to allocate memory for bias array or modifiers array");
                 exit(EXIT_FAILURE);
             }
             set_weather_influence(file_content, mapping, start_date, end_date, 5, times, biases_at_yx, modifiers_at_yx,
