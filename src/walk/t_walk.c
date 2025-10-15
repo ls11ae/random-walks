@@ -528,6 +528,9 @@ Point2DArray *time_walk_geo(ssize_t T, const char *csv_path, const char *terrain
 	}
 	point_2d_array_grid_free(grid);
 	terrain_map_free(terrain);
-
+	if (walk == NULL || walk->length == 0) {
+		perror("no walk");
+		return NULL;
+	}
 	return walk;
 }
