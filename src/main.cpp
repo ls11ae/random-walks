@@ -265,7 +265,7 @@ void test_mixed() {
 
     //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_JUNINHO_-52.5_-22.6_-52.3_-22.1_400.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_BUGALHO_-52.3_-22.6_-52.3_-22.5_400.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
@@ -278,6 +278,9 @@ void test_mixed() {
     // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
     // matrix_print(m);
     // return;
+
+    auto tmap = tensor_map_terrain(terrain, mapping);
+    return;
 
     Point2D steps[5];
     steps[0] = (Point2D){150, 50};

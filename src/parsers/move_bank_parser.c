@@ -40,77 +40,6 @@ Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t len
     return result;
 }
 
-Coordinate_array *extractLocationsFromCSV(const char *csv_file_path, const char *animal_id) {
-    FILE *file = fopen(csv_file_path, "r");
-    if (!file) {
-        printf("Could not open file %s\n", csv_file_path);
-        return NULL;
-    }
-
-    // Skip the header line
-    char line[1024];
-    if (fgets(line, sizeof(line), file) == NULL) {
-        fclose(file);
-        return NULL;
-    }
-
-    Coordinate *points = NULL;
-    size_t capacity = 0;
-    size_t count = 0;
-
-    while (fgets(line, sizeof(line), file)) {
-        Coordinate point = {0, 0}; // Initialize to zero
-        char line_copy[1024];
-        strncpy(line_copy, line, sizeof(line_copy));
-        line_copy[sizeof(line_copy) - 1] = '\0'; // Ensure null-termination
-
-        int column = 0;
-        char *token = strtok(line_copy, ",");
-        while (token) {
-            if (column == 3 || column == 4) {
-                char *endptr;
-                errno = 0;
-                double val = strtod(token, &endptr);
-
-                if (endptr != token && errno != ERANGE) {
-                    if (column == 3) {
-                        point.x = val;
-                    } else {
-                        point.y = val;
-                    }
-                }
-            }
-
-            token = strtok(NULL, ",");
-            column++;
-        }
-
-        // Add point to dynamic array
-        if (count >= capacity) {
-            size_t new_capacity = (capacity == 0) ? 16 : capacity * 2;
-            Coordinate *new_points = (Coordinate *) realloc(points, new_capacity * sizeof(Coordinate));
-            if (!new_points) {
-                free(points);
-                fclose(file);
-                return NULL;
-            }
-            points = new_points;
-            capacity = new_capacity;
-        }
-        assert(points);
-        points[count++] = point;
-    }
-
-    fclose(file);
-
-    // Create and return Point2DArray
-    Coordinate_array *result = coordinate_array_new(points, count);
-    free(points); // Free temporary buffer after copying (adjust if needed)
-    printf("successfully created coordinate array\n");
-
-    return result;
-}
-
 Point2DArray *getNormalizedLocations(const Coordinate_array *path, const size_t W, const size_t H) {
     if (path->length == 0) return NULL;
     printf("normalizing locations\n");
@@ -488,6 +417,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
 }
 
 void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_terrain) {
+    if (!kernel_parameters_terrain)return;
     const size_t height = kernel_parameters_terrain->height;
     KernelParameters ***kernel_parameters_per_cell = kernel_parameters_terrain->data;
     for (size_t y = 0; y < height; y++) {
@@ -498,6 +428,7 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
 }
 
 void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain) {
+    if (!kernel_parameters_terrain)return;
     size_t width = kernel_parameters_terrain->width;
     size_t height = kernel_parameters_terrain->height;
     size_t times = kernel_parameters_terrain->time;

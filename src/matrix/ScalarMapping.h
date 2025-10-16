@@ -4,7 +4,6 @@
  *
  * This library provides functions for creating, manipulating, and saving f64, int pairs
  *
- * @authors [Christian Miklar, Omar Chatila]
  *
  * @version 1.0.0
  * @date 2025-01-16
@@ -33,6 +32,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 #include <stddef.h>
@@ -47,10 +49,26 @@ typedef struct {
 
 typedef ScalarMapping *scalar_mappingRef;
 
+/**
+ *
+ * @param x value
+ * @param y value
+ * @return ScalarMapping pointer
+ */
 ScalarMapping *scalar_mapping_new(float x, uint32_t y);
 
+/**
+ *
+ * @param point Pointer to ScalarMapping to be modified
+ * @param x value
+ * @param y value
+ */
 void set_values(ScalarMapping *point, float x, uint32_t y);
 
+/**
+ *
+ * @param self frees ScalarMapping memory
+ */
 void scalar_mapping_delete(ScalarMapping *self);
 
 #ifdef __cplusplus

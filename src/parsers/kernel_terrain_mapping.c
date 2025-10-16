@@ -398,3 +398,17 @@ KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal
 KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size) {
     return create_default_kernels_internal(animal_type, base_step_size, MODE_CORRELATED);
 }
+
+void kernel_parameters_mapping_free(KernelParametersMapping *mapping) {
+    if (!mapping) return;
+    if (mapping->kind == KPM_KIND_KERNELS) {
+        for (size_t i = 0; i < LAND_MARKS_COUNT; ++i) {
+            Tensor *t = mapping->data.kernels[i];
+            if (t) {
+                tensor_free(t);
+                mapping->data.kernels[i] = NULL;
+            }
+        }
+    }
+    free(mapping);
+}

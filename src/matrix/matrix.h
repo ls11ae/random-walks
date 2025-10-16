@@ -48,6 +48,7 @@ extern "C" {
  * @param width The number of columns in the matrix.
  * @param height The number of rows in the matrix.
  * @return A pointer to the newly created Matrix, or NULL if allocation fails.
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
 Matrix *matrix_new(ssize_t width, ssize_t height);
 
@@ -192,7 +193,8 @@ Matrix *matrix_sub(const Matrix *a, const Matrix *b);
  * @param a A pointer to the first Matrix. Must not be NULL.
  * @param b A pointer to the second Matrix. Must not be NULL.
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
- */
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
+*/
 Matrix *matrix_mul(const Matrix *a, const Matrix *b);
 
 /**
@@ -203,6 +205,7 @@ Matrix *matrix_mul(const Matrix *a, const Matrix *b);
  * @param a A pointer to the first Matrix. Must not be NULL.
  * @param b A pointer to the second Matrix. Must not be NULL.
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
 Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
 
@@ -248,6 +251,7 @@ double matrix_determinant(const Matrix *mat);
  * 
  * @param input A pointer to the square Matrix to be inverted. Must not be NULL.
  * @return A pointer to the newly created Matrix containing the inverse, or NULL if the matrix is singular or allocation fails.
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
 Matrix *matrix_invert(const Matrix *input);
 
@@ -289,6 +293,7 @@ size_t matrix_save(const Matrix *mat, const char *filename);
  * 
  * @param filename The name of the file to load the matrix from.
  * @return A pointer to the newly created Matrix, or NULL on error.
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
 Matrix *matrix_load(const char *filename);
 
@@ -299,6 +304,7 @@ Matrix *matrix_load(const char *filename);
  * 
  * @param src A pointer to the Matrix to be cloned. Must not be NULL.
  * @return A pointer to the newly created clone of the Matrix, or NULL if allocation fails.
+ * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
 Matrix *matrix_clone(const Matrix *src);
 
