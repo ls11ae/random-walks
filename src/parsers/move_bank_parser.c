@@ -310,6 +310,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
     }
 
     char *line = strtok(data_copy, "\n");
+    WeatherEntry lastEntry;
     if (line != NULL) {
         line = strtok(NULL, "\n");
     }
@@ -394,6 +395,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
                 entries = temp;
             }
             entries[count] = entry;
+            lastEntry = entry;
             count++;
         }
 
@@ -409,8 +411,9 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
             entries = temp;
         }
     } else {
-        free(entries);
-        entries = NULL;
+        *num_entries = 1;
+        entries = malloc(sizeof(WeatherEntry));
+        *entries = lastEntry;
     }
     printf("number of entries %i\n", *num_entries);
 
