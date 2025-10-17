@@ -272,11 +272,6 @@ void terrain_map_free(TerrainMap *terrain_map) {
     free(terrain_map);
 }
 
-Matrix *kernel_at(const KernelsMap *kernels_map, ssize_t x, ssize_t y) {
-    assert(x < kernels_map->width && y < kernels_map->height&& x >= 0 && y >= 0);
-    return kernels_map->kernels[y][x];
-}
-
 TerrainMap *get_terrain_map(const char *file, const char delimiter) {
     TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
     if (parse_terrain_map(file, terrain_map, delimiter) != 0) {

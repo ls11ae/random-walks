@@ -11,9 +11,6 @@ extern "C" {
 #include <stdbool.h>
 #include <stdlib.h>
 
-KernelsMap *kernels_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Matrix *kernel);
-
-KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping *mapping, const Tensor *kernels);
 
 KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                         KernelParametersMapping *mapping);
@@ -21,6 +18,7 @@ KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2D
 KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, WeatherInfluenceGrid *biases,
                                              KernelParametersMapping *mapping, bool full_influence);
 
+[[deprecated]]
 void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, WeatherInfluenceGrid *biases,
                                                KernelParametersMapping *mapping,
                                                const char *output_path);
@@ -28,12 +26,6 @@ void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, WeatherInflu
 KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping);
 
 void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping, const char *output_path);
-
-Matrix *kernel_at(const KernelsMap *kernels_map, ssize_t x, ssize_t y);
-
-void kernels_map_free(KernelsMap *kernels_map);
-
-void tensor_map_free(KernelsMap **tensor_map, size_t D);
 
 void kernels_map3d_free(KernelsMap3D *kernels_map);
 
@@ -68,6 +60,7 @@ Tensor *tensor_at(const char *output_file, ssize_t x, ssize_t y);
 
 Tensor *tensor_at_xyt(const char *output_file, ssize_t x, ssize_t y, ssize_t t);
 
+[[deprecated]]
 void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain,
                                        KernelParametersMapping *mapping,
                                        const char *output_path);

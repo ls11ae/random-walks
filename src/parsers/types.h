@@ -175,13 +175,6 @@ typedef struct {
     } data;
 } KernelParametersMapping;
 
-
-typedef struct {
-    Matrix ***kernels;
-    ssize_t width, height;
-    Cache *cache;
-} KernelsMap;
-
 typedef struct {
     ssize_t max_D;
     ssize_t max_kernel_size;
