@@ -32,6 +32,18 @@ DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
     return dir_kernels_map;
 }
 
+void dir_kernels_free(DirKernelsMap *dir_kernels) {
+    if (!dir_kernels) return;
+    for (int d = 1; d <= dir_kernels->max_D; d++) {
+        for (int m = 1; m <= dir_kernels->max_kernel_size; m++) {
+            free_vector2d(dir_kernels->data[d][m]);
+        }
+        free(dir_kernels->data[d]);
+    }
+    free(dir_kernels->data);
+    free(dir_kernels);
+}
+
 TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const ssize_t height) {
     TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
     terrain_map->height = height;
@@ -155,47 +167,6 @@ KernelsMap3D *tensor_map_new(const TerrainMap *terrain, KernelParametersMapping 
     kernels_map->max_D = (ssize_t) kernels->len;
 
     return kernels_map;
-}
-
-static inline int landmark_to_index_from_value(int terrain_value) {
-    if (terrain_value == MANGROVES) return 9;
-    if (terrain_value == MOSS_AND_LICHEN) return 10;
-    if (terrain_value >= 10 && terrain_value <= 90 && terrain_value % 10 == 0)
-        return terrain_value / 10 - 1;
-    return -1; // invalid
-}
-
-
-Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
-                        const TensorSet *correlated_tensors, bool serialized) {
-    ssize_t M = p->S * 2 + 1;
-    Tensor *result = NULL;
-    if (p->is_brownian) {
-        double scale, sigma;
-        get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
-        Matrix *kernel;
-        if (full_bias)
-            kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
-        else
-            kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
-
-        result = tensor_new(M, M, 1);
-        result->len = 1;
-        result->data[0] = kernel;
-    } else {
-        int index = landmark_to_index_from_value(terrain_value);
-        assert(index >= 0 && index < LAND_MARKS_COUNT);
-
-        result = correlated_tensors->data[index];
-        if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
-            result = generate_kernels(p->D, 2 * p->S + 1);
-        }
-    }
-    assert(result);
-    if (serialized) {
-        return tensor_clone(result);
-    }
-    return result;
 }
 
 

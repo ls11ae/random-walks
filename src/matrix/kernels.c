@@ -325,10 +325,10 @@ Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel)
 }
 
 
-Tensor *generate_kernels(const ssize_t dirs, ssize_t size) {
+Tensor *generate_correlated_kernels(const ssize_t dirs, ssize_t size) {
 	Tensor *kernels = tensor_new(size, size, dirs);
-	Matrix *length_kernel = generate_length_kernel_ss(size, 10, 0.0047);
-	Matrix *angle_kernel = generate_angle_kernel_ss(size, 10);
+	Matrix *length_kernel = generate_length_kernel_ss(size, 1, 0.0047);
+	Matrix *angle_kernel = generate_angle_kernel_ss(size, 1);
 	Matrix *combined_kernel = generate_combined_kernel_ss(length_kernel, angle_kernel);
 
 	// discretize angles
@@ -340,7 +340,7 @@ Tensor *generate_kernels(const ssize_t dirs, ssize_t size) {
 	for (int i = 0; i < dirs; ++i) {
 		const double deg = angles[i];
 		Matrix *rotated_kernel = matrix_copy(combined_kernel);
-		rotate_kernel_ss(rotated_kernel, deg, 10);
+		rotate_kernel_ss(rotated_kernel, deg, 1);
 		matrix_normalize_L1(rotated_kernel);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
@@ -391,10 +391,51 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 		KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
 		ssize_t t_D = parameters->D;
 		ssize_t M = parameters->S * 2 + 1;
-		tensors[i] = generate_kernels(t_D, M);
+		tensors[i] = generate_correlated_kernels(t_D, M);
 		max_D = max_D > t_D ? max_D : t_D;
 	}
 	TensorSet *correlated_kernels = tensor_set_new(terrain_count, tensors);
 	correlated_kernels->max_D = max_D;
 	return correlated_kernels;
 }
+
+static inline int landmark_to_index_from_value(int terrain_value) {
+	if (terrain_value == MANGROVES) return 9;
+	if (terrain_value == MOSS_AND_LICHEN) return 10;
+	if (terrain_value >= 10 && terrain_value <= 90 && terrain_value % 10 == 0)
+		return terrain_value / 10 - 1;
+	return -1; // invalid
+}
+
+Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
+                        const TensorSet *correlated_tensors, bool serialized) {
+	ssize_t M = p->S * 2 + 1;
+	Tensor *result = NULL;
+	if (p->is_brownian) {
+		double scale, sigma;
+		get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
+		Matrix *kernel;
+		if (full_bias)
+			kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+		else
+			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+
+		result = tensor_new(M, M, 1);
+		result->len = 1;
+		result->data[0] = kernel;
+	} else {
+		int index = landmark_to_index_from_value(terrain_value);
+		assert(index >= 0 && index < LAND_MARKS_COUNT);
+
+		result = correlated_tensors->data[index];
+		if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
+			result = generate_correlated_kernels(p->D, 2 * p->S + 1);
+		}
+		assert(result);
+		if (serialized) {
+			return tensor_clone(result);
+		}
+	}
+	return result;
+}
+

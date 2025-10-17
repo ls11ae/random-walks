@@ -23,11 +23,14 @@
 #pragma once
 
 #ifdef __cplusplus
-extern "C" {    
+extern "C" {
+
+
+
 #endif
 
 #include "parsers/types.h"
-    
+
 /**
  * @brief Generate a Gaussian PDF matrix
  * 
@@ -91,7 +94,7 @@ Matrix *generate_chi_kernel(ssize_t size, ssize_t subsample_size, int k, int d);
  * @param size The size of the kernel (size x size)
  * @return A pointer to the generated Tensor
  */
-Tensor *generate_kernels(ssize_t dirs, ssize_t size);
+Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size);
 
 /**
  * @brief Generate Tensor containing d rotated versions of a given kernel matrix for Correlated Random Walks 
@@ -107,6 +110,18 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs);
  * @return A pointer to the generated TensorSet
  */
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
+
+/**
+ *
+ * @param p Parameters for kernel to be generated
+ * @param terrain_value Current terrain value
+ * @param full_bias True if biased kernels may have 0 probabilities, false otherwise
+ * @param correlated_tensors Set if pre-computed correlated kernels, defined by kernel_parameters_mapping
+ * @param serialized True if called from a serialized kernels map function, otherwise false
+ * @return
+ */
+Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
+                        const TensorSet *correlated_tensors, bool serialized);
 
 #ifdef __cplusplus
 }

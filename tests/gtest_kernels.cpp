@@ -13,7 +13,7 @@ TEST(GaussianKernel, RunsAndReturnsValidData) {
 }
 
 TEST(CorrelatedKernel, RunsAndReturnsValidData) {
-    Tensor *kernels = generate_kernels(16, 15);
+    Tensor *kernels = generate_correlated_kernels(16, 15);
     ASSERT_EQ(kernels->len, 16);
     ASSERT_EQ(kernels->data[0]->width, 15);
     ASSERT_EQ(kernels->data[0]->height, 15);

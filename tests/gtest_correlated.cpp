@@ -7,7 +7,7 @@
 TEST(CorrelatedTerrainMulti, RunsAndReturnsValidData) {
     ssize_t M = 11, W = 401, H = 401, T = 100;
     ssize_t D = 6;
-    Tensor *c_ke_tensor = generate_kernels(D, M);
+    Tensor *c_ke_tensor = generate_correlated_kernels(D, M);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
     auto mapping = create_default_correlated_mapping(MEDIUM, 5);
     auto tmap = tensor_map_new(terrain, mapping, c_ke_tensor);

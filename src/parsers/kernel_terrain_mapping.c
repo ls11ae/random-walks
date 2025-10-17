@@ -322,7 +322,7 @@ static Tensor *build_default_kernel_for(enum landmarkType terrain_value, const K
         Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, scale, p->bias_x, p->bias_y);
         return tensor_from_single_matrix(m);
     }
-    return generate_kernels(p->D, M);
+    return generate_correlated_kernels(p->D, M);
 }
 
 static KernelParametersMapping *create_default_kernels_internal(enum animal_type animal_type,
