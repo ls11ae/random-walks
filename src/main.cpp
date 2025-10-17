@@ -593,6 +593,7 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
+    auto c = 0;
     goto test_time_walk;
     {
         char walk_path_with_index[256];
@@ -646,8 +647,11 @@ test_time_walk: {
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         point2d_array_print(walk);
         point2d_array_free(walk);
+        kernel_parameters_mapping_free(mapping);
 
         printf("Time: %ld ms\n", duration.count());
+        if (++c <= 5)
+            goto test_time_walk;
         return 0;
     }
 test_m:

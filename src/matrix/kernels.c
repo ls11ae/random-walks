@@ -344,7 +344,6 @@ Tensor *generate_correlated_kernels(const ssize_t dirs, ssize_t size) {
 		matrix_normalize_L1(rotated_kernel);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
-	kernels->dir_kernel = get_dir_kernel(dirs, size);
 
 	matrix_free(length_kernel);
 	matrix_free(angle_kernel);
@@ -420,21 +419,25 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 		else
 			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
 
-		result = tensor_new(M, M, 1);
+		result = malloc(sizeof(Tensor));
+		result->dir_kernel = NULL;
+		result->data = malloc(sizeof(Matrix *));
 		result->len = 1;
 		result->data[0] = kernel;
-	} else {
-		int index = landmark_to_index_from_value(terrain_value);
-		assert(index >= 0 && index < LAND_MARKS_COUNT);
+		return result;
+	}
+	int index = landmark_to_index_from_value(terrain_value);
+	assert(index >= 0 && index < LAND_MARKS_COUNT);
 
-		result = correlated_tensors->data[index];
-		if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
-			result = generate_correlated_kernels(p->D, 2 * p->S + 1);
-		}
-		assert(result);
-		if (serialized) {
-			return tensor_clone(result);
-		}
+	result = correlated_tensors->data[index];
+	// Should only happen if called from time walker as weather can influense S and D
+	if (result->len != p->D || result->data[0]->width != 2 * p->S + 1) {
+		result = generate_correlated_kernels(p->D, 2 * p->S + 1);
+		return result;
+	}
+	assert(result);
+	if (serialized) {
+		return tensor_clone(result);
 	}
 	return result;
 }

@@ -242,21 +242,14 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  const ssize_t start_x,
                                  const ssize_t start_y) {
 	TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
-
-	const Tensor *start_kernel = generate_tensor(tensor_set->data[start_y][start_x][0],
-	                                             terrain_at(start_x, start_y, terrain_map),true, correlated_kernels,
-	                                             false);
+	Tensor *start_kernel = generate_tensor(tensor_set->data[start_y][start_x][0],
+	                                       terrain_at(start_x, start_y, terrain_map),true, correlated_kernels,
+	                                       false);
 
 	const size_t max_D = tensor_set->max_D;
 
 	W = terrain_map->width;
 	H = terrain_map->height;
-
-	const Matrix *map = matrix_new(W, H);
-	assert(map != NULL && "Failed to create matrix");
-	printf("START VAL: %f", 1.0 / (double) start_kernel->len);
-	assert(start_kernel->len > 0 && "Kernel length must be > 0");
-	matrix_set(map, start_x, start_y, 1.0 / (double) start_kernel->len);
 
 	assert(T >= 1);
 	assert(max_D >= 1);
@@ -273,14 +266,15 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 
 	for (int d = 0; d < max_D; d++) {
 		assert(DP_mat[0]->data[d] != NULL && "Matrix in tensor is NULL");
-		matrix_copy_to(DP_mat[0]->data[d], map);
+		matrix_set(DP_mat[0]->data[d], start_x, start_y, 1.0 / (double) start_kernel->len);
 	}
+	tensor_free(start_kernel);
 
 	for (ssize_t t = 1; t < T; t++) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				int terrain_val = terrain_at(x, y, terrain_map);
+				const int terrain_val = terrain_at(x, y, terrain_map);
 				if (terrain_val == 0) continue;
 
 				Tensor *tensor_at_t = generate_tensor(tensor_set->data[y][x][t], terrain_val, true,
@@ -405,6 +399,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 		}
 
 		free_Vector2D(dir_kernel);
+		free_tensor(current_tensor);
 
 		if (count == 0) {
 			free(movements_x);
@@ -427,7 +422,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 		free(prev_probs);
 		free(directions);
 	}
-
+	tensor_set_free(correlated_kernels);
 	path->points[0].x = x;
 	path->points[0].y = y;
 	return path;
