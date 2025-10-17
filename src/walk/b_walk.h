@@ -11,9 +11,11 @@ extern "C" {
 
 #endif
 
-Tensor *brownian_init(Matrix *kernel, ssize_t W, ssize_t H, ssize_t T, ssize_t start_x, ssize_t start_y);
+Tensor *brownian_init(const Matrix *kernel, ssize_t W, ssize_t H, ssize_t T, ssize_t start_x, ssize_t start_y);
 
-Point2DArray *brownian_backtrace(const Tensor *dp_tensor, Matrix *kernel, ssize_t end_x, ssize_t end_y);
+Point2DArray *brownian_backtrace(const Tensor *dp_tensor, const Matrix *kernel, ssize_t end_x, ssize_t end_y);
+
+Point2DArray *brownian_multi_step(ssize_t W, ssize_t H, ssize_t T, Matrix *kernel, Point2DArray *steps);
 
 
 #ifdef __cplusplus

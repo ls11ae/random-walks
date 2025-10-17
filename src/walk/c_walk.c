@@ -20,7 +20,7 @@
 #include "math/kernel_slicing.h"
 
 
-Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
+Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
                         const ssize_t start_y, bool use_serialization, const char *output_folder) {
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t S = (ssize_t) kernel->data[0]->width / 2;
@@ -148,9 +148,9 @@ Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_
 	return DP_mat;
 }
 
-Point2DArray *backtrace(bool use_serialization, Tensor **DP_Matrix, const char *dp_folder, const ssize_t T,
-                        const Tensor *kernel, ssize_t end_x, ssize_t end_y,
-                        ssize_t dir) {
+Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, const char *dp_folder, const ssize_t T,
+                                   const Tensor *kernel, ssize_t end_x, ssize_t end_y,
+                                   ssize_t dir) {
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	if (!path) {
 		perror("Failed to allocate path");
@@ -323,4 +323,67 @@ Point2DArray *backtrace(bool use_serialization, Tensor **DP_Matrix, const char *
 	path->points[0].x = x;
 	path->points[0].y = y;
 	return path;
+}
+
+Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder, ssize_t T,
+                                    const Tensor *kernel, Point2DArray *steps, ssize_t dir,
+                                    bool use_serialization) {
+	if (!steps || steps->length < 2) {
+		return NULL;
+	}
+	const ssize_t num_steps = (ssize_t) steps->length;
+	const ssize_t total_points = T * (num_steps - 1);
+
+	Point2DArray *result = malloc(sizeof(Point2DArray));
+	if (!result) return NULL;
+
+	result->points = malloc(total_points * sizeof(Point2D));
+	if (!result->points) {
+		free(result);
+		return NULL;
+	}
+	result->length = total_points;
+	size_t index = 0;
+	for (int i = 0; i < steps->length - 1; i++) {
+		const ssize_t start_x = steps->points[i].x;
+		const ssize_t start_y = steps->points[i].y;
+		const ssize_t end_x = steps->points[i + 1].x;
+		const ssize_t end_y = steps->points[i + 1].y;
+		Tensor **DP_Matrix = correlated_init(W, H, kernel, T, start_x, start_y, use_serialization, dp_folder);
+		if (!DP_Matrix) {
+			printf("dp calculation failed");
+			fflush(stdout); // Force output to appear
+
+			free(result->points);
+			free(result);
+			return NULL;
+		}
+		Point2DArray *pth = correlated_backtrace(use_serialization, DP_Matrix, dp_folder, T, kernel, end_x, end_y, dir);
+		tensor4D_free(DP_Matrix, T);
+		if (!pth) {
+			// Check immediately after calling backtrace
+			printf("points returned invalid\n");
+			printf("points returned invalid\n");
+			fflush(stdout); // Force output to appear
+
+			point2d_array_free(result);
+			point2d_array_free(pth);
+			return NULL;
+		}
+
+		// Ensure we don't exceed the allocated memory
+		if (index + pth->length > total_points) {
+			printf("%zu , %zu", index, pth->length);
+			point2d_array_free(pth);
+			free(result->points);
+			free(result);
+			tensor4D_free(DP_Matrix, T);
+			return NULL;
+		}
+
+		memcpy(&result->points[index], pth->points, pth->length * sizeof(Point2D));
+		index += pth->length;
+		point2d_array_free(pth);
+	}
+	return result;
 }

@@ -89,9 +89,10 @@ void test_mixed_gpu() {
 
 double test_corr(ssize_t D) {
     auto kernel = generate_correlated_kernels(4, 11);
-    auto dp = dp_calculation(30, 30, kernel, 30, 15, 15, true,
-                             "/home/omar/CLionProjects/random-walks/resources/dptmp");
-    auto walk = backtrace(true, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5, 5, 0);
+    auto dp = correlated_init(30, 30, kernel, 30, 15, 15, true,
+                              "/home/omar/CLionProjects/random-walks/resources/dptmp");
+    auto walk = correlated_backtrace(true, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5,
+                                     5, 0);
 
     point2d_array_print(walk);
 
