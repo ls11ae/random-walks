@@ -138,67 +138,6 @@ Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t
     return biases;
 }
 
-int test_biased_walk(Point2DArray *biases, KernelModifier *mods, const char *filename) {
-    TerrainMap terrain;
-    parse_terrain_map(filename, &terrain, ' ');
-    std::cout << terrain.width << " H: " << terrain.height << "\n";
-
-    const int T = 100;
-    const int S = 7;
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    // Kernel Map generieren mit terrain und bias timeline
-    KernelsMap4D *kmap = tensor_map_terrain_biased(&terrain, biases, mapping);
-
-    Point2D start = {200, 200};
-    Point2D goal = {390, 380};
-
-    const char *path = "";
-    auto dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false, path);
-    auto walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, false, path);
-
-    std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
-
-
-    save_walk_to_json(biases, walk, &terrain, "timewalk3.json");
-    point2d_array_print(walk);
-
-    tensor4D_free(dp, T);
-    point2d_array_free(biases);
-    point2d_array_free(walk);
-    return 0;
-}
-
-int test_biased_walk_grid(WeatherInfluenceGrid *grid, const char *filename, ssize_t W, ssize_t H, size_t T,
-                          Point2D start,
-                          Point2D goal) {
-    TerrainMap terrain;
-    parse_terrain_map(filename, &terrain, ' ');
-    terrain.width = W;
-    terrain.height = H;
-
-    // Kernel Map generieren mit terrain und bias timeline
-    const int S = 7;
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    KernelsMap4D *kmap = tensor_map_terrain_biased_grid(&terrain, grid, mapping, false);
-
-    Tensor **dp = mixed_walk_time(terrain.width, terrain.height, &terrain, mapping, kmap, T, start.x, start.y, false,
-                                  "");
-    std::cout << matrix_get(dp[T - 1]->data[0], goal.x, goal.y) << "\n";
-    Point2DArray *walk = backtrace_time_walk(dp, T, &terrain, mapping, kmap, goal.x, goal.y, 0, false, "");
-
-
-    Point2D *points = static_cast<Point2D *>(malloc(sizeof(Point2D) * 2));
-    points[0] = start;
-    points[1] = goal;
-
-    Point2DArray *steps = point_2d_array_new(points, 2);
-    save_walk_to_json(steps, walk, &terrain, "timewalk3.json");
-    point2d_array_print(walk);
-
-    return 0;
-}
-
-
 int serialize_tensor() {
     // --- Create a KernelsMap4D instance for serialization ---
     FILE *fp = fopen("../../resources/tensor.bin", "w+b");
@@ -214,12 +153,6 @@ int serialize_tensor() {
 }
 
 void test_time_walk() {
-    // auto mapping = create_default_mixed_mapping(MEDIUM, 7);
-    // auto walk = time_walk_geo(30, "../../resources/Collar 1630",
-    //                           "../../resources/landcover_Collar 1630_-5.0_6.7_-4.7_7.0_100.txt",
-    //                           "../../resources/time_walk.json", "", mapping, 5, 5, Point2D{29, 61}, Point2D{88, 62},
-    //                           false);
-    // point2d_array_print(walk);
 }
 
 void test_mixed() {
@@ -538,31 +471,33 @@ void generate_and_apply_terrain_kernels() {
 
 int main(int argc, char **argv) {
     auto c = 0;
-    goto test_m;
+    goto test_time_walk;
     {
         char walk_path_with_index[256];
         snprintf(walk_path_with_index, sizeof(walk_path_with_index),
                  "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
 
         KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-        auto t = 100;
+        auto t = 20;
         auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
-        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
+        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
         auto grid_x = 5, grid_y = 5;
         auto start_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 21, .hour = 0}, .coordinates = (Point2D){70, 70},
+            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 21, .hour = 0}, .coordinates = (Point2D){5, 5},
         };
         auto goal_point = (TimedLocation){
             .timestamp = (DateTime){.year = 2021, .month = 10, .day = 19, .hour = 0},
-            .coordinates = (Point2D){135, 135},
+            .coordinates = (Point2D){25, 25},
         };
         auto start = std::chrono::high_resolution_clock::now();
-        auto walk = time_walk_geo(t, csv_path, terrain_path, walk_path_with_index, "../../resources/tmap/", mapping,
-                                  grid_x, grid_y, start_point, goal_point, false, true);
+        auto walk = time_walk_geo_compact(t, csv_path, terrain_path, mapping,
+                                          grid_x, grid_y, start_point, goal_point, false);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         point2d_array_print(walk);
+
         point2d_array_free(walk);
+        kernel_parameters_mapping_free(mapping);
 
         printf("Time: %ld ms\n", duration.count());
         return 0;
@@ -572,6 +507,7 @@ test_time_walk: {
         auto t = 20;
         auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
         auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
+        auto ser_path = "/home/omar/CLionProjects/random-walks/resources/tmap";
         auto grid_x = 3, grid_y = 3;
         auto start_point = (TimedLocation){
             .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){5, 5},
@@ -582,7 +518,7 @@ test_time_walk: {
         };
         auto start = std::chrono::high_resolution_clock::now();
         auto walk = time_walk_geo_compact(t, csv_path, terrain_path, mapping,
-                                          grid_x, grid_y, start_point, goal_point, true);
+                                          grid_x, grid_y, start_point, goal_point, false);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         point2d_array_print(walk);
@@ -591,7 +527,7 @@ test_time_walk: {
         kernel_parameters_mapping_free(mapping);
 
         printf("Time: %ld ms\n", duration.count());
-        if (++c <= 5)
+        if (++c <= 0)
             goto test_time_walk;
         return 0;
     }
@@ -603,8 +539,8 @@ test_m:
     //correlated_cuda();
     //test_mixed_gpu();
     //test_mixed();
-    test_corr(4);
-    //test_time_walk();
+    //test_corr(4);
+    test_time_walk();
     // int max = 100;
     // printf("progress\n");
     // for (int i = 0; i < max; ++i) {

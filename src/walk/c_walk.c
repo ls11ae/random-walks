@@ -20,8 +20,6 @@
 #include "math/kernel_slicing.h"
 
 
-#define MKDIR(path) mkdir(path, 0755)
-
 Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
                         const ssize_t start_y, bool use_serialization, const char *output_folder) {
 	const ssize_t D = (ssize_t) kernel->len;
@@ -111,10 +109,10 @@ Tensor **dp_calculation(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_
 						assert(kernel_x >=0 && kernel_x <= 2 * S);
 						assert(kernel_y >=0 && kernel_y <= 2 * S);
 
+						double factor = matrix_get(angles_mask->data[d], kernel_x, kernel_y);
 						for (int di = 0; di < D; di++) {
 							double a = matrix_get(prev->data[di], xx, yy);
 							double b = matrix_get(kernel->data[di], kernel_x, kernel_y);
-							double factor = matrix_get(angles_mask->data[d], kernel_x, kernel_y);
 							//factor = 1.0;
 							sum += a * b * factor;
 						}

@@ -5,10 +5,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <linux/limits.h>
-
+#define MKDIR(path) mkdir(path, 0755)
 #ifdef __cplusplus
 extern "C" {
-
 
 
 #endif

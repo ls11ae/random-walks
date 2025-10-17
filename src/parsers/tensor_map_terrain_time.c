@@ -206,6 +206,7 @@ KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, WeatherInfluen
     printf("Recomputed: %i / %zu\n", recomputed, terrain_width * terrain->height * time_steps);
     kernels_map->cache = cache;
     kernel_parameters_mixed_free(tensor_set);
+    tensor_set_free(correlated_kernels);
     return kernels_map;
 }
 
