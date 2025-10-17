@@ -125,34 +125,19 @@ double test_corr(ssize_t D) {
 }
 
 double test_brownian() {
-    ssize_t M = 21, W = 401, H = 401, T = 200;
+    const ssize_t M = 11;
+    const ssize_t T = 20;
+    const ssize_t W = 100;
+    const ssize_t H = 100;
     Matrix *kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
-    Matrix *start_m = matrix_new(W, H);
-    matrix_set(start_m, 200, 200, 1.0);
-    TerrainMap *terrain = get_terrain_map("../../resources/landcover_142.txt", ' ');
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, (int) (M / 2));
-    auto start = std::chrono::high_resolution_clock::now();
-    auto *kernel_map = kernels_map_new(terrain, mapping, kernel);
-    auto *dp = b_walk_init_terrain(start_m, kernel, terrain, kernel_map, T);
+    auto dp = brownian_init(kernel, W, H, T, 50, 50);
+    auto walks = brownian_backtrace(dp, kernel, 10, 10);
+    point2d_array_print(walks);
 
-    Point2D steps[3];
-    steps[0] = (Point2D){.x = 200, .y = 200};
-    steps[1] = (Point2D){.x = 380, .y = 380};
-    steps[2] = (Point2D){.x = 80, .y = 380};
-    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
-    auto walk = b_walk_backtrace_multiple(T, W, H, kernel, kernel_map, steps_arr);
-    auto end = std::chrono::high_resolution_clock::now();
-
-    point2d_array_print(walk);
-    //kernels_map_free(kernel_map);
+    point2d_array_free(walks);
     tensor_free(dp);
-    point2d_array_free(walk);
-    matrix_free(start_m);
-    terrain_map_free(terrain);
-
-    std::chrono::duration<double> duration = end - start;
-    std::cout << "dp_calculation took " << duration.count() << " seconds\n";
-    return duration.count();
+    matrix_free(kernel);
+    return 0;
 }
 
 Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t bias_y) {
@@ -437,23 +422,6 @@ int test_geo_multi() {
     return 0;
 }
 
-int brw_test() {
-    size_t T = 700;
-    size_t W = 2 * T + 1, H = 2 * T + 1;
-    auto kernel = matrix_generator_gaussian_pdf(15, 15, 2, 1, 0, 0);
-    auto start_time = std::chrono::high_resolution_clock::now();
-    auto dp = brownian_walk_init(T, W, H, T, T, kernel);
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end_time - start_time;
-    auto wakl = b_walk_backtrace(dp, kernel, NULL, T / 3, T / 3);
-    std::cout << "Brownian walk initialization took " << duration.count() << " seconds\n";
-
-    tensor_free(dp);
-    point2d_array_free(wakl);
-    matrix_free(kernel);
-    return 0;
-}
-
 void brownian_cuda() {
 #ifdef USE_CUDA
     Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 6, 1, 0, 0);
@@ -657,7 +625,7 @@ test_m:
     //brownian_cuda();
     //correlated_cuda();
     //test_mixed_gpu();
-    test_mixed();
+    //test_mixed();
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");
@@ -670,5 +638,6 @@ test_m:
     // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
+    test_brownian();
     return 0;
 }
