@@ -487,3 +487,11 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 	return result;
 }
 
+Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height) {
+	Matrix *kernel = malloc(sizeof(Matrix));
+	kernel->data = array;
+	kernel->len = width * height;
+	kernel->width = width;
+	kernel->height = height;
+	return kernel;
+}

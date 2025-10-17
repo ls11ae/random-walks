@@ -123,6 +123,9 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized);
 
+
+Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height);
+
 #ifdef __cplusplus
 }
 #endif
