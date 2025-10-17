@@ -88,40 +88,17 @@ void test_mixed_gpu() {
 }
 
 double test_corr(ssize_t D) {
-    double ram = get_mem_available_mib();
-    int S = 7;
-    ssize_t M = 2 * S + 1, W = 401, H = 401, T = 200;
-    Tensor *c_ke_tensor;
-    if (D == 1) {
-        Matrix *b_kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
-        // matrix_print(b_kernel);
-        c_ke_tensor = tensor_new(M, M, 1);
-        c_ke_tensor->data[0] = b_kernel;
-    }
-    if (D > 16) M = 21;
-    c_ke_tensor = generate_correlated_kernels(D, M);
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
-    auto tmap = tensor_map_new(terrain, mapping, c_ke_tensor);
-    std::cout << "start_m\n";
-    Point2D steps[3];
-    steps[0] = (Point2D){.x = 200, .y = 200};
-    steps[1] = (Point2D){.x = 380, .y = 380};
-    steps[2] = (Point2D){.x = 180, .y = 300};
-    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
-    auto start = std::chrono::high_resolution_clock::now();
-    auto walk = c_walk_backtrace_multiple(T, W, H, c_ke_tensor, terrain, mapping, tmap, steps_arr);
-    point2d_array_print(walk);
-    // auto **DP = c_walk_init_terrain(W, H, c_ke_tensor, &terrain, t_map, T, 200, 200);
-    // auto walk = backtrace(DP, T, c_ke_tensor, &terrain, t_map, 380, 380, 0, D);
-    // point2d_array_print(walk);
+    auto kernel = generate_correlated_kernels(4, 11);
+    auto dp = dp_calculation(30, 30, kernel, 30, 15, 15, true,
+                             "/home/omar/CLionProjects/random-walks/resources/dptmp");
+    auto walk = backtrace(true, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5, 5, 0);
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    std::cout << "dp_calculation took " << duration.count() << " seconds\n";
-    //tensor4D_free(DP, T);
+    point2d_array_print(walk);
+
     point2d_array_free(walk);
-    return duration.count();
+    tensor_free(kernel);
+    tensor4D_free(dp, 30);
+    return 0;
 }
 
 double test_brownian() {
@@ -626,6 +603,7 @@ test_m:
     //correlated_cuda();
     //test_mixed_gpu();
     //test_mixed();
+    test_corr(4);
     //test_time_walk();
     // int max = 100;
     // printf("progress\n");
@@ -638,6 +616,6 @@ test_m:
     // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
-    test_brownian();
+    //test_brownian();
     return 0;
 }

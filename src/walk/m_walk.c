@@ -11,12 +11,6 @@
 #include "parsers/serialization.h"
 #include "parsers/walk_json.h"
 
-
-Point2DArray *mixed_walk(ssize_t W, ssize_t H, TerrainMap *spatial_map, KernelParametersMapping *mapping,
-                         KernelsMap3D *tensor_map, Tensor *c_kernel, ssize_t T, const Point2DArray *steps) {
-	return c_walk_backtrace_multiple(T, W, H, c_kernel, spatial_map, mapping, tensor_map, steps);
-}
-
 static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
                               const ssize_t T, const ssize_t start_x, const ssize_t start_y,
                               const char *serialize_dir) {

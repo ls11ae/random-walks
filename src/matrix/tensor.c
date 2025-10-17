@@ -378,6 +378,7 @@ Tensor *tensor_load(const char *foldername) {
 void *tensor4D_new(size_t width, size_t height, size_t depth);
 
 void tensor4D_free(Tensor **tensor, ssize_t T) {
+    if (!tensor || T == 0) return;
     for (ssize_t i = 0; i < T; ++i)
         tensor_free(tensor[i]);
     free(tensor);

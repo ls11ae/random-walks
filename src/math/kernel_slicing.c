@@ -16,46 +16,10 @@ double compute_angle_ks(double x, double y) {
 void compute_overlap_percentages(int W, int D, Tensor *tensor) {
     const int S = W / 2;
     const double angle_step = 360.0 / D;
-
-    // Allocate tensor data for D matrices
-    tensor->len = D;
-    tensor->data = (Matrix **) malloc(D * sizeof(Matrix *));
     if (!tensor->data) return;
-
-    for (int d = 0; d < D; ++d) {
-        Matrix *m = (Matrix *) malloc(sizeof(Matrix));
-        if (!m) {
-            // Cleanup previous allocations on failure
-            for (int i = 0; i < d; ++i) {
-                free(tensor->data[i]->data);
-                free(tensor->data[i]);
-            }
-            free(tensor->data);
-            tensor->data = NULL;
-            return;
-        }
-        m->width = W;
-        m->height = W;
-        m->len = W * W;
-        m->data = malloc(W * W * sizeof(double));
-        if (!m->data) {
-            free(m);
-            // Cleanup previous allocations on failure
-            for (int i = 0; i < d; ++i) {
-                free(tensor->data[i]->data);
-                free(tensor->data[i]);
-            }
-            free(tensor->data);
-            tensor->data = NULL;
-            return;
-        }
-        memset(m->data, 0, W * W * sizeof(double));
-        tensor->data[d] = m;
-    }
-
     const int steps = 100;
 
-#pragma omp parrallel for collapse(2) schedule(dynamic)
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (int x_center = -S; x_center <= S; ++x_center) {
         for (int y_center = -S; y_center <= S; ++y_center) {
             int grid_x = x_center + S;
