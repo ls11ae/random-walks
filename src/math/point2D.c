@@ -178,7 +178,6 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelP
     for (int y = 0; y < grid_y; ++y) {
         for (int x = 0; x < grid_x; ++x) {
             snprintf(filename, sizeof(filename), "%s/weather_grid_y%d_x%d.csv", filename_base, y, x);
-            printf("Loading weather influence from %s\n", filename);
             char *file_content = read_file_to_string(filename);
             if (!file_content) {
                 fprintf(stderr, "Failed to open or read file: %s\n", filename);

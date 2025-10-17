@@ -283,8 +283,6 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
 
 
 WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries) {
-    printf("start_date=%d-%d-%d -> end_date=%d-%d-%d \n", start_date->year, start_date->month,
-           start_date->day, end_date->year, end_date->month, end_date->day);
     if (csv_data == NULL || num_entries == NULL) {
         assert(num_entries);
         *num_entries = 0;
@@ -415,8 +413,6 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
         entries = malloc(sizeof(WeatherEntry));
         *entries = lastEntry;
     }
-    printf("number of entries %i\n", *num_entries);
-
     return entries;
 }
 

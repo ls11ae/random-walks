@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 
 #include "math/math_utils.h"
+#include "math/path_finding.h"
 #include "matrix/kernels.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
@@ -55,9 +56,40 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 				const int terrain_val = terrain_at(x, y, terrain_map);
 				if (terrain_val == 0) continue;
 
-				Tensor *tensor_at_t = generate_tensor(tensor_set->data[y][x][t], terrain_val, true,
-				                                      correlated_kernels, true);
-				const size_t D = tensor_at_t->len;
+				bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+				Matrix *soft_reach_mat = NULL;
+				Tensor *tensor_at_t;
+
+				size_t D;
+				if (mapping->kind == KPM_KIND_PARAMETERS) {
+					tensor_at_t = generate_tensor(tensor_set->data[y][x][t], terrain_val, true,
+					                              correlated_kernels, true);
+					D = tensor_at_t->len;
+					if (on_forbidden_terrain) {
+						apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
+					} else {
+						soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1,
+						                                              terrain_map, mapping);
+						for (ssize_t d = 0; d < D; d++) {
+							matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
+							matrix_normalize_L1(tensor_at_t->data[d]);
+						}
+					}
+				} else {
+					const int index = landmark_to_index(terrain_val);
+					tensor_at_t = tensor_clone(correlated_kernels->data[index]);
+					if (on_forbidden_terrain) {
+						apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
+					} else {
+						soft_reach_mat = get_reachability_kernel_soft(x, y, tensor_at_t->data[0]->width, terrain_map,
+						                                              mapping);
+						for (ssize_t d = 0; d < tensor_at_t->len; d++) {
+							matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
+							matrix_normalize_L1(tensor_at_t->data[d]);
+						}
+					}
+				}
+				matrix_free(soft_reach_mat);
 				Vector2D *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 
 				for (ssize_t d = 0; d < D; ++d) {
