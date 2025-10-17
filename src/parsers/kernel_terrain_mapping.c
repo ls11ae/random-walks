@@ -19,7 +19,6 @@ static Tensor *tensor_from_single_matrix(Matrix *m) {
         return NULL;
     }
     t->data[0] = m;
-    t->dir_kernel = NULL;
     return t;
 }
 

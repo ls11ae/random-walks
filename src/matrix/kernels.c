@@ -327,30 +327,56 @@ Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel)
 
 Tensor *generate_correlated_kernels(const ssize_t dirs, ssize_t size) {
 	Tensor *kernels = tensor_new(size, size, dirs);
+	if (!kernels) return NULL;
+
 	Matrix *length_kernel = generate_length_kernel_ss(size, 1, 0.0047);
 	Matrix *angle_kernel = generate_angle_kernel_ss(size, 1);
-	Matrix *combined_kernel = generate_combined_kernel_ss(length_kernel, angle_kernel);
+	Matrix *combined_kernel = NULL;
+	if (!length_kernel || !angle_kernel) goto cleanup;
 
-	// discretize angles
+	combined_kernel = generate_combined_kernel_ss(length_kernel, angle_kernel);
+	if (!combined_kernel) goto cleanup;
+
 	double *angles = calloc(dirs, sizeof(double));
+	if (!angles) goto cleanup;
+
 	for (size_t i = 0; i < dirs; ++i) {
 		angles[i] = (double) (i) * (360.0 / (double) dirs);
 	}
-	// create rotated combined kernels
+
 	for (int i = 0; i < dirs; ++i) {
 		const double deg = angles[i];
 		Matrix *rotated_kernel = matrix_copy(combined_kernel);
+		if (!rotated_kernel) {
+			// Clean up already allocated rotated kernels
+			for (int j = 0; j < i; ++j) {
+				matrix_free(kernels->data[j]);
+				kernels->data[j] = NULL;
+			}
+			goto cleanup_angles;
+		}
 		rotate_kernel_ss(rotated_kernel, deg, 1);
 		matrix_normalize_L1(rotated_kernel);
+
+		// Free the original matrix allocated by tensor_new before replacing
+		matrix_free(kernels->data[(dirs - i) % dirs]);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
 
+	free(angles);
 	matrix_free(length_kernel);
 	matrix_free(angle_kernel);
 	matrix_free(combined_kernel);
-	free(angles);
-
 	return kernels;
+
+cleanup_angles:
+	free(angles);
+cleanup:
+	matrix_free(length_kernel);
+	matrix_free(angle_kernel);
+	matrix_free(combined_kernel);
+	tensor_free(kernels);
+	return NULL;
 }
 
 Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
@@ -375,7 +401,6 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 		matrix_normalize_L1(rotated_kernel);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
-	kernels->dir_kernel = get_dir_kernel(dirs, size);
 
 	free(angles);
 	return kernels;
@@ -384,17 +409,38 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 	const int terrain_count = LAND_MARKS_COUNT;
 	Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
+	if (!tensors) return NULL;
 
 	size_t max_D = 0;
-	for (int i = 0; i < terrain_count; i++) {
+	int success = 1;
+
+	for (int i = 0; i < terrain_count && success; i++) {
 		KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
+		if (!parameters) {
+			success = 0;
+			continue;
+		}
 		ssize_t t_D = parameters->D;
 		ssize_t M = parameters->S * 2 + 1;
 		tensors[i] = generate_correlated_kernels(t_D, M);
-		max_D = max_D > t_D ? max_D : t_D;
+		if (!tensors[i]) {
+			success = 0;
+		} else {
+			max_D = max_D > t_D ? max_D : t_D;
+		}
 	}
-	TensorSet *correlated_kernels = tensor_set_new(terrain_count, tensors);
-	correlated_kernels->max_D = max_D;
+
+	TensorSet *correlated_kernels = NULL;
+	if (success) {
+		correlated_kernels = tensor_set_new(terrain_count, tensors);
+		if (correlated_kernels) {
+			correlated_kernels->max_D = max_D;
+		}
+	}
+
+	// free tensors array (TensorSet owns the Tensor objects now)
+	free(tensors);
+
 	return correlated_kernels;
 }
 
@@ -420,7 +466,6 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
 
 		result = malloc(sizeof(Tensor));
-		result->dir_kernel = NULL;
 		result->data = malloc(sizeof(Matrix *));
 		result->len = 1;
 		result->data[0] = kernel;

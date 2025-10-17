@@ -269,9 +269,6 @@ Tensor *deserialize_tensor(FILE *fp) {
         }
     }
 
-    // Deserialize Vector2D* dir_kernel
-    t->dir_kernel = NULL;
-
     return t;
 }
 
@@ -479,7 +476,6 @@ void free_tensor(Tensor *t) {
         }
         free(t->data);
     }
-    free_vector2d(t->dir_kernel);
     free(t);
 }
 

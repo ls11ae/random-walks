@@ -624,21 +624,17 @@ int main(int argc, char **argv) {
         return 0;
     }
 test_time_walk: {
-        char walk_path_with_index[256];
-        snprintf(walk_path_with_index, sizeof(walk_path_with_index),
-                 "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
-
         KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-        auto t = 100;
+        auto t = 20;
         auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
-        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt";
+        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
         auto grid_x = 3, grid_y = 3;
         auto start_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){70, 70},
+            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){5, 5},
         };
         auto goal_point = (TimedLocation){
             .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
-            .coordinates = (Point2D){135, 135},
+            .coordinates = (Point2D){25, 25},
         };
         auto start = std::chrono::high_resolution_clock::now();
         auto walk = time_walk_geo_compact(t, csv_path, terrain_path, mapping,
@@ -646,6 +642,7 @@ test_time_walk: {
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         point2d_array_print(walk);
+
         point2d_array_free(walk);
         kernel_parameters_mapping_free(mapping);
 

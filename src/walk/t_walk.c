@@ -369,19 +369,17 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 				const ssize_t prev_y = y - dy;
 
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
-				Tensor *prev_tensor = generate_tensor(tensor_set->data[y][x][t], terrain_val, true,
-				                                      correlated_kernels,true);
 
 				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
 
-				if (d >= prev_tensor->len) continue;
+				if (d >= current_tensor->len) continue;
 
 				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
 
 				const ssize_t kernel_x = dx + S;
 				const ssize_t kernel_y = dy + S;
 
-				const Matrix *current_kernel = prev_tensor->data[d];
+				const Matrix *current_kernel = current_tensor->data[d];
 
 				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= current_kernel->width || kernel_y >=
 				    current_kernel->height)

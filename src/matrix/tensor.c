@@ -36,7 +36,6 @@ Tensor *tensor_new(size_t width, size_t height, size_t depth) {
         return NULL;
     }
     t->len = depth;
-    t->dir_kernel = NULL;
     for (size_t i = 0; i < depth; i++) {
         Matrix *m = matrix_new(width, height);
         if (m == NULL) {
@@ -292,20 +291,6 @@ Tensor *tensor_clone(const Tensor *src) {
             free(clone);
             return NULL;
         }
-    }
-
-    if (src->dir_kernel) {
-        clone->dir_kernel = vector2d_clone(src->dir_kernel, clone->len);
-        if (!clone->dir_kernel) {
-            for (size_t i = 0; i < clone->len; i++) {
-                matrix_free(clone->data[i]);
-            }
-            free(clone->data);
-            free(clone);
-            return NULL;
-        }
-    } else {
-        clone->dir_kernel = NULL;
     }
 
     return clone;

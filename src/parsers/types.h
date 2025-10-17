@@ -40,7 +40,6 @@ typedef struct {
     //size_t *dim;
     size_t len;
     Matrix **data;
-    Vector2D *dir_kernel;
 } Tensor;
 
 

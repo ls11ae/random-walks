@@ -432,20 +432,23 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
 }
 
 void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain) {
-    if (!kernel_parameters_terrain)return;
-    size_t width = kernel_parameters_terrain->width;
-    size_t height = kernel_parameters_terrain->height;
-    size_t times = kernel_parameters_terrain->time;
-    KernelParameters ****kernel_parameters_per_cell = kernel_parameters_terrain->data;
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
-            for (size_t z = 0; z < times; z++) {
-                if (kernel_parameters_per_cell[y][x][z])
-                    free(kernel_parameters_per_cell[y][x][z]);
+    if (!kernel_parameters_terrain) return;
+
+    if (kernel_parameters_terrain->data) {
+        for (size_t h = 0; h < kernel_parameters_terrain->height; h++) {
+            if (kernel_parameters_terrain->data[h]) {
+                for (size_t w = 0; w < kernel_parameters_terrain->width; w++) {
+                    if (kernel_parameters_terrain->data[h][w]) {
+                        for (size_t t = 0; t < kernel_parameters_terrain->time; t++) {
+                            free(kernel_parameters_terrain->data[h][w][t]);
+                        }
+                        free(kernel_parameters_terrain->data[h][w]);
+                    }
+                }
+                free(kernel_parameters_terrain->data[h]);
             }
-            free(kernel_parameters_per_cell[y][x]);
         }
-        free(kernel_parameters_per_cell[y]);
+        free(kernel_parameters_terrain->data);
     }
     free(kernel_parameters_terrain);
 }

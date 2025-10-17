@@ -83,26 +83,6 @@ WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, si
             free(kernel_modifiers);
             return NULL;
         }
-
-        for (size_t j = 0; j < width; j++) {
-            data[i][j] = point_2d_array_new_empty(times);
-            kernel_modifiers[i][j] = malloc(times * sizeof(KernelModifier));
-            if (!data[i][j]) {
-                // Cleanup previously allocated memory
-                for (size_t k = 0; k <= i; k++) {
-                    for (size_t l = 0; l < (k == i ? j : width); l++) {
-                        point2d_array_free(data[k][l]);
-                        free(kernel_modifiers[k][l]);
-                    }
-                    free(data[k]);
-                    free(kernel_modifiers[k]);
-                }
-                free(data);
-                free(result);
-                free(kernel_modifiers);
-                return NULL;
-            }
-        }
     }
 
     result->height = height;
