@@ -265,7 +265,7 @@ void test_mixed() {
 
     //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_BUGALHO_-52.3_-22.6_-52.3_-22.5_400.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/land3.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
@@ -279,21 +279,17 @@ void test_mixed() {
     // matrix_print(m);
     // return;
 
-    auto tmap = tensor_map_terrain(terrain, mapping);
-    return;
 
-    Point2D steps[5];
-    steps[0] = (Point2D){150, 50};
-    steps[1] = (Point2D){80, 50};
-    steps[2] = (Point2D){100, 100};
-    steps[3] = (Point2D){80, 50};
-    steps[4] = steps[0];
-    auto kernel = generate_correlated_kernels(8, 15);
-    Point2DArray *step_arr = point_2d_array_new(steps, 5);
+    Point2D steps[3];
+    steps[0] = (Point2D){5, 5};
+    steps[1] = (Point2D){20, 20};
+    steps[2] = (Point2D){10, 10};
+
+    Point2DArray *step_arr = point_2d_array_new(steps, 3);
     auto t_map = tensor_map_terrain(terrain, mapping);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
     auto start_time = std::chrono::high_resolution_clock::now();
-    auto walk = m_walk_backtrace_multiple(350, t_map, terrain, mapping, step_arr, false, "", "");
+    auto walk = m_walk_backtrace_multiple(30, t_map, terrain, mapping, step_arr, false, "", "");
     save_walk_to_json(step_arr, walk, terrain, "timewalk_mixed.json");
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -301,9 +297,12 @@ void test_mixed() {
     //point2d_array_print(walk);
     printf("Steps in water: %i: %f %%\n", count_water_steps(walk, terrain),
            count_water_steps(walk, terrain) * 100.0 / static_cast<double>(walk->length));
+
+    kernel_parameters_mapping_free(mapping);
     terrain_map_free(terrain);
     point2d_array_free(walk);
-    tensor_free(kernel);
+    point2d_array_free(step_arr);
+    kernels_map3d_free(t_map);
 }
 
 void test_sym_link() {
@@ -594,7 +593,7 @@ void generate_and_apply_terrain_kernels() {
 
 int main(int argc, char **argv) {
     auto c = 0;
-    goto test_time_walk;
+    goto test_m;
     {
         char walk_path_with_index[256];
         snprintf(walk_path_with_index, sizeof(walk_path_with_index),

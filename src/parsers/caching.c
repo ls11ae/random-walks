@@ -70,14 +70,12 @@ Cache *cache_create(size_t num_buckets) {
 
 CacheEntry *cache_lookup_entry(Cache *cache, uint64_t hash) {
     size_t bucket = hash % cache->num_buckets;
-
     CacheEntry *entry = cache->buckets[bucket];
 
     while (entry != NULL) {
         if (entry->hash == hash) {
             return entry;
         }
-
         entry = entry->next;
     }
 

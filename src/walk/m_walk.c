@@ -132,9 +132,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 	max_D = kernels_map->max_D;
 
 	Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
-	Matrix *map = matrix_new(W, H);
 	const double init_value = 1.0f / (double) start_kernel->len;
-	matrix_set(map, start_x, start_y, init_value);
 	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
 	for (int i = 0; i < T; i++) {
 		Tensor *current = tensor_new(W, H, max_D);

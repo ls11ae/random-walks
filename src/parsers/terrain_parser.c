@@ -198,6 +198,10 @@ void kernels_map3d_free(KernelsMap3D *map) {
         cache_free(map->cache);
     }
 
+    if (map->dir_kernels) {
+        dir_kernels_free(map->dir_kernels);
+    }
+
     free(map);
 }
 
