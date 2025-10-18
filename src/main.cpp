@@ -105,15 +105,16 @@ double test_corr(ssize_t D) {
 double test_brownian() {
     const ssize_t M = 11;
     const ssize_t T = 20;
-    const ssize_t W = 100;
-    const ssize_t H = 100;
+    const ssize_t W = 50;
+    const ssize_t H = 50;
     Matrix *kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
-    auto dp = brownian_init(kernel, W, H, T, 50, 50);
-    auto walks = brownian_backtrace(dp, kernel, 10, 10);
-    point2d_array_print(walks);
 
-    point2d_array_free(walks);
-    tensor_free(dp);
+    Point2DArray *steps = point_2d_array_new((Point2D[]){{5, 5}, {30, 30}, {10, 10}, {40, 40}}, 4);
+    auto walk = brownian_multi_step(W, H, T, kernel, steps);
+    point2d_array_print(walk);
+
+    point2d_array_free(steps);
+    point2d_array_free(walk);
     matrix_free(kernel);
     return 0;
 }
@@ -471,6 +472,8 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main(int argc, char **argv) {
+    test_brownian();
+    return 0;
     auto c = 0;
     goto test_time_walk;
     {
