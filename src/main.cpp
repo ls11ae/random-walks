@@ -19,7 +19,7 @@
 #include "parsers/walk_json.h"
 #include <sys/time.h>
 
-#include "utils.h"
+#include "misc/utils.h"
 #include "math/path_finding.h"
 #include "math/kernel_slicing.h"
 #include "parsers/weather_parser.h"

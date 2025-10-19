@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "utils.h"
+#include "misc/utils.h"
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
 #include "parsers/weather_parser.h"

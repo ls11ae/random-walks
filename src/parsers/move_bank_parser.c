@@ -8,7 +8,7 @@
 #include <math.h>
 
 #include "kernel_terrain_mapping.h"
-#include "utils.h"
+#include "misc/utils.h"
 #include "weather_parser.h"
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,

@@ -117,6 +117,7 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 		if (!recompute || stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
 			printf("Using serialized data from %s\n", serialize_dir);
 			m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
+			return NULL;
 		}
 		tensor_map_terrain_serialize(terrain_map, mapping, serialize_dir);
 		m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);

@@ -112,18 +112,24 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs);
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
 
 /**
- *
+ * @brief Generate terrain dependant BW kernel from Kernel Parameters or return pre-calculated CW kernel
  * @param p Parameters for kernel to be generated
  * @param terrain_value Current terrain value
  * @param full_bias True if biased kernels may have 0 probabilities, false otherwise
  * @param correlated_tensors Set if pre-computed correlated kernels, defined by kernel_parameters_mapping
  * @param serialized True if called from a serialized kernels map function, otherwise false
- * @return
+ * @return Kernel taylored to terrain value and kernel parameters
  */
 Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
                         const TensorSet *correlated_tensors, bool serialized);
 
-
+/**
+ * @Brief Creates a Matrix ptr holding the kernel from a passed array
+ * @param array Kernel as a flat doubles array
+ * @param width Width of the kernel
+ * @param height Height of the kernel
+ * @return Kernel from an array
+ */
 Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height);
 
 #ifdef __cplusplus
