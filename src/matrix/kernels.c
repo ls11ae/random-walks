@@ -384,8 +384,9 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 	assert(base_kernel);
 	assert(base_kernel->width == base_kernel->height);
 
-	const ssize_t size = base_kernel->width;
-	Tensor *kernels = tensor_new(size, size, dirs);
+	Tensor *kernels = malloc(sizeof(Tensor));
+	kernels->data = malloc(dirs * sizeof(Matrix));
+	kernels->len = dirs;
 
 	// discretize angles
 	double *angles = calloc(dirs, sizeof(double));
@@ -397,7 +398,7 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 	for (int i = 0; i < dirs; ++i) {
 		const double deg = angles[i];
 		Matrix *rotated_kernel = matrix_copy(base_kernel);
-		rotate_kernel_ss(rotated_kernel, deg, 10);
+		rotate_kernel_ss(rotated_kernel, deg, 1);
 		matrix_normalize_L1(rotated_kernel);
 		kernels->data[(dirs - i) % dirs] = rotated_kernel;
 	}
