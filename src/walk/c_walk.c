@@ -21,7 +21,7 @@
 
 
 Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
-                        const ssize_t start_y, bool use_serialization, const char *output_folder) {
+                         const ssize_t start_y, bool use_serialization, const char *output_folder) {
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t S = (ssize_t) kernel->data[0]->width / 2;
 
@@ -350,7 +350,7 @@ Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder,
 		const ssize_t end_x = steps->points[i + 1].x;
 		const ssize_t end_y = steps->points[i + 1].y;
 		Tensor **DP_Matrix = correlated_init(W, H, kernel, T, start_x, start_y, use_serialization, dp_folder);
-		if (!DP_Matrix) {
+		if (!DP_Matrix && !use_serialization) {
 			printf("dp calculation failed");
 			fflush(stdout); // Force output to appear
 
