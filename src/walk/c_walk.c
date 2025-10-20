@@ -197,11 +197,9 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 	}
 
 	Tensor *angles_mask = NULL;
-	if (!use_serialization) {
-		// Only compute angles_mask for in-memory mode (as in original backtrace)
-		angles_mask = tensor_new(kernel_width, kernel_width, D);
-		compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
-	}
+	angles_mask = tensor_new(kernel_width, kernel_width, D);
+	compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+
 
 	size_t index = T - 1;
 	for (size_t t = T - 1; t >= 1; --t) {
