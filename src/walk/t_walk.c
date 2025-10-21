@@ -89,7 +89,8 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 						}
 					}
 				}
-				matrix_free(soft_reach_mat);
+				if (soft_reach_mat)
+					matrix_free(soft_reach_mat);
 				Vector2D *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 
 				for (ssize_t d = 0; d < D; ++d) {
