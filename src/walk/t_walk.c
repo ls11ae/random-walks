@@ -23,7 +23,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 	TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 	Tensor *start_kernel = generate_tensor(tensor_set->data[start_y][start_x][0],
 	                                       terrain_at(start_x, start_y, terrain_map),true, correlated_kernels,
-	                                       false);
+	                                       true);
 
 	const size_t max_D = tensor_set->max_D;
 
