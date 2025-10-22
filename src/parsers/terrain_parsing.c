@@ -231,14 +231,14 @@ TerrainMap *terrain_map_new(const ssize_t width, const ssize_t height) {
     map->width = width;
     map->height = height;
 
-    map->data = malloc(height * sizeof(int *));
+    map->data = calloc(height, sizeof(int *));
     if (!map->data) {
         free(map);
         return NULL;
     }
 
     for (ssize_t y = 0; y < height; ++y) {
-        map->data[y] = malloc(width * sizeof(int));
+        map->data[y] = calloc(width, sizeof(int));
         if (!map->data[y]) {
             for (ssize_t i = 0; i < y; ++i) free(map->data[i]);
             free(map->data);
@@ -279,47 +279,4 @@ TerrainMap *get_terrain_map(const char *file, const char delimiter) {
         exit(EXIT_FAILURE);
     }
     return terrain_map;
-}
-
-TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor) {
-    if (!terrain_map || factor <= 0.0) return NULL;
-
-    const ssize_t srcW = terrain_map->width;
-    const ssize_t srcH = terrain_map->height;
-
-    const ssize_t dstW = (ssize_t) llround((double)srcW * factor);
-    const ssize_t dstH = (ssize_t) llround((double)srcH * factor);
-    if (dstW <= 0 || dstH <= 0) return NULL;
-
-    TerrainMap *upscaled_map = terrain_map_new(dstW, dstH);
-    if (!upscaled_map) return NULL;
-
-    for (ssize_t y = 0; y < dstH; ++y) {
-        const ssize_t sy = (ssize_t) ((double) y / factor);
-        const ssize_t srcY = sy < 0 ? 0 : (sy >= srcH ? srcH - 1 : sy);
-        for (ssize_t x = 0; x < dstW; ++x) {
-            const ssize_t sx = (ssize_t) ((double) x / factor);
-            const ssize_t srcX = sx < 0 ? 0 : (sx >= srcW ? srcW - 1 : sx);
-            terrain_set(upscaled_map, x, y, terrain_at(srcX, srcY, terrain_map));
-        }
-    }
-    return upscaled_map;
-}
-
-TerrainMap *extract_terrain_from_endpoints(TerrainMap *terrain_map, ssize_t start_x, ssize_t start_y, ssize_t end_x,
-                                           ssize_t end_y) {
-    if (start_x < 0 || start_y < 0 || end_x < 0 || end_y < 0 || start_x >= terrain_map->width || start_y >= terrain_map
-        ->height || end_x >= terrain_map->width || end_y >= terrain_map->height) {
-        return NULL;
-    }
-    TerrainMap *terrain_subset = terrain_map_new(end_x - start_x + 1, end_y - start_y + 1);
-    if (!terrain_subset) {
-        return NULL;
-    }
-    for (ssize_t y = 0; y < terrain_subset->height; ++y) {
-        for (ssize_t x = 0; x < terrain_subset->width; ++x) {
-            terrain_set(terrain_subset, x, y, terrain_at(start_x + x, start_y + y, terrain_map));
-        }
-    }
-    return terrain_subset;
 }

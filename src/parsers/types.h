@@ -29,6 +29,22 @@ typedef struct {
     ssize_t y;
 } Point2D;
 
+enum bias_kind {
+    BIAS_KIND_OFFSET,
+    BIAS_KIND_ROTATION
+};
+
+typedef struct {
+    enum bias_kind kind;
+
+    union {
+        Point2D *offsets;
+        double *rotation_deg;
+    } data;
+
+    size_t len;
+} Biases;
+
 typedef struct {
     Point2D **data; // offsets per direction
     size_t *sizes; // No. offsets per direction

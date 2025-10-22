@@ -17,7 +17,6 @@ Point2DArray *brownian_backtrace(const Tensor *dp_tensor, const Matrix *kernel, 
 
 Point2DArray *brownian_multi_step(ssize_t W, ssize_t H, ssize_t T, Matrix *kernel, Point2DArray *steps);
 
-
 #ifdef __cplusplus
 }
 #endif

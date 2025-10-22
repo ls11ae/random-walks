@@ -30,6 +30,14 @@ extern "C" {
 #endif
 
 #include "parsers/types.h"
+/**
+ * @brief Rotate a kernel matrix by a given angle
+ *
+ * @param kernel The Matrix to be rotated
+ * @param deg The degree of the rotation
+ * @param subsampling Subsampling parameter
+*/
+void rotate_kernel_ss(Matrix *kernel, double deg, int subsampling);
 
 /**
  * @brief Generate a Gaussian PDF matrix

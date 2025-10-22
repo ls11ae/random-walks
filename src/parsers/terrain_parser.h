@@ -15,13 +15,6 @@ extern "C" {
 KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
                                         KernelParametersMapping *mapping);
 
-KernelsMap4D *tensor_map_terrain_biased_grid(TerrainMap *terrain, WeatherInfluenceGrid *biases,
-                                             KernelParametersMapping *mapping, bool full_influence);
-
-[[deprecated]]
-void tensor_map_terrain_biased_grid_serialized(TerrainMap *terrain, WeatherInfluenceGrid *biases,
-                                               KernelParametersMapping *mapping,
-                                               const char *output_path);
 
 KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping);
 
@@ -29,14 +22,7 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
 
 void kernels_map3d_free(KernelsMap3D *kernels_map);
 
-void kernels_map4d_free(KernelsMap4D *map);
-
 TerrainMap *get_terrain_map(const char *file, char delimiter);
-
-TerrainMap *upscale_terrain_map(const TerrainMap *terrain_map, double factor);
-
-TerrainMap *extract_terrain_from_endpoints(TerrainMap *terrain_map, ssize_t start_x, ssize_t start_y, ssize_t end_x,
-                                           ssize_t end_y);
 
 int terrain_at(ssize_t x, ssize_t y, const TerrainMap *terrain_map);
 
@@ -57,14 +43,6 @@ DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping);
 void dir_kernels_free(DirKernelsMap *dir_kernels);
 
 Tensor *tensor_at(const char *output_file, ssize_t x, ssize_t y);
-
-Tensor *tensor_at_xyt(const char *output_file, ssize_t x, ssize_t y, ssize_t t);
-
-[[deprecated]]
-void tensor_map_terrain_serialize_time(KernelParametersTerrainWeather *tensor_set_time, TerrainMap *terrain,
-                                       KernelParametersMapping *mapping,
-                                       const char *output_path);
-
 
 #ifdef __cplusplus
 }

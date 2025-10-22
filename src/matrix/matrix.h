@@ -132,7 +132,7 @@ int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
  * @param y The y-coordinate (row index).
  * @return The value at the specified coordinates.
  */
-double matrix_get(const Matrix *m, size_t x, size_t y);
+#define matrix_get(matrix, x, y) ((matrix)->data[(y) * matrix->width + (x)])
 
 /**
  * @brief Set the value at the specified (x, y) coordinates in the matrix.
@@ -142,7 +142,7 @@ double matrix_get(const Matrix *m, size_t x, size_t y);
  * @param y The y-coordinate (row index).
  * @param val The value to set at the specified coordinates.
  */
-void matrix_set(const Matrix *m, size_t x, size_t y, double val);
+#define matrix_set(matrix, x, y, value) ((matrix)->data[(y) * (matrix)->width + (x)] = (value))
 
 /**
  * @brief Fill the entire matrix with a specified value.

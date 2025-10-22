@@ -263,7 +263,7 @@ Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char 
 
 	dir_kernels_free(dir_kernels);
 	kernel_parameters_mixed_free(tensor_set);
-	point_2d_array_grid_free(grid);
+	weather_influence_grid_free(grid);
 	terrain_map_free(terrain);
 	if (walk == NULL || walk->length == 0) {
 		perror("no walk");

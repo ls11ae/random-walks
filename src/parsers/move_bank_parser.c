@@ -40,61 +40,6 @@ Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t len
     return result;
 }
 
-Point2DArray *getNormalizedLocations(const Coordinate_array *path, const size_t W, const size_t H) {
-    if (path->length == 0) return NULL;
-    printf("normalizing locations\n");
-
-    // Find the min and max values for x and y
-    double minX = path->points[0].x, maxX = path->points[0].x;
-    double minY = path->points[0].y, maxY = path->points[0].y;
-
-    for (size_t i = 0; i < path->length; ++i) {
-        const double x = path->points[i].x, y = path->points[i].y;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-    }
-
-    // Normalize each point to the range [0, W] and [0, H]
-    Point2DArray *normalizedPath = (Point2DArray *) malloc(sizeof(Point2DArray));
-    Point2D *points = (Point2D *) malloc(path->length * sizeof(Point2D));
-    normalizedPath->points = points;
-    normalizedPath->length = path->length;
-
-    for (size_t i = 0; i < path->length; ++i) {
-        const double x = path->points[i].x;
-        const double y = path->points[i].y;
-
-        const ssize_t normalizedX = (ssize_t) ((x - minX) / (maxX - minX) * (float) W);
-        const ssize_t normalizedY = (ssize_t) ((y - minY) / (maxY - minY) * (float) H);
-
-        const Point2D normalizedPoint = {normalizedX, normalizedY};
-        normalizedPath->points[i] = normalizedPoint;
-    }
-
-    return normalizedPath;
-}
-
-Point2DArray *extractSteps(const Point2DArray *path, const size_t step_count) {
-    const size_t delta = (path->length - 1) / step_count;
-    Point2DArray *gap_path = (Point2DArray *) malloc(sizeof(Point2DArray));
-    gap_path->points = (Point2D *) malloc(step_count * sizeof(Point2D));
-    gap_path->length = step_count;
-    for (int i = 0; i < step_count - 1; i++) {
-        gap_path->points[i] = path->points[i * delta];
-    }
-    gap_path->points[gap_path->length - 1] = path->points[path->length - 1];
-    return gap_path;
-}
-
-void coordinate_array_free(Coordinate_array *coordinate_array) {
-    if (coordinate_array) {
-        free(coordinate_array->points);
-        free(coordinate_array);
-    }
-}
-
 KernelParameters *kernel_parameters_new(const int terrain_value, const WeatherEntry *weather_entry,
                                         KernelParametersMapping *kernels_mapping) {
     KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
@@ -115,7 +60,7 @@ KernelParameters *kernel_parameters_new(const int terrain_value, const WeatherEn
     return params;
 }
 
-KernelParameters *kernel_parameters_terrain(const int terrain_value, KernelParametersMapping *kernels_mapping) {
+KernelParameters *kernel_parameters_of_landmark(const int terrain_value, KernelParametersMapping *kernels_mapping) {
     KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
     if (!params) {
         perror("Failed to allocate memory for KernelParameters");
@@ -139,7 +84,7 @@ KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D
                                           const KernelModifier *modifier,
                                           KernelParametersMapping *kernels_mapping) {
     KernelParameters *terrain_dependant = copy_kernel_parameters(
-        kernel_parameters_terrain(terrain_value, kernels_mapping));
+        kernel_parameters_of_landmark(terrain_value, kernels_mapping));
 
     terrain_dependant->bias_x = (biases->x <= terrain_dependant->bias_x) ? biases->x : terrain_dependant->bias_x;
     terrain_dependant->bias_y = (biases->y <= terrain_dependant->bias_y) ? biases->y : terrain_dependant->bias_y;
@@ -176,46 +121,6 @@ KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelPa
             const int terrain_value = terrain->data[y][x];
             KernelParameters *parameters = get_parameters_of_terrain(kernels_mapping, terrain_value);
             kernel_parameters_per_cell[y][x] = parameters;
-        }
-    }
-    return kernel_parameters;
-}
-
-
-KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
-                                                           const KernelModifier *modifiers,
-                                                           KernelParametersMapping *kernels_mapping) {
-    const size_t width = terrain->width;
-    const size_t height = terrain->height;
-    const size_t times = biases->length;
-
-    KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
-    kernel_parameters->width = width;
-    kernel_parameters->height = height;
-    kernel_parameters->time = times;
-
-    KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
-    for (size_t h = 0; h < height; h++) {
-        kernel_parameters_per_cell[h] = (KernelParameters ***) malloc(sizeof(KernelParameters **) * width);
-        for (size_t w = 0; w < width; w++) {
-            kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
-        }
-    }
-    kernel_parameters->data = kernel_parameters_per_cell;
-
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
-            const int terrain_value = terrain->data[y][x];
-
-            for (size_t t = 0; t < times; t++) {
-                Point2D *bias = &biases->points[t];
-                const KernelModifier *mod = NULL;
-                if (modifiers)
-                    mod = &modifiers[t];
-
-                KernelParameters *parameters = k_parameters_influenced(terrain_value, bias, mod, kernels_mapping);
-                kernel_parameters_per_cell[y][x][t] = parameters;
-            }
         }
     }
     return kernel_parameters;
@@ -450,7 +355,7 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
 }
 
 
-void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias,
+void apply_weather_influence(const WeatherEntry *entry, const ssize_t max_bias,
                              const KernelParametersMapping *mapping, Point2D *bias, KernelModifier *modifier) {
     const float MAX_WIND_SPEED = 120.0f;
     const float MIN_BIAS_THRESHOLD = 1.0f;

@@ -14,7 +14,7 @@ DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
     ssize_t max_M = 0;
     ssize_t max_D = 0;
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
+        KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
         const ssize_t t_D = parameters->D;
         const ssize_t m = parameters->S * 2 + 1;
         max_D = max_D > t_D ? max_D : t_D;
@@ -79,37 +79,6 @@ void kernels_map3d_free(KernelsMap3D *map) {
 
     free(map);
 }
-
-void kernels_map4d_free(KernelsMap4D *km) {
-    if (!km) return;
-
-    // Free the 4D array of tensor pointers
-    if (km->kernels) {
-        for (ssize_t y = 0; y < km->height; y++) {
-            if (km->kernels[y]) {
-                for (ssize_t x = 0; x < km->width; x++) {
-                    if (km->kernels[y][x]) {
-                        // Free the time dimension array
-                        free(km->kernels[y][x]);
-                    }
-                }
-                // Free the x dimension array
-                free(km->kernels[y]);
-            }
-        }
-        // Free the y dimension array
-        free(km->kernels);
-    }
-
-    // Free the cache (this will free the actual tensor data)
-    if (km->cache) {
-        cache_free(km->cache);
-    }
-
-    // Free the structure itself
-    free(km);
-}
-
 
 Tensor *tensor_at(const char *output_path, ssize_t x, ssize_t y) {
     char path[256];

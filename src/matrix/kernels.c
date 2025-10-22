@@ -416,7 +416,7 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 	int success = 1;
 
 	for (int i = 0; i < terrain_count && success; i++) {
-		KernelParameters *parameters = kernel_parameters_terrain(landmarks[i], mapping);
+		KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
 		if (!parameters) {
 			success = 0;
 			continue;

@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "misc/utils.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
 #include "parsers/weather_parser.h"
@@ -115,7 +116,7 @@ void point2d_array_free(Point2DArray *array) {
     }
 }
 
-void point_2d_array_grid_free(WeatherInfluenceGrid *grid) {
+void weather_influence_grid_free(WeatherInfluenceGrid *grid) {
     if (!grid) return;
 
     for (size_t i = 0; i < grid->height; i++) {
@@ -174,6 +175,22 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelP
     if (!grid) return NULL;
 
     char filename[512];
+    ssize_t max_bias = 0;
+    const ssize_t S = mapping->data.parameters[landmark_to_index(GRASSLAND)].S;
+    switch (mapping->animal) {
+        case LIGHT: max_bias = 2 * S / 3;
+            break;
+        case MEDIUM: max_bias = S / 2;
+            break;
+        case HEAVY: max_bias = S / 3;
+            break;
+        case AIRBORNE: max_bias = S;
+            break;
+        case AMPHIBIAN: max_bias = S / 2;
+            break;
+        default: ;
+            break;
+    }
 
     for (int y = 0; y < grid_y; ++y) {
         for (int x = 0; x < grid_x; ++x) {
@@ -189,7 +206,8 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelP
                 perror("Failed to allocate memory for bias array or modifiers array");
                 exit(EXIT_FAILURE);
             }
-            set_weather_influence(file_content, mapping, start_date, end_date, 5, times, biases_at_yx, modifiers_at_yx,
+            set_weather_influence(file_content, mapping, start_date, end_date, max_bias, times, biases_at_yx,
+                                  modifiers_at_yx,
                                   full_influence);
             free(file_content);
 

@@ -101,19 +101,6 @@ int matrix_in_bounds(const Matrix *matrix, size_t x, size_t y) {
     return x < matrix->width && y < matrix->height;
 }
 
-double matrix_get(const Matrix *matrix, const size_t x, const size_t y) {
-    assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
-    assert(x >= 0 && y >= 0 && x < matrix->width && y < matrix->height);
-    return matrix->data[y * matrix->width + x];
-}
-
-void matrix_set(const Matrix *matrix, const size_t x, const size_t y, double val) {
-    assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
-    assert(x >= 0 && y >= 0 && x < matrix->width && y < matrix->height);
-    matrix->data[y * matrix->width + x] = val;
-}
-
-
 void matrix_fill(Matrix *matrix, const double value) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     if (value == 0.0) {
@@ -410,7 +397,8 @@ Matrix *matrix_clone(const Matrix *src) {
 void matrix_print(const Matrix *m) {
     for (size_t i = 0; i < m->height; i++) {
         for (size_t j = 0; j < m->width; j++) {
-            printf("%0.5f ", matrix_get(m, j, i)); // Werte auf 3 Dezimalstellen
+            printf("%0.5f ", matrix_get(m, j, i)
+            ); // Werte auf 3 Dezimalstellen
         }
         printf("\n");
     }

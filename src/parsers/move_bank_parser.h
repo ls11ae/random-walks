@@ -53,18 +53,6 @@ KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D
                                           KernelParametersMapping *kernels_mapping);
 
 /**
- * @brief Build a time-aware parameter grid influenced by a bias field.
- * @param terrain Input terrain map.
- * @param biases Per-cell bias vectors over time.
- * @param modifier Optional global modifier to adjust kernel behavior.
- * @param kernels_mapping Mapping providing base parameters/kernels per terrain class.
- * @return Newly allocated KernelParametersTerrainWeather grid, or NULL on failure.
- */
-KernelParametersTerrainWeather *get_kernels_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
-                                                           const KernelModifier *modifier,
-                                                           KernelParametersMapping *kernels_mapping);
-
-/**
  * @brief Parse weather data from CSV into a contiguous array of WeatherEntry.
  * @param csv_data In-memory CSV content to parse.
  * @param start_date Optional inclusive start datetime filter; pass NULL for no lower bound.
@@ -105,7 +93,7 @@ void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_paramet
  * @param kernels_mapping Mapping that provides parameters for terrain classes.
  * @return Pointer to KernelParameters for the terrain, or NULL if unavailable.
  */
-KernelParameters *kernel_parameters_terrain(int terrain_value, KernelParametersMapping *kernels_mapping);
+KernelParameters *kernel_parameters_of_landmark(int terrain_value, KernelParametersMapping *kernels_mapping);
 
 /**
  * @brief Compute kernel parameters for a terrain class influenced by a weather entry.
@@ -137,7 +125,7 @@ WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelP
  * @brief Free a WeatherInfluenceGrid instance.
  * @param grid Grid to free. It is safe to pass NULL.
  */
-void point_2d_array_grid_free(WeatherInfluenceGrid *grid);
+void weather_influence_grid_free(WeatherInfluenceGrid *grid);
 
 /**
  * @brief Allocate a new WeatherInfluenceGrid with specified dimensions.
@@ -147,29 +135,6 @@ void point_2d_array_grid_free(WeatherInfluenceGrid *grid);
  * @return Newly allocated grid, or NULL on failure.
  */
 WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, size_t times);
-
-/**
- * @brief Normalize geographic coordinates into discrete grid cell locations.
- * @param path Sequence of coordinates to normalize.
- * @param W Target grid width.
- * @param H Target grid height.
- * @return Newly allocated array of grid points, or NULL on failure.
- */
-Point2DArray *getNormalizedLocations(const Coordinate_array *path, size_t W, size_t H);
-
-/**
- * @brief Convert a path into a fixed number of step vectors.
- * @param path Sequence of grid points.
- * @param step_count Number of steps to extract.
- * @return Newly allocated array of step vectors, or NULL on failure.
- */
-Point2DArray *extractSteps(const Point2DArray *path, size_t step_count);
-
-/**
- * @brief Free a Coordinate_array.
- * @param coordinate_array Pointer to free. It is safe to pass NULL.
- */
-void coordinate_array_free(Coordinate_array *coordinate_array);
 
 /**
  * @brief Apply a single weather entry to derive movement biases and kernel modifiers.

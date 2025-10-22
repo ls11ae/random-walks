@@ -31,6 +31,7 @@
 #include "cuda/correlated_gpu.h"
 #include "cuda/mixed_gpu.h"
 #include "matrix/kernels.h"
+#include "walk/bs_walk.h"
 
 double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
@@ -87,7 +88,7 @@ void test_mixed_gpu() {
 #endif
 }
 
-double test_corr(ssize_t D) {
+double test_corr(ssize_t D = 8) {
     auto kernel = generate_correlated_kernels(4, 11);
     auto dp = correlated_init(30, 30, kernel, 30, 15, 15, true,
                               "/home/omar/CLionProjects/random-walks/resources/dptmp");
@@ -471,11 +472,51 @@ void generate_and_apply_terrain_kernels() {
     apply_terrain_bias(13, 6, terrain1, tensor1, mapping);
 }
 
-int main(int argc, char **argv) {
-    test_brownian();
+int main() {
+    auto matrix = matrix_generator_gaussian_pdf(15, 15, 5, 1, 0, 0);
+    auto times = 100;
+    auto SIZE = 400;
+    Point2D points[times];
+    for (int i = 0; i < times; ++i) {
+        if (i < times / 3)
+            points[i] = (Point2D){-5, 0};
+        else if (i < 2 * times / 3)
+            points[i] = (Point2D){0, 0};
+        else
+            points[i] = (Point2D){5, 0};
+    }
+
+
+    Biases bs;
+    bs.kind = BIAS_KIND_OFFSET;
+    bs.data.offsets = points;
+    bs.len = times;
+
+    auto start = Point2D{200, 50};
+    auto end = Point2D{200, 180};
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto tensor = biased_brownian_init(&bs, matrix, SIZE, SIZE, bs.len, start.x, start.y);
+    auto walk = biased_brownian_backtrace(tensor, &bs, matrix, end.x, end.y);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
+    Point2D stepss[] = {start, end};
+
+    auto steps = (Point2DArray){.points = stepss, .length = 2};
+    save_walk_to_json(&steps, walk, terrain, "../../resources/biased.json");
+
+    printf("Time: %ld ms\n", duration.count());
+    terrain_map_free(terrain);
+    point2d_array_print(walk);
+    point2d_array_free(walk);
+    tensor_free(tensor);
+    matrix_free(matrix);
     return 0;
-    auto c = 0;
-    goto test_time_walk;
+
+    goto
+            test_time_walk;
+
     {
         char walk_path_with_index[256];
         snprintf(walk_path_with_index, sizeof(walk_path_with_index),
@@ -506,7 +547,7 @@ int main(int argc, char **argv) {
         printf("Time: %ld ms\n", duration.count());
         return 0;
     }
-test_time_walk: {
+test_time_walk : {
         KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
         auto t = 20;
         auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
@@ -531,11 +572,11 @@ test_time_walk: {
         kernel_parameters_mapping_free(mapping);
 
         printf("Time: %ld ms\n", duration.count());
-        if (++c <= 0)
-            goto test_time_walk;
+
         return 0;
     }
-test_m:
+
+test_m :
     //
     //generate_and_apply_terrain_kernels();
     //display_kernels();
@@ -557,5 +598,6 @@ test_m:
     // upscale_terrain_map(terrain3, 2.0);
     //test_mixed();
     //test_brownian();
-    return 0;
+    return
+            0;
 }
