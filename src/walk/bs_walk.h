@@ -15,6 +15,12 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, ss
 
 Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *biases, const Matrix *base_kernel,
                                         ssize_t x, ssize_t y);
+
+Biases *create_biases_offsets(const Point2D *offsets, size_t len);
+
+Biases *create_biases_rotation(const double *rotation_deg, size_t len);
+
+void free_biases(Biases *biases);
 #ifdef __cplusplus
 }
 #endif

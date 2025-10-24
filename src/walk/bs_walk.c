@@ -142,7 +142,7 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 	return result;
 }
 
-Biases *create_biases_offsets(Point2D *offsets, size_t len) {
+Biases *create_biases_offsets(const Point2D *offsets, size_t len) {
 	Biases *biases = (Biases *) malloc(sizeof(Biases));
 	if (!biases) return NULL;
 
@@ -159,7 +159,7 @@ Biases *create_biases_offsets(Point2D *offsets, size_t len) {
 	return biases;
 }
 
-Biases *create_biases_rotation(double *rotation_deg, size_t len) {
+Biases *create_biases_rotation(const double *rotation_deg, size_t len) {
 	Biases *biases = (Biases *) malloc(sizeof(Biases));
 	if (!biases) return NULL;
 	biases->kind = BIAS_KIND_ROTATION;
