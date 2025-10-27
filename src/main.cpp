@@ -90,9 +90,9 @@ void test_mixed_gpu() {
 
 double test_corr(ssize_t D = 8) {
     auto kernel = generate_correlated_kernels(4, 11);
-    auto dp = correlated_init(30, 30, kernel, 30, 15, 15, true,
+    auto dp = correlated_init(30, 30, kernel, 30, 15, 15, false,
                               "/home/omar/CLionProjects/random-walks/resources/dptmp");
-    auto walk = correlated_backtrace(true, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5,
+    auto walk = correlated_backtrace(false, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5,
                                      5, 0);
 
     point2d_array_print(walk);
@@ -168,7 +168,8 @@ void test_mixed() {
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
         for (int x = 130; x <= 140; ++x) {
-            terrain_set(terrain, x, y, 80);
+            if (x < terrain->width)
+                terrain_set(terrain, x, y, 80);
         }
     }
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
@@ -343,7 +344,7 @@ void brownian_cuda() {
     auto H = 2 * 500 + 1;
     auto *kernel_array = static_cast<float *>(malloc(sizeof(float) * kernel->len));
     for (int i = 0; i < kernel->len; i++) {
-        kernel_array[i] = static_cast<float>(kernel->data[i]);
+        kernel_array[i] = static_cast<float>(kernel->data.points[i]);
     }
     auto S = 7;
     auto path = gpu_brownian_walk(kernel_array, S, T, W, H, T, T, 30, 30);
@@ -473,7 +474,9 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main() {
-    auto matrix = matrix_generator_gaussian_pdf(15, 15, 5, 1, 0, 0);
+    test_mixed();
+    return 0;
+    auto matrix = matrix_new(15, 15);
     auto times = 100;
     auto SIZE = 400;
     Point2D points[times];
@@ -486,18 +489,23 @@ int main() {
             points[i] = (Point2D){5, 0};
     }
 
-
+    double arr[times];
     Biases bs;
-    bs.kind = BIAS_KIND_OFFSET;
-    bs.data.offsets = points;
+    bs.kind = BIAS_KIND_ROTATION;
+    bs.data.rotation_deg = arr;
     bs.len = times;
+
+    Biases bs2;
+    bs2.kind = BIAS_KIND_OFFSET;
+    bs2.data.offsets = points;
+    bs2.len = times;
 
     auto start = Point2D{200, 50};
     auto end = Point2D{200, 180};
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    auto tensor = biased_brownian_init(&bs, matrix, SIZE, SIZE, bs.len, start.x, start.y);
-    auto walk = biased_brownian_backtrace(tensor, &bs, matrix, end.x, end.y);
+    Tensor *tensor = biased_brownian_init(&bs, matrix, SIZE, SIZE, bs.len, start.x, start.y);
+    Point2DArray *walk = biased_brownian_backtrace(tensor, &bs, matrix, end.x, end.y);
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
@@ -510,6 +518,7 @@ int main() {
     terrain_map_free(terrain);
     point2d_array_print(walk);
     point2d_array_free(walk);
+    free(bs2.data.offsets);
     tensor_free(tensor);
     matrix_free(matrix);
     return 0;

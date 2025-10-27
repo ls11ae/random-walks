@@ -154,7 +154,7 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			const Matrix *m = t->data[di];
 			const int total = static_cast<int>(m->width * m->width);
 			for (int i = 0; i < total; ++i) {
-				out.kernel_pool.push_back(static_cast<double>(m->data[i]));
+				out.kernel_pool.push_back(static_cast<double>(m->data.points[i]));
 			}
 		}
 

@@ -67,8 +67,8 @@ size_t serialize_matrix(FILE *fp, const Matrix *m) {
     bytes_written += fwrite(&m->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->height, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->len, sizeof(ssize_t), 1, fp);
-    if (m->len > 0 && m->data != NULL) {
-        bytes_written += fwrite(m->data, sizeof(double), m->len, fp);
+    if (m->len > 0 && m->data.points != NULL) {
+        bytes_written += fwrite(m->data.points, sizeof(double), m->len, fp);
     }
     return bytes_written * (sizeof(ssize_t) + (m->len > 0 ? sizeof(double) : 0)); // Approximate total bytes
 }
@@ -221,15 +221,15 @@ Matrix *deserialize_matrix(FILE *fp) {
         handle_error("Failed to read Matrix len");
     }
 
-    m->data = NULL;
+    m->data.points = NULL;
     if (m->len > 0) {
-        m->data = (double *) malloc(m->len * sizeof(double));
-        if (!m->data) {
+        m->data.points = (double *) malloc(m->len * sizeof(double));
+        if (!m->data.points) {
             free(m);
             handle_error("Failed to allocate Matrix data");
         }
-        if (fread(m->data, sizeof(double), m->len, fp) != m->len) {
-            free(m->data);
+        if (fread(m->data.points, sizeof(double), m->len, fp) != m->len) {
+            free(m->data.points);
             free(m);
             handle_error("Failed to read Matrix data");
         }
@@ -452,7 +452,7 @@ KernelsMap3D *deserialize_kernels_map_3d(const char *filename) {
 
 void free_matrix(Matrix *m) {
     if (m == NULL) return;
-    free(m->data);
+    free(m->data.points);
     free(m);
 }
 

@@ -35,19 +35,19 @@ Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigm
 		for (ssize_t x = 0; x < matrix->width; x++) {
 			const double distance_squared = euclid_sqr(x_offset, y_offset, x, y);
 			const double gaussian_value = exp(-distance_squared / (2 * pow(sigma, 2)));
-			matrix->data[index++] = gaussian_value;
+			matrix->data.points[index++] = gaussian_value;
 		}
 	}
 
 	double sum = 0.0;
 	for (int i = 0; i < matrix->len; ++i) {
-		sum += matrix->data[i];
+		sum += matrix->data.points[i];
 	}
 
 	//printf("%f\n", sum);
 
 	for (int i = 0; i < matrix->len; ++i) {
-		matrix->data[i] /= sum;
+		matrix->data.points[i] /= sum;
 	}
 
 	return matrix;
@@ -63,13 +63,13 @@ Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, d
 		const double uniform_value = 1.0 / (double) (width * height);
 
 		for (int i = 0; i < matrix->len; ++i) {
-			matrix->data[i] = (1.0 - alpha) * matrix->data[i] + alpha * uniform_value;
+			matrix->data.points[i] = (1.0 - alpha) * matrix->data.points[i] + alpha * uniform_value;
 		}
 
 		//  normalisieren
 		double sum = 0.0;
-		for (int i = 0; i < matrix->len; ++i) sum += matrix->data[i];
-		for (int i = 0; i < matrix->len; ++i) matrix->data[i] /= sum;
+		for (int i = 0; i < matrix->len; ++i) sum += matrix->data.points[i];
+		for (int i = 0; i < matrix->len; ++i) matrix->data.points[i] /= sum;
 	}
 
 	return matrix;
@@ -119,7 +119,7 @@ Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, in
 		for (int x = 0; x < m->width; x++) {
 			const double dist = euclid(big_size / 2, big_size / 2, x, y);
 			const double value = chi_distribution_generate(chi, dist / scale_k);
-			m->data[index++] = value;
+			m->data.points[index++] = value;
 		}
 	}
 	free(chi);
@@ -234,7 +234,7 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const ssize_t subsampling,
 		for (ssize_t j = -half_size; j <= half_size; ++j) {
 			const ssize_t displacement = 0;
 			const double dist = euclid(displacement * subsampling, 0, j, i);
-			values->data[(i + half_size) * kernel_size + (j + half_size)] =
+			values->data.points[(i + half_size) * kernel_size + (j + half_size)] =
 					exp(-0.5 * pow(dist * scaling / std_dev, 2)) / (std_dev * sqrt(2 * M_PI));
 		}
 	}
@@ -250,7 +250,7 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const ssize_t subsampling,
 					const ssize_t yy = y + k;
 					const ssize_t xx = x + l;
 					assert(yy * kernel_size + xx < values->len);
-					sum += values->data[yy * kernel_size + xx];
+					sum += values->data.points[yy * kernel_size + xx];
 				}
 			}
 
@@ -258,7 +258,7 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const ssize_t subsampling,
 			const ssize_t r_x = x / subsampling;
 
 			assert(r_y * size + r_x < kernel->len);
-			kernel->data[r_y * size + r_x] = sum / ((double) (subsampling) * (double) (subsampling));
+			kernel->data.points[r_y * size + r_x] = sum / ((double) (subsampling) * (double) (subsampling));
 		}
 	}
 
@@ -282,7 +282,7 @@ Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
 			size_t yy = (size_t) (y + half);
 			size_t xx = (size_t) (x + half);
 			if (matrix_in_bounds(values, xx, yy)) {
-				values->data[yy * grid_size + xx] = warped_normal(0.0, 0.9, angle);
+				values->data.points[yy * grid_size + xx] = warped_normal(0.0, 0.9, angle);
 			}
 		}
 	}
@@ -295,7 +295,7 @@ Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
 					size_t yy = y + k;
 					size_t xx = x + l;
 					if (matrix_in_bounds(values, xx, yy)) {
-						sum += values->data[yy * grid_size + xx];
+						sum += values->data.points[yy * grid_size + xx];
 					}
 				}
 			}
@@ -303,7 +303,7 @@ Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
 			size_t r_x = x / subsampling;
 			if (matrix_in_bounds(kernel, r_x, r_y)) {
 				double current_value = sum / (double) (subsampling * subsampling);
-				kernel->data[r_y * size + r_x] = current_value;
+				kernel->data.points[r_y * size + r_x] = current_value;
 			}
 		}
 	}
@@ -314,7 +314,7 @@ Matrix *generate_angle_kernel_ss(size_t size, ssize_t subsampling) {
 }
 
 Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel) {
-	if (!length_kernel || !angle_kernel || !length_kernel->data || !angle_kernel->data ||
+	if (!length_kernel || !angle_kernel || !length_kernel->data.points || !angle_kernel->data.points ||
 	    length_kernel->height != angle_kernel->height || length_kernel->width != angle_kernel->width) {
 		return NULL;
 	}
@@ -490,7 +490,7 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 
 Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height) {
 	Matrix *kernel = malloc(sizeof(Matrix));
-	kernel->data = array;
+	kernel->data.points = array;
 	kernel->len = width * height;
 	kernel->width = width;
 	kernel->height = height;

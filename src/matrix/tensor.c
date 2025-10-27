@@ -251,7 +251,7 @@ Tensor *tensor_copy(const Tensor *original) {
 
     // Matrixdaten kopieren
     for (size_t i = 0; i < original->len; i++) {
-        memcpy(copy->data[i]->data, original->data[i]->data, sizeof(Matrix *) * original->data[i]->len);
+        memcpy(copy->data[i]->data.points, original->data[i]->data.points, sizeof(Matrix *) * original->data[i]->len);
     }
 
     return copy;

@@ -285,7 +285,7 @@ void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const T
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)
-            kernels->data[d]->data[j] *= weights[d];
+            kernels->data[d]->data.points[j] *= weights[d];
     }
     free(closest_path_per_direction);
     free(weights);

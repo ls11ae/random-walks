@@ -8,10 +8,15 @@
 #define MKDIR(path) mkdir(path, 0755)
 #ifdef __cplusplus
 extern "C" {
-
-
-
 #endif
+/**
+* @struct Pair
+* @brief Represents a pair of doubles
+*/
+typedef struct {
+    double fist;
+    double second;
+} Pair;
 
 /**
  * @struct Matrix
@@ -21,7 +26,10 @@ typedef struct {
     ssize_t width; /**< The number of columns in the matrix. */
     ssize_t height; /**< The number of rows in the matrix. */
     ssize_t len; /**< The total number of elements (width * height). */
-    double *data; /**< Pointer to the array of matrix elements. */
+    union {
+        double *points; /**< Pointer to the array of floating point elements. */
+        Pair *pair; /**< Pointer to the array of Pair (double, double) elements. */
+    } data;
 } Matrix;
 
 typedef struct {

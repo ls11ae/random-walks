@@ -4,7 +4,7 @@ uint64_t compute_matrix_hash(const Matrix *m) {
     uint64_t h = 146527;
     for (size_t i = 0; i < m->len; i++) {
         uint64_t bits;
-        memcpy(&bits, &m->data[i], sizeof(bits));
+        memcpy(&bits, &m->data.points[i], sizeof(bits));
         h ^= bits + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
     }
     return h;
@@ -210,7 +210,7 @@ size_t tensor_hash(const Tensor *t) {
         hash = hash_mix(hash, m->len);
 
         for (ssize_t j = 0; j < m->len; ++j) {
-            hash = hash_mix(hash, hash_double(m->data[j]));
+            hash = hash_mix(hash, hash_double(m->data.points[j]));
         }
     }
 

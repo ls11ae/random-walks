@@ -111,13 +111,13 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
 
-							const double a = DP_mat[t - 1]->data[di]->data[yy * W + xx];
-							const double b = current_kernel->data[kernel_y * current_kernel->width + kernel_x];
+							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
+							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
 
 							sum += a * b;
 						}
 					}
-					DP_mat[t]->data[d]->data[y * W + x] = sum;
+					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
 				}
 				tensor_free(tensor_at_t);
 			}
