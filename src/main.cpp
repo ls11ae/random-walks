@@ -480,11 +480,11 @@ int main() {
     Point2D points[times];
     for (int i = 0; i < times; ++i) {
         if (i < times / 3)
-            points[i] = (Point2D){0, 0};
+            points[i] = (Point2D){3, 0};
         else if (i < 2 * times / 3)
             points[i] = (Point2D){0, 0};
         else
-            points[i] = (Point2D){0, 0};
+            points[i] = (Point2D){3, 0};
     }
 
     double arr[times];
