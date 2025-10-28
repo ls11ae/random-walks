@@ -24,9 +24,9 @@ void kernels_map3d_free(KernelsMap3D *kernels_map);
 
 TerrainMap *get_terrain_map(const char *file, char delimiter);
 
-#define  terrain_at(x, y, terrain_map) terrain_map->data[y][x]
+int terrain_at(ssize_t x, ssize_t y, const TerrainMap *terrain_map);
 
-#define terrain_set(terrain_map, x, y, value) terrain_map->data[y][x] = value;
+void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value);
 
 TerrainMap *terrain_map_new(ssize_t width, ssize_t height);
 

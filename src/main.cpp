@@ -159,11 +159,11 @@ void test_time_walk() {
 }
 
 void test_mixed() {
-    const int S = 7;
+    const int S = 21;
 
     //TerrainMap *terrain = create_terrain_map("../../resources/terrain_gpt.txt", ' ');
-    //TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
-    TerrainMap *terrain = create_terrain_map("../../resources/land3.txt", ' ');
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_baboons123_200.txt", ' ');
+    //TerrainMap *terrain = create_terrain_map("../../resources/land3.txt", ' ');
     //TerrainMap *terrain = create_terrain_map("../../resources/chequered.txt", ' ');
     std::cout << "W: " << terrain->width << " H: " << terrain->height << "\n";
     for (int y = 0; y < terrain->height; y++) {
@@ -180,9 +180,9 @@ void test_mixed() {
 
 
     Point2D steps[3];
-    steps[0] = (Point2D){5, 5};
-    steps[1] = (Point2D){20, 20};
-    steps[2] = (Point2D){10, 10};
+    steps[0] = (Point2D){15, 15};
+    steps[1] = (Point2D){120, 120};
+    steps[2] = (Point2D){110, 110};
 
     Point2DArray *step_arr = point_2d_array_new(steps, 3);
     auto t_map = tensor_map_terrain(terrain, mapping);
@@ -474,6 +474,8 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main() {
+    test_mixed();
+    return 0;
     auto matrix = matrix_new(15, 15);
     auto times = 100;
     auto SIZE = 400;
