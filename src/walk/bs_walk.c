@@ -81,10 +81,14 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 			const Point2D offset = biases->data.offsets[t];
 			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
 			                                       offset.y);
+			printf("Hier\n");
 		} else {
 			kernel = matrix_clone(base_kernel);
 			rotate_kernel_ss(kernel, biases->data.rotation_deg[t], 2);
 		}
+
+		printf("%f\n", matrix_sum(kernel));
+
 
 		ssize_t count = 0;
 		for (ssize_t i = -S; i <= S; ++i) {
