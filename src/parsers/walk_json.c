@@ -3,10 +3,10 @@
 #include <assert.h>
 
 static void save_walk_to_json_general(
-    const Point2DArray* steps,
-    const Point2DArray* walk,
-    const TerrainMap* terrain, uint32_t W, uint32_t H,
-    const char* filename) {
+    const Point2DArray *steps,
+    const Point2DArray *walk,
+    const TerrainMap *terrain, uint32_t W, uint32_t H,
+    const char *filename) {
     if (!walk || !filename) {
         assert(walk);
         assert(filename);
@@ -14,7 +14,7 @@ static void save_walk_to_json_general(
         return;
     }
 
-    FILE* fp = fopen(filename, "w");
+    FILE *fp = fopen(filename, "w");
     if (!fp) {
         perror("Failed to open file");
         return;
@@ -35,10 +35,9 @@ static void save_walk_to_json_general(
     fprintf(fp, "{\n");
 
     if (terrain) {
-        fprintf(fp, "  \"Height\": %d,\n", terrain->height);
-        fprintf(fp, "  \"Width\": %d,\n", terrain->width);
-    }
-    else {
+        fprintf(fp, "  \"Height\": %ld,\n", terrain->height);
+        fprintf(fp, "  \"Width\": %ld,\n", terrain->width);
+    } else {
         fprintf(fp, "  \"Height\": %d,\n", H);
         fprintf(fp, "  \"Width\": %d,\n", W);
     }
@@ -47,30 +46,30 @@ static void save_walk_to_json_general(
         fprintf(fp, "  \"Steps\": [\n");
         for (uint32_t i = 0; i < steps->length; ++i) {
             if (terrain && (steps->points[i].x >= terrain->width ||
-                steps->points[i].y >= terrain->height)) {
-                fprintf(stderr, "Coordinate out of bounds in Steps\n: %d, %d", steps->points[i].x,
+                            steps->points[i].y >= terrain->height)) {
+                fprintf(stderr, "Coordinate out of bounds in Steps\n: %ld, %ld", steps->points[i].x,
                         steps->points[i].y);
                 fclose(fp);
                 return;
             }
-            fprintf(fp, "    {\"x\": %d, \"y\": %d}",
+            fprintf(fp, "    {\"x\": %ld, \"y\": %ld}",
                     steps->points[i].x, steps->points[i].y);
             fprintf(fp, "%s\n", (i < steps->length - 1) ? "," : "");
         }
         fprintf(fp, "  ]");
     }
 
-    const Point2D* start = &walk->points[0];
-    const Point2D* end = &walk->points[walk->length - 1];
+    const Point2D *start = &walk->points[0];
+    const Point2D *end = &walk->points[walk->length - 1];
 
     if (steps && steps->length > 0)
         fprintf(fp, ",\n");
-    fprintf(fp, "  \"Start Point\": {\"x\": %d, \"y\": %d},\n", start->x, start->y);
-    fprintf(fp, "  \"End Point\": {\"x\": %d, \"y\": %d},\n", end->x, end->y);
+    fprintf(fp, "  \"Start Point\": {\"x\": %ld, \"y\": %ld},\n", start->x, start->y);
+    fprintf(fp, "  \"End Point\": {\"x\": %ld, \"y\": %ld},\n", end->x, end->y);
 
     fprintf(fp, "  \"Walk\": [\n");
     for (uint32_t i = 0; i < walk->length; ++i) {
-        fprintf(fp, "    {\"x\": %d, \"y\": %d}",
+        fprintf(fp, "    {\"x\": %ld, \"y\": %ld}",
                 walk->points[i].x, walk->points[i].y);
         fprintf(fp, "%s\n", (i < walk->length - 1) ? "," : "");
     }
@@ -87,8 +86,7 @@ static void save_walk_to_json_general(
             fprintf(fp, "]%s\n", (row < terrain->height - 1) ? "," : "");
         }
         fprintf(fp, "  ]\n");
-    }
-    else {
+    } else {
         fprintf(fp, "\n");
     }
 
@@ -96,41 +94,41 @@ static void save_walk_to_json_general(
     fclose(fp);
 }
 
-void save_walk_to_json(const Point2DArray* steps,
-                       const Point2DArray* walk,
-                       const TerrainMap* terrain,
-                       const char* filename) {
+void save_walk_to_json(const Point2DArray *steps,
+                       const Point2DArray *walk,
+                       const TerrainMap *terrain,
+                       const char *filename) {
     save_walk_to_json_general(steps, walk, terrain, terrain->width, terrain->height, filename);
     printf("Walk saved to: %s\n", filename);
 }
 
-void save_walk_to_json_nosteps(const Point2DArray* walk,
-                               const TerrainMap* terrain,
-                               const char* filename) {
+void save_walk_to_json_nosteps(const Point2DArray *walk,
+                               const TerrainMap *terrain,
+                               const char *filename) {
     save_walk_to_json_general(NULL, walk, terrain, 0, 0, filename);
 }
 
-void save_walk_to_json_noterrain(const Point2DArray* steps,
-                                 const Point2DArray* walk, uint32_t W, uint32_t H,
-                                 const char* filename) {
+void save_walk_to_json_noterrain(const Point2DArray *steps,
+                                 const Point2DArray *walk, uint32_t W, uint32_t H,
+                                 const char *filename) {
     save_walk_to_json_general(steps, walk, NULL, W, H, filename);
 }
 
-void save_walk_to_json_onlywalk(const Point2DArray* walk, uint32_t W, uint32_t H,
-                                const char* filename) {
+void save_walk_to_json_onlywalk(const Point2DArray *walk, uint32_t W, uint32_t H,
+                                const char *filename) {
     save_walk_to_json_general(NULL, walk, NULL, W, H, filename);
 }
 
-static void load_walk_from_json_general(const char* filename,
-                                        Point2DArray* steps,
-                                        Point2DArray* walk,
-                                        TerrainMap* terrain) {
+static void load_walk_from_json_general(const char *filename,
+                                        Point2DArray *steps,
+                                        Point2DArray *walk,
+                                        TerrainMap *terrain) {
     if (!filename || !walk) {
         fprintf(stderr, "Error: NULL input parameter\n");
         return;
     }
 
-    FILE* fp = fopen(filename, "r");
+    FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("Failed to open file");
         return;
@@ -139,7 +137,7 @@ static void load_walk_from_json_general(const char* filename,
     fseek(fp, 0, SEEK_END);
     long file_size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    char* buffer = malloc(file_size + 1);
+    char *buffer = malloc(file_size + 1);
     if (!buffer) {
         fclose(fp);
         fprintf(stderr, "Memory allocation failed\n");
@@ -149,9 +147,9 @@ static void load_walk_from_json_general(const char* filename,
     buffer[file_size] = '\0';
     fclose(fp);
 
-    cJSON* root = cJSON_Parse(buffer);
+    cJSON *root = cJSON_Parse(buffer);
     if (!root) {
-        const char* error_ptr = cJSON_GetErrorPtr();
+        const char *error_ptr = cJSON_GetErrorPtr();
         fprintf(stderr, "JSON Error: %s\n", error_ptr ? error_ptr : "Unknown error");
         free(buffer);
         return;
@@ -164,8 +162,8 @@ static void load_walk_from_json_general(const char* filename,
 
     // Load terrain dimensions if requested
     if (terrain) {
-        cJSON* height = cJSON_GetObjectItemCaseSensitive(root, "Height");
-        cJSON* width = cJSON_GetObjectItemCaseSensitive(root, "Width");
+        cJSON *height = cJSON_GetObjectItemCaseSensitive(root, "Height");
+        cJSON *width = cJSON_GetObjectItemCaseSensitive(root, "Width");
         if (!cJSON_IsNumber(height) || !cJSON_IsNumber(width)) {
             fprintf(stderr, "Invalid Height/Width format\n");
             goto cleanup;
@@ -176,7 +174,7 @@ static void load_walk_from_json_general(const char* filename,
 
     // Load steps if requested
     if (steps) {
-        cJSON* steps_json = cJSON_GetObjectItemCaseSensitive(root, "Steps");
+        cJSON *steps_json = cJSON_GetObjectItemCaseSensitive(root, "Steps");
         if (!cJSON_IsArray(steps_json)) {
             fprintf(stderr, "Steps is not an array\n");
             goto cleanup;
@@ -191,10 +189,10 @@ static void load_walk_from_json_general(const char* filename,
         steps_allocated = 1;
 
         uint32_t i = 0;
-        cJSON* item;
+        cJSON *item;
         cJSON_ArrayForEach(item, steps_json) {
-            cJSON* x = cJSON_GetObjectItem(item, "x");
-            cJSON* y = cJSON_GetObjectItem(item, "y");
+            cJSON *x = cJSON_GetObjectItem(item, "x");
+            cJSON *y = cJSON_GetObjectItem(item, "y");
             if (!cJSON_IsNumber(x) || !cJSON_IsNumber(y)) {
                 fprintf(stderr, "Invalid Step coordinates\n");
                 goto cleanup;
@@ -204,7 +202,7 @@ static void load_walk_from_json_general(const char* filename,
     }
 
     // Always load walk points
-    cJSON* walk_json = cJSON_GetObjectItemCaseSensitive(root, "Walk");
+    cJSON *walk_json = cJSON_GetObjectItemCaseSensitive(root, "Walk");
     if (!cJSON_IsArray(walk_json)) {
         fprintf(stderr, "Walk is not an array\n");
         goto cleanup;
@@ -219,10 +217,10 @@ static void load_walk_from_json_general(const char* filename,
     walk_allocated = 1;
 
     uint32_t i = 0;
-    cJSON* item;
+    cJSON *item;
     cJSON_ArrayForEach(item, walk_json) {
-        cJSON* x = cJSON_GetObjectItem(item, "x");
-        cJSON* y = cJSON_GetObjectItem(item, "y");
+        cJSON *x = cJSON_GetObjectItem(item, "x");
+        cJSON *y = cJSON_GetObjectItem(item, "y");
         if (!cJSON_IsNumber(x) || !cJSON_IsNumber(y)) {
             fprintf(stderr, "Invalid Walk coordinates\n");
             goto cleanup;
@@ -232,14 +230,14 @@ static void load_walk_from_json_general(const char* filename,
 
     // Load terrain data if requested
     if (terrain) {
-        cJSON* terrain_json = cJSON_GetObjectItemCaseSensitive(root, "Terrain");
+        cJSON *terrain_json = cJSON_GetObjectItemCaseSensitive(root, "Terrain");
         if (!cJSON_IsArray(terrain_json) ||
             cJSON_GetArraySize(terrain_json) != terrain->height) {
             fprintf(stderr, "Invalid Terrain format\n");
             goto cleanup;
         }
 
-        terrain->data = malloc(terrain->height * sizeof(int*));
+        terrain->data = malloc(terrain->height * sizeof(int *));
         if (!terrain->data) {
             fprintf(stderr, "Terrain memory allocation failed\n");
             goto cleanup;
@@ -252,7 +250,7 @@ static void load_walk_from_json_general(const char* filename,
         }
 
         for (uint32_t row = 0; row < terrain->height; row++) {
-            cJSON* row_json = cJSON_GetArrayItem(terrain_json, row);
+            cJSON *row_json = cJSON_GetArrayItem(terrain_json, (int) row);
             if (!cJSON_IsArray(row_json) ||
                 cJSON_GetArraySize(row_json) != terrain->width) {
                 fprintf(stderr, "Invalid Terrain row\n");
@@ -266,7 +264,7 @@ static void load_walk_from_json_general(const char* filename,
             }
 
             for (uint32_t col = 0; col < terrain->width; col++) {
-                cJSON* val = cJSON_GetArrayItem(row_json, col);
+                cJSON *val = cJSON_GetArrayItem(row_json, (int) col);
                 if (!cJSON_IsNumber(val)) {
                     fprintf(stderr, "Invalid Terrain value\n");
                     goto cleanup;
@@ -302,26 +300,26 @@ cleanup:
 }
 
 // Wrapper functions
-void load_full_walk(const char* filename,
-                    Point2DArray* steps,
-                    Point2DArray* walk,
-                    TerrainMap* terrain) {
+void load_full_walk(const char *filename,
+                    Point2DArray *steps,
+                    Point2DArray *walk,
+                    TerrainMap *terrain) {
     load_walk_from_json_general(filename, steps, walk, terrain);
 }
 
-void load_walk_with_terrain(const char* filename,
-                            Point2DArray* walk,
-                            TerrainMap* terrain) {
+void load_walk_with_terrain(const char *filename,
+                            Point2DArray *walk,
+                            TerrainMap *terrain) {
     load_walk_from_json_general(filename, NULL, walk, terrain);
 }
 
-void load_walk_with_steps(const char* filename,
-                          Point2DArray* steps,
-                          Point2DArray* walk) {
+void load_walk_with_steps(const char *filename,
+                          Point2DArray *steps,
+                          Point2DArray *walk) {
     load_walk_from_json_general(filename, steps, walk, NULL);
 }
 
-void load_walk_only(const char* filename,
-                    Point2DArray* walk) {
+void load_walk_only(const char *filename,
+                    Point2DArray *walk) {
     load_walk_from_json_general(filename, NULL, walk, NULL);
 }

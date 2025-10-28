@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 
 #include "math/math_utils.h"
@@ -11,17 +12,23 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 	Tensor *tensor = tensor_new(W, H, T);
 	if (!tensor) return NULL;
 	matrix_set(tensor->data[0], start_x, start_y, 1.0);
+	printf("[DEBUG] Starting initialization with W=%zd H=%zd T=%zd start_x=%zd start_y=%zd\n", W, H, T, start_x,
+	       start_y);
+	printf("[DEBUG] Base kernel size: %zd x %zd\n", base_kernel->width, base_kernel->height);
 	for (int t = 1; t < T; t++) {
-		printf("t = %d\n", t);
+		printf("[DEBUG] Processing timestep t=%d\n", t);
 		Matrix *current_kernel = NULL;
 		if (kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 1, 0, offset.x,
+			printf("[DEBUG] Using offset bias at t=%d: offset.x=%ld offset.y=%ld\n", t, offset.x, offset.y);
+			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
 			                                               offset.y);
 		} else {
+			printf("[DEBUG] Using rotation bias at t=%d: rotation=%f degrees\n", t, biases->data.rotation_deg[t]);
 			current_kernel = matrix_clone(base_kernel);
 			rotate_kernel_ss(current_kernel, biases->data.rotation_deg[t], 2);
 		}
+		printf("[DEBUG] Current kernel sum: %f\n", matrix_sum(current_kernel));
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
 			for (int x = 0; x < W; ++x) {
@@ -31,8 +38,9 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 					for (int j = -S; j <= S; ++j) {
 						const int off_x = x + j;
 						if (off_x < 0 || off_x >= W || off_y < 0 || off_y >= H) continue;
-						sum += matrix_get(tensor->data[t - 1], off_x, off_y) * matrix_get(
-							current_kernel, -j + S, -i + S);
+						const double val = matrix_get(tensor->data[t - 1], off_x, off_y) *
+						                   matrix_get(current_kernel, -j + S, -i + S);
+						sum += val;
 					}
 				}
 				matrix_set(tensor->data[t], x, y, sum);
@@ -40,6 +48,7 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 		}
 		matrix_free(current_kernel);
 	}
+	printf("[DEBUG] Initialization complete\n");
 	return tensor;
 }
 
@@ -49,6 +58,9 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 	const ssize_t W = tensor->data[0]->width;
 	const ssize_t H = tensor->data[0]->height;
 	const int S = (int) (base_kernel->width / 2);
+
+	printf("[DEBUG] Starting backtrace from x=%zd y=%zd\n", x, y);
+	printf("[DEBUG] Tensor dimensions: W=%zd H=%zd T=%zu\n", W, H, T);
 
 	Point2DArray *result = (Point2DArray *) malloc(sizeof(Point2DArray));
 	if (!result) return NULL;
@@ -62,7 +74,10 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 	result->points[0].x = x;
 	result->points[0].y = y;
 
+	printf("[DEBUG] Initial position value: %f\n", matrix_get(tensor->data[tensor->len - 1], x, y) * 1000.0);
+
 	for (size_t t = T - 1; t >= 1; t--) {
+		printf("[DEBUG] Processing timestep t=%zu\n", t);
 		const ssize_t max_neighbors = (2 * S + 1) * (2 * S + 1);
 		Point2D *neighbors = (Point2D *) malloc(max_neighbors * sizeof(Point2D));
 		double *probabilities = (double *) malloc(max_neighbors * sizeof(double));
@@ -76,18 +91,22 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 		Matrix *kernel = NULL;
 		if (biases->kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 1, 0, offset.x,
+			printf("[DEBUG] Using offset bias at t=%zu: offset.x=%ld offset.y=%ld\n", t, offset.x, offset.y);
+			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
 			                                       offset.y);
 		} else {
+			printf("[DEBUG] Using rotation bias at t=%zu: rotation=%f degrees\n", t, biases->data.rotation_deg[t]);
 			kernel = matrix_clone(base_kernel);
 			rotate_kernel_ss(kernel, biases->data.rotation_deg[t], 2);
 		}
 
+		printf("[DEBUG] Kernel sum: %f\n", matrix_sum(kernel));
+
 		ssize_t count = 0;
 		for (ssize_t i = -S; i <= S; ++i) {
 			for (ssize_t j = -S; j <= S; ++j) {
-				const ssize_t nx = x + j; // neighbor positions
-				const ssize_t ny = y + i; // neighbor positions
+				const ssize_t nx = x + j;
+				const ssize_t ny = y + i;
 				if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
 					continue;
 				}
@@ -111,8 +130,8 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 			}
 		}
 
-
 		if (count == 0) {
+			printf("[DEBUG] No valid neighbors found at t=%zu\n", t);
 			free(neighbors);
 			free(probabilities);
 			free(result->points);
@@ -123,6 +142,7 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 		const ssize_t selected = weighted_random_index(probabilities, count);
 		x = neighbors[selected].x;
 		y = neighbors[selected].y;
+		printf("[DEBUG] Selected neighbor %zd at t=%zu: x=%zd y=%zd\n", selected, t, x, y);
 
 		free(neighbors);
 		free(probabilities);
@@ -132,13 +152,14 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 		result->points[index].y = y;
 	}
 
-	// Reverse walk
+	printf("[DEBUG] Reversing walk...\n");
 	for (ssize_t i = 0; i < result->length / 2; ++i) {
 		const Point2D temp = result->points[i];
 		result->points[i] = result->points[result->length - 1 - i];
 		result->points[result->length - 1 - i] = temp;
 	}
 
+	printf("[DEBUG] Backtrace complete\n");
 	return result;
 }
 
