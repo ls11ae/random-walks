@@ -512,7 +512,6 @@ int main() {
     terrain_map_free(terrain);
     point2d_array_print(walk);
     point2d_array_free(walk);
-    free(bs2.data.offsets);
     tensor_free(tensor);
     matrix_free(matrix);
     return 0;
