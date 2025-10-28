@@ -474,8 +474,6 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main() {
-    test_mixed();
-    return 0;
     auto matrix = matrix_new(15, 15);
     auto times = 100;
     auto SIZE = 400;
@@ -490,10 +488,6 @@ int main() {
     }
 
     double arr[times];
-    Biases bs;
-    bs.kind = BIAS_KIND_ROTATION;
-    bs.data.rotation_deg = arr;
-    bs.len = times;
 
     Biases bs2;
     bs2.kind = BIAS_KIND_OFFSET;
@@ -504,8 +498,8 @@ int main() {
     auto end = Point2D{200, 180};
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    Tensor *tensor = biased_brownian_init(&bs, matrix, SIZE, SIZE, bs.len, start.x, start.y);
-    Point2DArray *walk = biased_brownian_backtrace(tensor, &bs, matrix, end.x, end.y);
+    Tensor *tensor = biased_brownian_init(&bs2, matrix, SIZE, SIZE, bs2.len, start.x, start.y);
+    Point2DArray *walk = biased_brownian_backtrace(tensor, &bs2, matrix, end.x, end.y);
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
