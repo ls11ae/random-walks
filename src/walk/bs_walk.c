@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 
 #include "math/math_utils.h"
@@ -16,12 +17,14 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 		Matrix *current_kernel = NULL;
 		if (kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 1, 0, offset.x,
+			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
 			                                               offset.y);
+			printf("Hier\n");
 		} else {
 			current_kernel = matrix_clone(base_kernel);
 			rotate_kernel_ss(current_kernel, biases->data.rotation_deg[t], 2);
 		}
+		printf("%f\n", matrix_sum(current_kernel));
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
 			for (int x = 0; x < W; ++x) {
@@ -76,7 +79,7 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 		Matrix *kernel = NULL;
 		if (biases->kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 1, 0, offset.x,
+			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
 			                                       offset.y);
 		} else {
 			kernel = matrix_clone(base_kernel);
