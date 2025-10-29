@@ -203,16 +203,16 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
                 // Ziel und Link als absolute Pfade berechnen
                 char abs_target[PATH_MAX];
                 char abs_link[PATH_MAX];
-                realpath(existing_path, abs_target);
+                REALPATH(existing_path, abs_target);
 
                 char dir_buf[PATH_MAX];
                 strncpy(dir_buf, current_path, sizeof(dir_buf));
                 dirname(dir_buf);
 
-                realpath(dir_buf, abs_link);
+                REALPATH(dir_buf, abs_link);
                 snprintf(abs_link + strlen(abs_link), sizeof(abs_link) - strlen(abs_link), "/x%zd.tensor", x);
 
-                if (symlink(abs_target, current_path) != 0) {
+                if (SYMLINK(abs_target, current_path, 0) != 0) {
                     perror("symlink failed");
                 }
             } else {

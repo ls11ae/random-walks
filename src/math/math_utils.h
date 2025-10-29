@@ -32,7 +32,7 @@ Point rotate_point(Point p, double theta);
  * @param len The length of the array.
  * @return The selected index, or -1 on error.
  */
-ssize_t weighted_random_index_float(const float *array, u_int32_t len);
+ssize_t weighted_random_index_float(const float *array, ssize_t len);
 
 /**
  * @brief Returns a random index from a double array, weighted by the array's values.

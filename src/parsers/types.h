@@ -1,11 +1,40 @@
 #pragma once
 
+#include <limits.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <linux/limits.h>
+
+
+#ifdef _WIN32
+#include <direct.h>   // _mkdir
+#define MKDIR(path) _mkdir(path)
+#else
+#include <sys/stat.h> // mkdir
+#include <sys/types.h>
 #define MKDIR(path) mkdir(path, 0755)
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#include <stdlib.h>
+
+#define REALPATH(src, dest) _fullpath((dest), (src), MAX_PATH)
+
+    static inline int SYMLINK(const char *target, const char *linkpath, int is_dir) {
+        DWORD flags = is_dir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+        return CreateSymbolicLinkA(linkpath, target, flags) ? 0 : -1;
+    }
+
+#else
+#include <unistd.h>
+#include <limits.h>
+#include <stdlib.h>
+
+#define REALPATH(src, dest) realpath((src), (dest))
+#define SYMLINK(target, linkpath, is_dir) symlink((target), (linkpath))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

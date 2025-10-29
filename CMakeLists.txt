@@ -8,8 +8,8 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Flags
-set(CMAKE_C_FLAGS_RELEASE " -O3 -march=native -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "  -O3 -march=native -DNDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 
@@ -24,8 +24,20 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/src
 )
 
-# OpenMP
 find_package(OpenMP REQUIRED)
+
+if (OpenMP_FOUND)
+    if (MINGW)
+        add_library(openmp_dummy INTERFACE)
+        target_link_libraries(openmp_dummy INTERFACE gomp)
+        add_compile_options(-fopenmp)
+        add_link_options(-fopenmp)
+    else()
+        add_library(openmp_dummy INTERFACE)
+        target_link_libraries(openmp_dummy INTERFACE OpenMP::OpenMP_C OpenMP::OpenMP_CXX)
+    endif()
+endif()
+
 
 # Doxygen
 find_package(Doxygen OPTIONAL_COMPONENTS dot)

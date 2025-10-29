@@ -216,8 +216,8 @@ void test_sym_link() {
     char existing_path[256];
     snprintf(current_path, sizeof(current_path), "../../resources/x%i", 3);
     snprintf(existing_path, sizeof(existing_path), "../../resources/x%i", 4);
-    realpath("../../resources/x3", current_path);
-    realpath("../../resources/x4", existing_path);
+    REALPATH("../../resources/x3", current_path);
+    REALPATH("../../resources/x4", existing_path);
 
     // 1. Schreibe originalen Tensor nach existing_path
     FILE *tf = fopen(existing_path, "wb");
@@ -229,8 +229,8 @@ void test_sym_link() {
     fclose(tf);
 
     // 2. Erzeuge Symlink von current_path → existing_path
-    remove(current_path); // wichtig!
-    int sm = symlink(existing_path, current_path);
+    remove(current_path);
+    int sm = SYMLINK(existing_path, current_path, 0);
     printf("symlink returned %d\n", sm);
     if (sm != 0) {
         perror("symlink failed");

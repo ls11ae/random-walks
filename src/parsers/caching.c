@@ -177,8 +177,8 @@ const char *hash_cache_lookup_or_insert2(HashCache *cache, uint64_t hash, const 
         .path = "",
         .next = cache->buckets[bucket]
     };
-    strncpy(new_entry->path, new_path, NAME_MAX);
-    new_entry->path[NAME_MAX - 1] = '\0';
+    strncpy(new_entry->path, new_path, PATH_MAX);
+    new_entry->path[PATH_MAX - 1] = '\0';
     new_entry->next = cache->buckets[bucket];
     cache->buckets[bucket] = new_entry;
     return NULL;

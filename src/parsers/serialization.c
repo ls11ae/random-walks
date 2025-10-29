@@ -35,11 +35,11 @@ void ensure_dir_exists(const char *dir_path) {
     for (char *p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            mkdir(tmp, 0755); // ignoriert Fehler, z.B. wenn bereits existiert
+            MKDIR(tmp);
             *p = '/';
         }
     }
-    mkdir(tmp, 0755);
+    MKDIR(tmp);
 }
 
 // extrahiert Verzeichnis aus Pfad und ruft ensure_dir_exists
