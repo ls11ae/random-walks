@@ -9,7 +9,7 @@
 
 #include "math/math_utils.h"
 
-Matrix *matrix_new(const ssize_t width, const ssize_t height) {
+RW_API Matrix *matrix_new(const ssize_t width, const ssize_t height) {
     Matrix *m = (Matrix *) malloc(sizeof(Matrix));
     if (!m) return NULL; // Fehlerbehandlung für Matrix Allokierung
 
@@ -27,19 +27,19 @@ Matrix *matrix_new(const ssize_t width, const ssize_t height) {
     return m;
 }
 
-void matrix_free(Matrix *matrix) {
+RW_API void matrix_free(Matrix *matrix) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     free(matrix->data.points);
     free(matrix);
 }
 
-void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output) {
+RW_API void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output) {
     for (size_t i = 0; i < input->len; i++) {
         output->data.points[i] = input->data.points[i] * kernel->data.points[i];
     }
 }
 
-bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2) {
+RW_API bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2) {
     assert(matrix1 != NULL);
     assert(matrix2 != NULL);
     if (matrix1->len != matrix2->len) return false;
@@ -49,7 +49,7 @@ bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2) {
     return true;
 }
 
-void matrix_pooling_avg(Matrix *dst, const Matrix *src) {
+RW_API void matrix_pooling_avg(Matrix *dst, const Matrix *src) {
     if (!src || !dst || !src->data.points || !dst->data.points) {
         return; // Ungültige Eingabe
     }
@@ -79,7 +79,7 @@ void matrix_pooling_avg(Matrix *dst, const Matrix *src) {
     }
 }
 
-Matrix *matrix_copy(const Matrix *matrix) {
+RW_API Matrix *matrix_copy(const Matrix *matrix) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
 
     Matrix *copy = matrix_new(matrix->width, matrix->height);
@@ -91,17 +91,17 @@ Matrix *matrix_copy(const Matrix *matrix) {
     return copy;
 }
 
-void matrix_copy_to(Matrix *dest, const Matrix *src) {
+RW_API void matrix_copy_to(Matrix *dest, const Matrix *src) {
     assert(dest->width == src->width && dest->height == src->height);
     memcpy(dest->data.points, src->data.points, dest->width * dest->height * sizeof(double));
 }
 
-int matrix_in_bounds(const Matrix *matrix, size_t x, size_t y) {
+RW_API int matrix_in_bounds(const Matrix *matrix, size_t x, size_t y) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     return x < matrix->width && y < matrix->height;
 }
 
-void matrix_fill(Matrix *matrix, const double value) {
+RW_API void matrix_fill(Matrix *matrix, const double value) {
     assert(matrix != NULL); // Überprüft, ob matrix nicht NULL ist
     if (value == 0.0) {
         memset(matrix->data.points, 0, matrix->len * sizeof(double));
@@ -115,7 +115,7 @@ void matrix_fill(Matrix *matrix, const double value) {
     }
 }
 
-Matrix *matrix_add(const Matrix *a, const Matrix *b) {
+RW_API Matrix *matrix_add(const Matrix *a, const Matrix *b) {
     assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     if (a->len != b->len) return NULL; // Grundprüfung
@@ -133,7 +133,7 @@ Matrix *matrix_add(const Matrix *a, const Matrix *b) {
     return result;
 }
 
-Matrix *matrix_sub(const Matrix *a, const Matrix *b) {
+RW_API Matrix *matrix_sub(const Matrix *a, const Matrix *b) {
     assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     if (a->len != b->len) return NULL; // Grundprüfung
@@ -151,7 +151,7 @@ Matrix *matrix_sub(const Matrix *a, const Matrix *b) {
     return result;
 }
 
-Matrix *matrix_mul(const Matrix *a, const Matrix *b) {
+RW_API Matrix *matrix_mul(const Matrix *a, const Matrix *b) {
     assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     if (a->len != b->len) return NULL; // Grundprüfung
@@ -175,7 +175,7 @@ Matrix *matrix_mul(const Matrix *a, const Matrix *b) {
     return result;
 }
 
-Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b) {
+RW_API Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b) {
     assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(a->len == b->len);
@@ -194,7 +194,7 @@ Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b) {
     return result;
 }
 
-void matrix_mul_inplace(Matrix *a, const Matrix *b) {
+RW_API void matrix_mul_inplace(Matrix *a, const Matrix *b) {
     assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(b != NULL); // Überprüft, ob matrix nicht NULL ist
     assert(a->width == b->width && a->height == b->height);
@@ -204,7 +204,7 @@ void matrix_mul_inplace(Matrix *a, const Matrix *b) {
     }
 }
 
-double matrix_sum(const Matrix *matrix) {
+RW_API double matrix_sum(const Matrix *matrix) {
     if (matrix == NULL) return 0.0;
     double sum = 0.0;
     for (size_t index = 0; index < matrix->len; index++) {
@@ -213,7 +213,7 @@ double matrix_sum(const Matrix *matrix) {
     return sum;
 }
 
-void matrix_transpose(Matrix *m) {
+RW_API void matrix_transpose(Matrix *m) {
     assert(m != NULL);
     Matrix *temp = matrix_copy(m);
     for (size_t y = 0; y < m->height; y++) {
@@ -224,7 +224,7 @@ void matrix_transpose(Matrix *m) {
     matrix_free(temp);
 }
 
-Matrix *matrix_invert(const Matrix *input) {
+RW_API Matrix *matrix_invert(const Matrix *input) {
     if (input->width != input->height) {
         fprintf(stderr, "Fehler: Nur quadratische Matrizen können invertiert werden.\n");
         exit(EXIT_FAILURE);
@@ -259,7 +259,7 @@ Matrix *matrix_invert(const Matrix *input) {
     exit(EXIT_FAILURE);
 }
 
-double matrix_determinant(const Matrix *mat) {
+RW_API double matrix_determinant(const Matrix *mat) {
     if (mat->width != mat->height) {
         fprintf(stderr, "Fehler: Nur quadratische Matrizen haben eine Determinante.\n");
         exit(EXIT_FAILURE);
@@ -276,14 +276,14 @@ double matrix_determinant(const Matrix *mat) {
     return 0;
 }
 
-void matrix_normalize(const Matrix *mat, double sum) {
+RW_API void matrix_normalize(const Matrix *mat, double sum) {
     for (int i = 0; i < mat->len; ++i) {
         if (mat->data.points[i] == 0.0)
             mat->data.points[i] /= sum;
     }
 }
 
-void matrix_normalize_L1(Matrix *m) {
+RW_API void matrix_normalize_L1(Matrix *m) {
     if (!m || !m->data.points || m->len == 0) return;
 
     double sum = 0.0;
@@ -302,7 +302,7 @@ void matrix_normalize_L1(Matrix *m) {
 }
 
 
-char *matrix_to_string(const Matrix *mat) {
+RW_API char *matrix_to_string(const Matrix *mat) {
     const char presition = 4;
     // Berechnen der benötigten Größe für den String
     size_t buffer_size = (mat->len << 1) * presition; // Platz für Zeilenumbrüche und Nullterminator
@@ -330,7 +330,7 @@ char *matrix_to_string(const Matrix *mat) {
     return result;
 }
 
-size_t matrix_save(const Matrix *mat, const char *filename) {
+RW_API size_t matrix_save(const Matrix *mat, const char *filename) {
     if (mat == NULL) return 0;
 
     FILE *file = fopen(filename, "wb"); // Open the file in binary write mode
@@ -351,7 +351,7 @@ size_t matrix_save(const Matrix *mat, const char *filename) {
     return len * sizeof(double);
 }
 
-Matrix *matrix_load(const char *filename) {
+RW_API Matrix *matrix_load(const char *filename) {
     FILE *file = fopen(filename, "rb"); // Open the file in binary read mode
     if (file == NULL) {
         perror("Error opening file");
@@ -376,7 +376,7 @@ Matrix *matrix_load(const char *filename) {
     return mat;
 }
 
-Matrix *matrix_clone(const Matrix *src) {
+RW_API Matrix *matrix_clone(const Matrix *src) {
     if (!src) return NULL;
     Matrix *clone = malloc(sizeof(Matrix));
     if (!clone) return NULL;
@@ -395,7 +395,7 @@ Matrix *matrix_clone(const Matrix *src) {
     return clone;
 }
 
-void matrix_print(const Matrix *m) {
+RW_API void matrix_print(const Matrix *m) {
     for (size_t i = 0; i < m->height; i++) {
         for (size_t j = 0; j < m->width; j++) {
             printf("%0.5f ", matrix_get(m, j, i)
@@ -406,7 +406,7 @@ void matrix_print(const Matrix *m) {
     printf("\n");
 }
 
-Matrix *matrix_combind(const Matrix *matrix1, const Matrix *matrix2) {
+RW_API Matrix *matrix_combind(const Matrix *matrix1, const Matrix *matrix2) {
     if (matrix1 == NULL || matrix2 == NULL) {
         printf("matrix_combind: error dst == NULL || src == NULL");
         return NULL; // Fehlerbehandlung
@@ -426,7 +426,7 @@ Matrix *matrix_combind(const Matrix *matrix1, const Matrix *matrix2) {
     return result;
 }
 
-int matrix_combind_inplace(Matrix *dst, const Matrix *src) {
+RW_API int matrix_combind_inplace(Matrix *dst, const Matrix *src) {
     if (dst == NULL || src == NULL) {
         printf("matrix_combind: error dst == NULL || src == NULL");
         return 0; // Fehlerbehandlung
@@ -444,7 +444,7 @@ int matrix_combind_inplace(Matrix *dst, const Matrix *src) {
     return 1;
 }
 
-int matrix_add_inplace(Matrix *dst, const Matrix *src) {
+RW_API int matrix_add_inplace(Matrix *dst, const Matrix *src) {
     if (dst == NULL || src == NULL) {
         printf("matrix_add_inplace: error dst == NULL || src == NULL");
         return 0; // Fehlerbehandlung
@@ -463,7 +463,7 @@ int matrix_add_inplace(Matrix *dst, const Matrix *src) {
 }
 
 
-Matrix *matrix_upsample_bilinear(const Matrix *input, ssize_t new_w, ssize_t new_h) {
+RW_API Matrix *matrix_upsample_bilinear(const Matrix *input, ssize_t new_w, ssize_t new_h) {
     Matrix *output = matrix_new(new_w, new_h);
     if (!output) return NULL;
 
@@ -500,7 +500,7 @@ Matrix *matrix_upsample_bilinear(const Matrix *input, ssize_t new_w, ssize_t new
     return output;
 }
 
-Matrix *matrix_rotate(Matrix *original, double angle) {
+RW_API Matrix *matrix_rotate(Matrix *original, double angle) {
     // Berechne den Rotationswinkel in Bogenmaß
     double radians = angle * M_PI / 180.0;
 
@@ -530,7 +530,7 @@ Matrix *matrix_rotate(Matrix *original, double angle) {
     return rotated;
 }
 
-Matrix *matrix_rotate_center(Matrix *original, double angle) {
+RW_API Matrix *matrix_rotate_center(Matrix *original, double angle) {
     // Berechne den Rotationswinkel in Bogenmaß
     double radians = angle * M_PI / 180.0;
 

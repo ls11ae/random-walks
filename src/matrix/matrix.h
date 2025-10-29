@@ -35,6 +35,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <misc/export.h>
 #include <stddef.h>
 
 #include "parsers/types.h"
@@ -50,7 +51,7 @@ extern "C" {
  * @return A pointer to the newly created Matrix, or NULL if allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
-Matrix *matrix_new(ssize_t width, ssize_t height);
+RW_API Matrix *matrix_new(ssize_t width, ssize_t height);
 
 /**
  * @brief Free the memory allocated for a matrix.
@@ -59,7 +60,7 @@ Matrix *matrix_new(ssize_t width, ssize_t height);
  * 
  * @param matrix A pointer to the Matrix to be freed. Must not be NULL.
  */
-void matrix_free(Matrix *matrix);
+RW_API void matrix_free(Matrix *matrix);
 
 /**
  * @brief Create a copy of the given matrix.
@@ -69,7 +70,7 @@ void matrix_free(Matrix *matrix);
  * @param matrix A pointer to the Matrix to be copied. Must not be NULL.
  * @return A pointer to the newly created copy of the Matrix, or NULL if allocation fails.
  */
-Matrix *matrix_copy(const Matrix *matrix);
+RW_API Matrix *matrix_copy(const Matrix *matrix);
 
 /**
  * @brief Perform element-wise convolution of an input matrix with a kernel matrix.
@@ -80,7 +81,7 @@ Matrix *matrix_copy(const Matrix *matrix);
  * @param kernel A pointer to the kernel Matrix. Must not be NULL.
  * @param output A pointer to the output Matrix where the result will be stored. Must not be NULL.
  */
-void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output);
+RW_API void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output);
 
 /**
  * @brief Check if two matrices are equal within a tolerance.
@@ -91,7 +92,7 @@ void matrix_convolution(Matrix *input, Matrix *kernel, Matrix *output);
  * @param matrix2 A pointer to the second Matrix. Must not be NULL.
  * @return true if the matrices are equal, false otherwise.
  */
-bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2);
+RW_API bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2);
 
 /**
  * @brief Perform average pooling on the source matrix and store the result in the destination matrix.
@@ -102,7 +103,7 @@ bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2);
  * @param dst A pointer to the destination Matrix where the pooled result will be stored. Must not be NULL.
  * @param src A pointer to the source Matrix to be pooled. Must not be NULL.
  */
-void matrix_pooling_avg(Matrix *dst, const Matrix *src);
+RW_API void matrix_pooling_avg(Matrix *dst, const Matrix *src);
 
 /**
  * @brief Copy the contents of one matrix to another.
@@ -112,7 +113,7 @@ void matrix_pooling_avg(Matrix *dst, const Matrix *src);
  * @param dest A pointer to the destination Matrix where data will be copied. Must not be NULL.
  * @param src A pointer to the source Matrix from which data will be copied. Must not be NULL.
  */
-void matrix_copy_to(Matrix *dest, const Matrix *src);
+RW_API void matrix_copy_to(Matrix *dest, const Matrix *src);
 
 /**
  * @brief Check if the given (x, y) coordinates are within the bounds of the matrix.
@@ -122,7 +123,7 @@ void matrix_copy_to(Matrix *dest, const Matrix *src);
  * @param y The y-coordinate (row index).
  * @return 1 if the coordinates are within bounds, 0 otherwise.
  */
-int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
+RW_API int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
 
 /**
  * @brief Get the value at the specified (x, y) coordinates in the matrix.
@@ -150,7 +151,7 @@ int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
  * @param matrix A pointer to the Matrix to be filled. Must not be NULL.
  * @param value The value to fill the matrix with.
  */
-void matrix_fill(Matrix *matrix, double value);
+RW_API void matrix_fill(Matrix *matrix, double value);
 
 /**
  * @brief Add two matrices element-wise and return the result as a new matrix.
@@ -161,7 +162,7 @@ void matrix_fill(Matrix *matrix, double value);
  * @param b A pointer to the second Matrix. Must not be NULL.
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
  */
-Matrix *matrix_add(const Matrix *a, const Matrix *b);
+RW_API Matrix *matrix_add(const Matrix *a, const Matrix *b);
 
 /**
  * @brief Add two matrices element-wise and store the result in the first matrix.
@@ -172,7 +173,7 @@ Matrix *matrix_add(const Matrix *a, const Matrix *b);
  * @param b A pointer to the second Matrix. Must not be NULL.
  * @return 0 on success, or -1 if dimensions do not match.
  */
-int matrix_add_inplace(Matrix *a, const Matrix *b);
+RW_API int matrix_add_inplace(Matrix *a, const Matrix *b);
 
 /**
  * @brief Subtract the second matrix from the first matrix element-wise and return the result as a new matrix.
@@ -183,7 +184,7 @@ int matrix_add_inplace(Matrix *a, const Matrix *b);
  * @param b A pointer to the second Matrix. Must not be NULL.
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
  */
-Matrix *matrix_sub(const Matrix *a, const Matrix *b);
+RW_API Matrix *matrix_sub(const Matrix *a, const Matrix *b);
 
 /**
  * @brief Multiply two matrices and return the result as a new matrix.
@@ -195,7 +196,7 @@ Matrix *matrix_sub(const Matrix *a, const Matrix *b);
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
 */
-Matrix *matrix_mul(const Matrix *a, const Matrix *b);
+RW_API Matrix *matrix_mul(const Matrix *a, const Matrix *b);
 
 /**
  * @brief Perform element-wise multiplication of two matrices and return the result as a new matrix.
@@ -207,7 +208,7 @@ Matrix *matrix_mul(const Matrix *a, const Matrix *b);
  * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
-Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
+RW_API Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
 
 /**
  * @brief Perform element-wise multiplication of two matrices and store the result in the first matrix.
@@ -217,7 +218,7 @@ Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
  * @param a A pointer to the first Matrix. Must not be NULL.
  * @param b A pointer to the second Matrix. Must not be NULL.
  */
-void matrix_mul_inplace(Matrix *a, const Matrix *b);
+RW_API void matrix_mul_inplace(Matrix *a, const Matrix *b);
 
 /**
  * @brief Calculate the sum of all elements in the matrix.
@@ -225,14 +226,14 @@ void matrix_mul_inplace(Matrix *a, const Matrix *b);
  * @param matrix A pointer to the Matrix. Must not be NULL.
  * @return The sum of all elements in the matrix.
  */
-double matrix_sum(const Matrix *matrix);
+RW_API double matrix_sum(const Matrix *matrix);
 
 /**
  * @brief Transpose the given matrix in place.
  * 
  * @param m A pointer to the Matrix to be transposed. Must not be NULL.
  */
-void matrix_transpose(Matrix *m);
+RW_API void matrix_transpose(Matrix *m);
 
 /**
  * @brief Calculate the determinant of a square matrix.
@@ -242,7 +243,7 @@ void matrix_transpose(Matrix *m);
  * @param mat A pointer to the square Matrix. Must not be NULL.
  * @return The determinant of the matrix.
  */
-double matrix_determinant(const Matrix *mat);
+RW_API double matrix_determinant(const Matrix *mat);
 
 /**
  * @brief Invert a square matrix.
@@ -253,7 +254,7 @@ double matrix_determinant(const Matrix *mat);
  * @return A pointer to the newly created Matrix containing the inverse, or NULL if the matrix is singular or allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
-Matrix *matrix_invert(const Matrix *input);
+RW_API Matrix *matrix_invert(const Matrix *input);
 
 /**
  * @brief Print the matrix to the standard output.
@@ -262,7 +263,7 @@ Matrix *matrix_invert(const Matrix *input);
  * 
  * @param m A pointer to the Matrix to be printed. Must not be NULL.
  */
-void matrix_print(const Matrix *m);
+RW_API void matrix_print(const Matrix *m);
 
 /**
  * @brief Convert the matrix to a string representation.
@@ -273,7 +274,7 @@ void matrix_print(const Matrix *m);
  * @param mat A pointer to the Matrix to be converted. Must not be NULL.
  * @return A pointer to the newly allocated string representation of the matrix.
  */
-char *matrix_to_string(const Matrix *mat);
+RW_API char *matrix_to_string(const Matrix *mat);
 
 /**
  * @brief Save the matrix to a binary file.
@@ -284,7 +285,7 @@ char *matrix_to_string(const Matrix *mat);
  * @param filename The name of the file to save the matrix to.
  * @return The number of bytes written to the file, or 0 on error.
  */
-size_t matrix_save(const Matrix *mat, const char *filename);
+RW_API size_t matrix_save(const Matrix *mat, const char *filename);
 
 /**
  * @brief Load a matrix from a binary file.
@@ -295,7 +296,7 @@ size_t matrix_save(const Matrix *mat, const char *filename);
  * @return A pointer to the newly created Matrix, or NULL on error.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
-Matrix *matrix_load(const char *filename);
+RW_API Matrix *matrix_load(const char *filename);
 
 /**
  * @brief Create a clone of the given matrix.
@@ -306,7 +307,7 @@ Matrix *matrix_load(const char *filename);
  * @return A pointer to the newly created clone of the Matrix, or NULL if allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
-Matrix *matrix_clone(const Matrix *src);
+RW_API Matrix *matrix_clone(const Matrix *src);
 
 /**
  * @brief Normalize the matrix elements by dividing each element by the given sum.
@@ -316,16 +317,7 @@ Matrix *matrix_clone(const Matrix *src);
  * @param mat A pointer to the Matrix to be normalized. Must not be NULL.
  * @param sum The sum to normalize by. Must not be zero.
  */
-void matrix_normalize(const Matrix *mat, double sum);
-
-/**
- * @brief Normalize the matrix elements to the range [0, 1] such that all elements sum up to 1.
- * 
- * The minimum element is mapped to 0 and the maximum element is mapped to 1.
- * 
- * @param m A pointer to the Matrix to be normalized. Must not be NULL.
- */
-void matrix_normalize_01(Matrix *m);
+RW_API void matrix_normalize(const Matrix *mat, double sum);
 
 /**
  * @brief Normalize the matrix elements using L1 normalization.
@@ -334,7 +326,7 @@ void matrix_normalize_01(Matrix *m);
  * 
  * @param m A pointer to the Matrix to be normalized. Must not be NULL.
  */
-void matrix_normalize_L1(Matrix *m);
+RW_API void matrix_normalize_L1(Matrix *m);
 
 
 #ifdef __cplusplus
