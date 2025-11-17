@@ -7,7 +7,6 @@ extern "C" {
 #include <stdlib.h>
 #include "math/Point2D.h"
 #include "terrain_parser.h"
-#include "cJSON.h"
 
 void save_walk_to_json(const Point2DArray *steps, const Point2DArray *walk, const TerrainMap *terrain,
                        const char *filename);
@@ -23,18 +22,6 @@ void save_walk_to_json_noterrain(const Point2DArray *steps, const Point2DArray *
 // Without steps and terrain
 void save_walk_to_json_onlywalk(const Point2DArray *walk, uint32_t W, uint32_t H, const char *filename);
 
-void load_full_walk(const char *filename, Point2DArray *steps, Point2DArray *walk, TerrainMap *terrain);
-
-void load_walk_with_terrain(const char *filename,
-                            Point2DArray *walk,
-                            TerrainMap *terrain);
-
-void load_walk_with_steps(const char *filename,
-                          Point2DArray *steps,
-                          Point2DArray *walk);
-
-void load_walk_only(const char *filename,
-                    Point2DArray *walk);
 #ifdef __cplusplus
     }
 #endif

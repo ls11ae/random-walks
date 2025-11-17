@@ -153,7 +153,6 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
     // 2) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
-        //printf("%zd / %zd \n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
             if (is_forbidden_landmark(terrain_val, mapping)) {

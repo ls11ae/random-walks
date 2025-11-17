@@ -8,8 +8,8 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Flags
-set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 
@@ -106,13 +106,14 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # Executable
-add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
-if (ENABLE_CUDA)
-    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
-endif ()
+#add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
+#target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
+#if (ENABLE_CUDA)
+#    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
+#endif ()
 
 # Tests
 enable_testing()
-add_subdirectory(tests)
-
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
