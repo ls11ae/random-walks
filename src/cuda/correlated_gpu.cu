@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
-#include <c++/15.2.1/chrono>
+#include <chrono>
 
 #include "math/math_utils.h"
 #include "parsers/serialization.h"

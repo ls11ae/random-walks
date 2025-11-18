@@ -8,8 +8,8 @@
 
 #include "cuda/mixed_gpu.h"
 
-#include <c++/15.2.1/chrono>
-#include <c++/15.2.1/iostream>
+#include <chrono>
+#include <iostream>
 
 #include "math/math_utils.h"
 #include "parsers/terrain_parser.h"
