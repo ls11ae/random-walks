@@ -16,7 +16,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  const TerrainMap *terrain_map,
                                  const DirKernelsMap *dir_kernels_map,
                                  KernelParametersMapping *mapping,
-                                 const KernelParametersTerrainWeather *tensor_set,
+                                 const KernelParamsYXT *tensor_set,
                                  ssize_t T,
                                  const ssize_t start_x,
                                  const ssize_t start_y) {
@@ -130,7 +130,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 }
 
 Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, const TerrainMap *terrain,
-                                          const KernelParametersTerrainWeather *tensor_set,
+                                          const KernelParamsYXT *tensor_set,
                                           const DirKernelsMap *dir_kernels_map,
                                           KernelParametersMapping *mapping,
                                           const ssize_t end_x, const ssize_t end_y) {
@@ -248,22 +248,30 @@ Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char 
 	printf("weather grid loaded\n");
 
 	TerrainMap *terrain = create_terrain_map(terrain_path, ' ');
-	KernelParametersTerrainWeather *tensor_set = get_kernels_terrain_biased_grid(
+	KernelParamsYXT *tensor_set = get_kernels_terrain_biased_grid(
 		terrain, grid, mapping, full_weather_influence);
+
+	Point2DArray *result = time_walk_custom(T, mapping, terrain, tensor_set, start, goal);
+	weather_influence_grid_free(grid);
+	return result;
+}
+
+Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
+                               KernelParamsYXT *parameters,
+                               TimedLocation start, TimedLocation goal) {
 	DirKernelsMap *dir_kernels = generate_dir_kernels(mapping);
 
-	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping, tensor_set, T,
+	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping, parameters, T,
 	                                      start.coordinates.x,
 	                                      start.coordinates.y);
-	Point2DArray *walk = backtrace_time_walk_compact(dp, T, terrain, tensor_set, dir_kernels, mapping,
+	Point2DArray *walk = backtrace_time_walk_compact(dp, T, terrain, parameters, dir_kernels, mapping,
 	                                                 goal.coordinates.x,
 	                                                 goal.coordinates.y);
 
 	if (dp != NULL) tensor4D_free(dp, T);
 
 	dir_kernels_free(dir_kernels);
-	kernel_parameters_mixed_free(tensor_set);
-	weather_influence_grid_free(grid);
+	kernel_parameters_mixed_free(parameters);
 	terrain_map_free(terrain);
 	if (walk == NULL || walk->length == 0) {
 		perror("no walk");

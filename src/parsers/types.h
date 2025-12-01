@@ -261,7 +261,7 @@ typedef struct {
     size_t time;
     size_t max_D;
     KernelParameters ****data; // [y][x][t]
-} KernelParametersTerrainWeather;
+} KernelParamsYXT;
 
 typedef struct {
     int year;

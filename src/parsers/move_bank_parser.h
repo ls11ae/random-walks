@@ -71,7 +71,7 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
  * @param full_influence If true, apply full influence of the biases; otherwise apply a reduced influence.
  * @return Newly allocated KernelParametersTerrainWeather grid, or NULL on failure.
  */
-KernelParametersTerrainWeather *
+KernelParamsYXT *
 get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenceGrid *biases,
                                 KernelParametersMapping *kernels_mapping, bool full_influence);
 
@@ -85,7 +85,7 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
  * @brief Free a time-aware KernelParametersTerrainWeather grid.
  * @param kernel_parameters_terrain Grid to free. It is safe to pass NULL.
  */
-void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain);
+void kernel_parameters_mixed_free(KernelParamsYXT *kernel_parameters_terrain);
 
 /**
  * @brief Lookup kernel parameters for a specific terrain class.

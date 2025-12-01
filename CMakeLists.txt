@@ -32,11 +32,11 @@ if (OpenMP_FOUND)
         target_link_libraries(openmp_dummy INTERFACE gomp)
         add_compile_options(-fopenmp)
         add_link_options(-fopenmp)
-    else()
+    else ()
         add_library(openmp_dummy INTERFACE)
         target_link_libraries(openmp_dummy INTERFACE OpenMP::OpenMP_C OpenMP::OpenMP_CXX)
-    endif()
-endif()
+    endif ()
+endif ()
 
 
 # Doxygen
@@ -53,14 +53,14 @@ if (DOXYGEN_FOUND)
     configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
 
     add_custom_target(doc
-        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM
+            COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
     )
-else()
+else ()
     message(STATUS "Doxygen not found, 'doc' target will not be available")
-endif()
+endif ()
 
 
 # CUDA optional
@@ -114,6 +114,6 @@ target_link_libraries(${PROJECT_NAME}
 
 # Tests
 enable_testing()
-if(BUILD_TESTING)
+if (BUILD_TESTING)
     add_subdirectory(tests)
-endif()
+endif ()

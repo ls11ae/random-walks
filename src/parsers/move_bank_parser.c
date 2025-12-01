@@ -126,7 +126,7 @@ KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelPa
     return kernel_parameters;
 }
 
-KernelParametersTerrainWeather *
+KernelParamsYXT *
 get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenceGrid *biases,
                                 KernelParametersMapping *kernels_mapping, bool full_influence) {
     const size_t width = terrain->width;
@@ -137,7 +137,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
     const size_t bias_grid_height = biases->height;
     ssize_t max_D = 1;
 
-    KernelParametersTerrainWeather *kernel_parameters = malloc(sizeof(KernelParametersTerrainWeather));
+    KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
     kernel_parameters->width = width;
     kernel_parameters->height = height;
     kernel_parameters->time = times;
@@ -332,7 +332,7 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
     free(kernel_parameters_terrain);
 }
 
-void kernel_parameters_mixed_free(KernelParametersTerrainWeather *kernel_parameters_terrain) {
+void kernel_parameters_mixed_free(KernelParamsYXT *kernel_parameters_terrain) {
     if (!kernel_parameters_terrain) return;
 
     if (kernel_parameters_terrain->data) {

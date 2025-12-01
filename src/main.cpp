@@ -474,53 +474,52 @@ void generate_and_apply_terrain_kernels() {
 }
 
 int main() {
-    test_mixed();
-    return 0;
-    auto matrix = matrix_new(15, 15);
-    auto times = 100;
-    auto SIZE = 400;
-    Point2D points[times];
-    for (int i = 0; i < times; ++i) {
-        if (i < times / 3)
-            points[i] = (Point2D){-5, 0};
-        else if (i < 2 * times / 3)
-            points[i] = (Point2D){0, 0};
-        else
-            points[i] = (Point2D){5, 0};
+    goto test_time_walk;
+    // test_mixed();
+    //return 0;
+    {
+        auto matrix = matrix_new(15, 15);
+        auto times = 100;
+        auto SIZE = 400;
+        Point2D points[times];
+        for (int i = 0; i < times; ++i) {
+            if (i < times / 3)
+                points[i] = (Point2D){-5, 0};
+            else if (i < 2 * times / 3)
+                points[i] = (Point2D){0, 0};
+            else
+                points[i] = (Point2D){5, 0};
+        }
+
+        double arr[times];
+
+        Biases bs2;
+        bs2.kind = BIAS_KIND_OFFSET;
+        bs2.data.offsets = points;
+        bs2.len = times;
+
+        auto start = Point2D{200, 50};
+        auto end = Point2D{200, 180};
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        Tensor *tensor = biased_brownian_init(&bs2, matrix, SIZE, SIZE, bs2.len, start.x, start.y);
+        Point2DArray *walk = biased_brownian_backtrace(tensor, &bs2, matrix, end.x, end.y);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
+        Point2D stepss[] = {start, end};
+
+        auto steps = (Point2DArray){.points = stepss, .length = 2};
+        save_walk_to_json(&steps, walk, terrain, "../../resources/biased.json");
+
+        printf("Time: %ld ms\n", duration.count());
+        terrain_map_free(terrain);
+        point2d_array_print(walk);
+        point2d_array_free(walk);
+        tensor_free(tensor);
+        matrix_free(matrix);
+        return 0;
     }
-
-    double arr[times];
-
-    Biases bs2;
-    bs2.kind = BIAS_KIND_OFFSET;
-    bs2.data.offsets = points;
-    bs2.len = times;
-
-    auto start = Point2D{200, 50};
-    auto end = Point2D{200, 180};
-
-    auto start_time = std::chrono::high_resolution_clock::now();
-    Tensor *tensor = biased_brownian_init(&bs2, matrix, SIZE, SIZE, bs2.len, start.x, start.y);
-    Point2DArray *walk = biased_brownian_backtrace(tensor, &bs2, matrix, end.x, end.y);
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
-    Point2D stepss[] = {start, end};
-
-    auto steps = (Point2DArray){.points = stepss, .length = 2};
-    save_walk_to_json(&steps, walk, terrain, "../../resources/biased.json");
-
-    printf("Time: %ld ms\n", duration.count());
-    terrain_map_free(terrain);
-    point2d_array_print(walk);
-    point2d_array_free(walk);
-    tensor_free(tensor);
-    matrix_free(matrix);
-    return 0;
-
-    goto
-            test_time_walk;
-
     {
         char walk_path_with_index[256];
         snprintf(walk_path_with_index, sizeof(walk_path_with_index),
@@ -554,15 +553,15 @@ int main() {
 test_time_walk : {
         KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
         auto t = 20;
-        auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
+        auto csv_path = "/home/omar/CLionProjects/random-walks/resources/BEGONA";
         auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
         auto ser_path = "/home/omar/CLionProjects/random-walks/resources/tmap";
         auto grid_x = 3, grid_y = 3;
         auto start_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 22, .hour = 0}, .coordinates = (Point2D){5, 5},
+            .timestamp = (DateTime){.year = 2000, .month = 9, .day = 20, .hour = 0}, .coordinates = (Point2D){5, 5},
         };
         auto goal_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 10, .day = 17, .hour = 0},
+            .timestamp = (DateTime){.year = 2001, .month = 1, .day = 6, .hour = 0},
             .coordinates = (Point2D){25, 25},
         };
         auto start = std::chrono::high_resolution_clock::now();

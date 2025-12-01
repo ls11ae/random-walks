@@ -30,18 +30,21 @@ Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char 
                                     KernelParametersMapping *mapping, int grid_x, int grid_y,
                                     TimedLocation start, TimedLocation goal, bool full_weather_influence);
 
+Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
+                               KernelParamsYXT *parameters,
+                               TimedLocation start, TimedLocation goal);
 
 Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  const TerrainMap *terrain_map,
                                  const DirKernelsMap *dir_kernels_map,
                                  KernelParametersMapping *mapping,
-                                 const KernelParametersTerrainWeather *tensor_set,
+                                 const KernelParamsYXT *tensor_set,
                                  ssize_t T,
                                  const ssize_t start_x,
                                  const ssize_t start_y);
 
 Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, const TerrainMap *terrain,
-                                          const KernelParametersTerrainWeather *tensor_set,
+                                          const KernelParamsYXT *tensor_set,
                                           const DirKernelsMap *dir_kernels_map,
                                           KernelParametersMapping *mapping,
                                           const ssize_t end_x, const ssize_t end_y);
