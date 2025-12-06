@@ -487,15 +487,17 @@ int main() {
     DateTime end{.year = 2001, .month = 1, .day = 3};
     DateTimeInterval range{.start = start, .end = end};
     Dimensions3D dims{5, 5, 145};
-    auto grid = parse_kernel_params(filename, &range, &dims);
+    EnvironmentInfluenceGrid *grid = parse_kernel_params(filename, &range, &dims);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
     auto kernel_paramsXYT = get_kernels_environment_grid(terrain, grid, mapping, 0.8);
-
+    std::cout << "times: " << grid->dims->t << std::endl;
     TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{100, 100}};
     TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{200, 200}};
 
-    auto walk = time_walk_custom(100, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
+    auto walk = time_walk_custom(50, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
+    point2d_array_print(walk);
+    point2d_array_free(walk);
     free_environment_influence_grid(grid);
     free_kernel_parameters_yxt(kernel_paramsXYT);
     return 0;

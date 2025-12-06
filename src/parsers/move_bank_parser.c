@@ -321,7 +321,8 @@ void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain) {
                 for (size_t w = 0; w < kernel_parameters_terrain->width; w++) {
                     if (kernel_parameters_terrain->data[h][w]) {
                         for (size_t t = 0; t < kernel_parameters_terrain->time; t++) {
-                            free(kernel_parameters_terrain->data[h][w][t]);
+                            if (kernel_parameters_terrain->data[h][w][t])
+                                free(kernel_parameters_terrain->data[h][w][t]);
                         }
                         free(kernel_parameters_terrain->data[h][w]);
                     }

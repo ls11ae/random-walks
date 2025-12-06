@@ -259,7 +259,7 @@ Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char 
 Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
                                KernelParamsYXT *parameters,
                                TimedLocation start, TimedLocation goal) {
-	DirKernelsMap *dir_kernels = generate_dir_kernels(mapping);
+	DirKernelsMap *dir_kernels = get_dir_kernels(2 * parameters->max_S + 1, parameters->max_D);
 
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping, parameters, T,
 	                                      start.coordinates.x,

@@ -7,19 +7,8 @@
 #include "matrix/kernels.h"
 #include "matrix/tensor.h"
 
-
-DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
+DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D) {
     DirKernelsMap *dir_kernels_map = malloc(sizeof(DirKernelsMap));
-
-    ssize_t max_M = 0;
-    ssize_t max_D = 0;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
-        const ssize_t t_D = parameters->D;
-        const ssize_t m = parameters->S * 2 + 1;
-        max_D = max_D > t_D ? max_D : t_D;
-        max_M = max_M > m ? max_M : m;
-    }
     dir_kernels_map->max_D = max_D;
     dir_kernels_map->max_kernel_size = max_M;
     dir_kernels_map->data = malloc(sizeof(Vector2D *) * (max_D + 1));
@@ -30,6 +19,19 @@ DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
         }
     }
     return dir_kernels_map;
+}
+
+DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
+    ssize_t max_M = 0;
+    ssize_t max_D = 0;
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
+        const ssize_t t_D = parameters->D;
+        const ssize_t m = parameters->S * 2 + 1;
+        max_D = max_D > t_D ? max_D : t_D;
+        max_M = max_M > m ? max_M : m;
+    }
+    return get_dir_kernels(max_M, max_D);
 }
 
 void dir_kernels_free(DirKernelsMap *dir_kernels) {

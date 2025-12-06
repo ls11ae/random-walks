@@ -40,6 +40,8 @@ TerrainMap *terrain_single_value(int land_type, ssize_t width, ssize_t height);
 
 DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping);
 
+DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D);
+
 void dir_kernels_free(DirKernelsMap *dir_kernels);
 
 Tensor *tensor_at(const char *output_file, ssize_t x, ssize_t y);
