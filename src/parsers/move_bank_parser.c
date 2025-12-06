@@ -117,6 +117,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
     const size_t bias_grid_width = biases->width;
     const size_t bias_grid_height = biases->height;
     ssize_t max_D = BROWNIAN_DIRECTIONS;
+    ssize_t max_S = MIN_STEP_SIZE;
 
     KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
     kernel_parameters->width = width;
@@ -160,10 +161,14 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
                 if (parameters->D > max_D) {
                     max_D = parameters->D;
                 }
+                if (parameters->S > max_S) {
+                    max_S = parameters->S;
+                }
             }
         }
     }
     kernel_parameters->max_D = max_D;
+    kernel_parameters->max_S = max_S;
     return kernel_parameters;
 }
 
