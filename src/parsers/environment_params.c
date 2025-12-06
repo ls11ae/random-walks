@@ -156,7 +156,6 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
             exit(1);
         }
         if (entry->date_time->year != 0) {
-            printf("y: %ld, x: %ld, t: %ld\n", y, x, t);
             grid->params[y][x][t] = entry;
             count++;
         } else {
@@ -183,6 +182,8 @@ static KernelParameters *mix_params(KernelParameters *land, KernelParameters *en
     p->is_brownian = land->is_brownian;
     if (p->is_brownian)
         p->D = BROWNIAN_DIRECTIONS;
+    if (!p->is_brownian && p->D < CRW_MIN_DIRECTIONS)
+        p->D = CRW_MIN_DIRECTIONS;
     return p;
 }
 
@@ -196,6 +197,7 @@ get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluen
     const size_t bias_grid_width = grid->dims->x;
     const size_t bias_grid_height = grid->dims->y;
     ssize_t max_D = BROWNIAN_DIRECTIONS;
+    ssize_t max_S = MIN_STEP_SIZE;
 
     KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
     kernel_parameters->width = width;
@@ -234,10 +236,12 @@ get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluen
                 KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
                 kernel_parameters->data[y][x][t] = current;
                 max_D = max_D > current->D ? max_D : current->D;
+                max_S = max_S > current->S ? max_S : current->S;
             }
         }
     }
     kernel_parameters->max_D = max_D;
+    kernel_parameters->max_S = max_S;
     return kernel_parameters;
 }
 

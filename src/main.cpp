@@ -491,6 +491,11 @@ int main() {
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
     auto kernel_paramsXYT = get_kernels_environment_grid(terrain, grid, mapping, 0.8);
+
+    TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{100, 100}};
+    TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{200, 200}};
+
+    auto walk = time_walk_custom(100, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
     free_environment_influence_grid(grid);
     free_kernel_parameters_yxt(kernel_paramsXYT);
     return 0;

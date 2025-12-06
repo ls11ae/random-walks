@@ -289,7 +289,7 @@ typedef struct {
     size_t width;
     size_t height;
     size_t time;
-    size_t max_D;
+    size_t max_D, max_S;
     KernelParameters ****data; // [y][x][t]
 } KernelParamsYXT;
 
