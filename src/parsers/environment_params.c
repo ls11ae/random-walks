@@ -224,7 +224,7 @@ get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluen
             if (gy >= bias_grid_height) gy = bias_grid_height - 1;
 
             const int terrain_value = terrain->data[y][x];
-            if (terrain_value == 0) {
+            if (terrain_value == UNMAPPED_TERRAIN) {
                 for (size_t t = 0; t < times; t++)
                     kernel_parameters_per_cell[y][x][t] = NULL;
                 continue;
