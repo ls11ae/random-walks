@@ -5,6 +5,8 @@
 #include <string.h>
 #include <misc/utils.h>
 
+#include "constants.h"
+#include "kernel_terrain_mapping.h"
 #include "weather_parser.h"
 
 EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_data, const DateTimeInterval *time_range,
@@ -97,7 +99,6 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_data, const DateTi
                         free(dt);
                         t = -1;
                         free(entry->params);
-                        free(entry->date_time);
                         free(entry);
                         goto LOOP_END;
                     }
@@ -171,6 +172,75 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_data, const DateTi
     free(data_copy);
     return grid;
 }
+
+static KernelParameters *mix_params(KernelParameters *land, KernelParameters *env, float weight) {
+    KernelParameters *p = malloc(sizeof(KernelParameters));
+    p->S = (ssize_t) ((1.0f - weight) * (float) land->S + weight * (float) env->S);
+    p->D = (ssize_t) ((1.0f - weight) * (float) land->D + weight * (float) env->D);
+    p->diffusity = ((1.0f - weight) * land->diffusity + weight * env->diffusity);
+    p->bias_x = env->bias_x;
+    p->bias_y = env->bias_y;
+    p->is_brownian = land->is_brownian;
+    if (p->is_brownian)
+        p->D = BROWNIAN_DIRECTIONS;
+    return p;
+}
+
+KernelParamsYXT *
+get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
+                             KernelParametersMapping *kernels_mapping, float environment_weight) {
+    const size_t width = terrain->width;
+    const size_t height = terrain->height;
+    const size_t times = grid->dims->t;
+
+    const size_t bias_grid_width = grid->dims->x;
+    const size_t bias_grid_height = grid->dims->y;
+    ssize_t max_D = BROWNIAN_DIRECTIONS;
+
+    KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
+    kernel_parameters->width = width;
+    kernel_parameters->height = height;
+    kernel_parameters->time = times;
+
+    KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
+    for (size_t h = 0; h < height; h++) {
+        kernel_parameters_per_cell[h] = malloc(sizeof(KernelParameters **) * width);
+        for (size_t w = 0; w < width; w++) {
+            kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
+        }
+    }
+    kernel_parameters->data = kernel_parameters_per_cell;
+
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
+            // Mapping terrain cell (x, y) to grid cell (gx, gy)
+            size_t gx = x * bias_grid_width / width;
+            size_t gy = y * bias_grid_height / height;
+
+            // Clamp to ensure in bounds due to possible rounding
+            if (gx >= bias_grid_width) gx = bias_grid_width - 1;
+            if (gy >= bias_grid_height) gy = bias_grid_height - 1;
+
+            const int terrain_value = terrain->data[y][x];
+            if (terrain_value == 0) {
+                for (size_t t = 0; t < times; t++)
+                    kernel_parameters_per_cell[y][x][t] = NULL;
+                continue;
+            }
+            for (size_t t = 0; t < times; t++) {
+                // mix and copy to cell
+                KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
+                KernelParameters *environment_p = grid->params[gy][gx][t]->params;
+                KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
+                kernel_parameters->data[y][x][t] = current;
+                max_D = max_D > current->D ? max_D : current->D;
+            }
+        }
+    }
+    kernel_parameters->max_D = max_D;
+    return kernel_parameters;
+}
+
 
 void free_environment_influence_grid(EnvironmentInfluenceGrid *grid) {
     if (grid == NULL) return;

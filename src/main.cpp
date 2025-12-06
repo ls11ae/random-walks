@@ -489,16 +489,11 @@ int main() {
     DateTimeInterval range{.start = start, .end = end};
     Dimensions3D dims{5, 5, 145};
     auto grid = parse_kernel_params(file_content, &range, &dims);
-    for (int y = 0; y < grid->dims->y; ++y) {
-        for (int x = 0; x < grid->dims->x; ++x) {
-            for (int t = 0; t < grid->dims->t; ++t) {
-                auto p = grid->params[y][x][t];
-                std::cout << "y: " << y << " x: " << x << " t: " << t << " : " << p->params->diffusity << "\n";
-            }
-        }
-        std::cout << std::endl;
-    }
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+    auto kernel_paramsXYT = get_kernels_environment_grid(terrain, grid, mapping, 0.8);
     free_environment_influence_grid(grid);
+    free_kernel_parameters_yxt(kernel_paramsXYT);
     free(file_content);
     return 0;
     goto test_time_walk;

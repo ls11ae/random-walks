@@ -271,7 +271,7 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 	if (dp != NULL) tensor4D_free(dp, T);
 
 	dir_kernels_free(dir_kernels);
-	kernel_parameters_mixed_free(parameters);
+	free_kernel_parameters_yxt(parameters);
 	terrain_map_free(terrain);
 	if (walk == NULL || walk->length == 0) {
 		perror("no walk");

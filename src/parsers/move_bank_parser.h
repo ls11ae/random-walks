@@ -86,7 +86,7 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
  * @brief Free a time-aware KernelParametersTerrainWeather grid.
  * @param kernel_parameters_terrain Grid to free. It is safe to pass NULL.
  */
-void kernel_parameters_mixed_free(KernelParamsYXT *kernel_parameters_terrain);
+void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain);
 
 /**
  * @brief Lookup kernel parameters for a specific terrain class.

@@ -312,7 +312,7 @@ void kernel_parameters_terrain_free(KernelParametersTerrain *kernel_parameters_t
     free(kernel_parameters_terrain);
 }
 
-void kernel_parameters_mixed_free(KernelParamsYXT *kernel_parameters_terrain) {
+void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain) {
     if (!kernel_parameters_terrain) return;
 
     if (kernel_parameters_terrain->data) {
