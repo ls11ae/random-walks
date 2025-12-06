@@ -9,14 +9,14 @@
 #include "kernel_terrain_mapping.h"
 #include "weather_parser.h"
 
-EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_data, const DateTimeInterval *time_range,
+EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTimeInterval *time_range,
                                               const Dimensions3D *dims) {
-    if (csv_data == NULL) {
+    if (csv_path == NULL) {
         printf("file not found");
         return NULL;
     }
+    char *data_copy = read_file_to_string(csv_path);
 
-    char *data_copy = strdup(csv_data);
     if (data_copy == NULL) {
         printf("strdup failed");
         return NULL;

@@ -483,18 +483,16 @@ std::string kernel_parameters_print(TimedKernelParameters *p) {
 
 int main() {
     const char *filename = "../../resources/CAMILA_kernel_data.csv";
-    char *file_content = read_file_to_string(filename);
     DateTime start{.year = 2000, .month = 10, .day = 21};
     DateTime end{.year = 2001, .month = 1, .day = 3};
     DateTimeInterval range{.start = start, .end = end};
     Dimensions3D dims{5, 5, 145};
-    auto grid = parse_kernel_params(file_content, &range, &dims);
+    auto grid = parse_kernel_params(filename, &range, &dims);
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
     KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
     auto kernel_paramsXYT = get_kernels_environment_grid(terrain, grid, mapping, 0.8);
     free_environment_influence_grid(grid);
     free_kernel_parameters_yxt(kernel_paramsXYT);
-    free(file_content);
     return 0;
     goto test_time_walk;
     // test_mixed();
