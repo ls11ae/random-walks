@@ -21,10 +21,10 @@
 
 #define REALPATH(src, dest) _fullpath((dest), (src), MAX_PATH)
 
-    static inline int SYMLINK(const char *target, const char *linkpath, int is_dir) {
-        DWORD flags = is_dir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
-        return CreateSymbolicLinkA(linkpath, target, flags) ? 0 : -1;
-    }
+static inline int SYMLINK(const char *target, const char *linkpath, int is_dir) {
+    DWORD flags = is_dir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+    return CreateSymbolicLinkA(linkpath, target, flags) ? 0 : -1;
+}
 
 #else
 #include <unistd.h>
@@ -37,6 +37,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 /**
 * @struct Pair
@@ -123,6 +126,14 @@ typedef struct CacheEntry {
 } CacheEntry;
 
 typedef struct {
+    int year;
+    int month;
+    int day;
+    int hour;
+} DateTime;
+
+
+typedef struct {
     CacheEntry **buckets;
     size_t num_buckets;
 } Cache;
@@ -176,6 +187,25 @@ typedef struct {
     ssize_t bias_x;
     ssize_t bias_y;
 } KernelParameters;
+
+typedef struct {
+    DateTime *date_time;
+    KernelParameters *params;
+    int landmark;
+} TimedKernelParameters;
+
+typedef struct {
+    DateTime start, end;
+} DateTimeInterval;
+
+typedef struct {
+    size_t y, x, t;
+} Dimensions3D;
+
+typedef struct {
+    TimedKernelParameters ****params;
+    Dimensions3D *dims;
+} EnvironmentInfluenceGrid;
 
 #define LAND_MARKS_COUNT  11
 
@@ -263,12 +293,6 @@ typedef struct {
     KernelParameters ****data; // [y][x][t]
 } KernelParamsYXT;
 
-typedef struct {
-    int year;
-    int month;
-    int day;
-    int hour;
-} DateTime;
 
 typedef struct {
     DateTime timestamp;

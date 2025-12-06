@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
+#include <parsers/environment_params.h>
 
 #include "parsers/serialization.h"
 #include "walk/b_walk.h"
@@ -473,7 +474,33 @@ void generate_and_apply_terrain_kernels() {
     apply_terrain_bias(13, 6, terrain1, tensor1, mapping);
 }
 
+std::string kernel_parameters_print(TimedKernelParameters *p) {
+    return std::to_string(p->params->is_brownian) + ", S: " + std::to_string(p->params->S) + ", D: " +
+           std::to_string(p->params->D) +
+           ", diff: " + std::to_string(p->params->diffusity)
+           + ", bx" + std::to_string(p->params->bias_x) + ", by" + std::to_string(p->params->bias_y);
+}
+
 int main() {
+    const char *filename = "../../resources/CAMILA_kernel_data.csv";
+    char *file_content = read_file_to_string(filename);
+    DateTime start{.year = 2000, .month = 10, .day = 21};
+    DateTime end{.year = 2001, .month = 1, .day = 3};
+    DateTimeInterval range{.start = start, .end = end};
+    Dimensions3D dims{5, 5, 145};
+    auto grid = parse_kernel_params(file_content, &range, &dims);
+    for (int y = 0; y < grid->dims->y; ++y) {
+        for (int x = 0; x < grid->dims->x; ++x) {
+            for (int t = 0; t < grid->dims->t; ++t) {
+                auto p = grid->params[y][x][t];
+                std::cout << "y: " << y << " x: " << x << " t: " << t << " : " << p->params->diffusity << "\n";
+            }
+        }
+        std::cout << std::endl;
+    }
+    free_environment_influence_grid(grid);
+    free(file_content);
+    return 0;
     goto test_time_walk;
     // test_mixed();
     //return 0;

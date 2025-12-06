@@ -10,6 +10,7 @@
 #include "kernel_terrain_mapping.h"
 #include "misc/utils.h"
 #include "weather_parser.h"
+#include "parsers/constants.h"
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
                                            ssize_t max_bias_y) {
@@ -38,26 +39,6 @@ Coordinate_array *coordinate_array_new(const Coordinate *coordinates, size_t len
 
     result->length = length;
     return result;
-}
-
-KernelParameters *kernel_parameters_new(const int terrain_value, const WeatherEntry *weather_entry,
-                                        KernelParametersMapping *kernels_mapping) {
-    KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
-    if (!params) return NULL;
-
-    params->diffusity += weather_entry->wind_speed * 0.05f;
-
-    // 6. Calculate wind-driven bias (corrected coordinate system)
-    const float wind_dir_rad = weather_entry->wind_direction * ((float) M_PI / 180.0f);
-    const float bias_x = weather_entry->wind_speed * sinf(wind_dir_rad);
-    const float bias_y = weather_entry->wind_speed * cosf(wind_dir_rad);
-    // Kernel dimensions (assuming kernel is square, adjust if rectangular)
-    const float max_bias_x = (float) params->bias_x;
-    const float max_bias_y = (float) params->bias_y;
-    params->bias_x = (ssize_t) fmaxf(-max_bias_x, fminf(bias_x, max_bias_x));
-    params->bias_y = (ssize_t) fmaxf(-max_bias_y, fminf(bias_y, max_bias_y));
-
-    return params;
 }
 
 KernelParameters *kernel_parameters_of_landmark(const int terrain_value, KernelParametersMapping *kernels_mapping) {
@@ -90,15 +71,15 @@ KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D
     terrain_dependant->bias_y = (biases->y <= terrain_dependant->bias_y) ? biases->y : terrain_dependant->bias_y;
 
     if (modifier) {
-        const ssize_t MAX_D_ALLOWED = 16; // oder 8, je nach Modell
-        ssize_t new_D = (ssize_t) lroundf(modifier->directions_mod * (float) terrain_dependant->D);
-        if (new_D < 4) new_D = 4;
+        ssize_t new_D = lroundf(modifier->directions_mod * (float) terrain_dependant->D);
+        if (new_D < CRW_MIN_DIRECTIONS) new_D = CRW_MIN_DIRECTIONS;
         terrain_dependant->D = new_D;
         terrain_dependant->diffusity *= modifier->diffusity_mod;
+        // brownian if not switch model and originally brownian
         terrain_dependant->is_brownian = !modifier->switch_model && terrain_dependant->is_brownian;
-        ssize_t new_S = (ssize_t) lroundf(modifier->step_size_mod * (float) terrain_dependant->S);
-        terrain_dependant->S = (new_S < 1) ? 1 : new_S;
-        if (terrain_dependant->is_brownian) terrain_dependant->D = 1;
+        ssize_t new_S = lroundf(modifier->step_size_mod * (float) terrain_dependant->S);
+        terrain_dependant->S = (new_S < MIN_STEP_SIZE) ? MIN_STEP_SIZE : new_S;
+        if (terrain_dependant->is_brownian) terrain_dependant->D = BROWNIAN_DIRECTIONS;
     }
     return terrain_dependant;
 }
@@ -135,7 +116,7 @@ get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenc
 
     const size_t bias_grid_width = biases->width;
     const size_t bias_grid_height = biases->height;
-    ssize_t max_D = 1;
+    ssize_t max_D = BROWNIAN_DIRECTIONS;
 
     KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
     kernel_parameters->width = width;
@@ -217,16 +198,15 @@ WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const 
     if (line != NULL) {
         line = strtok(NULL, "\n");
     }
-
+#define NUM_COLS 11
     while (line != NULL) {
-        WeatherEntry entry;
-        memset(&entry, 0, sizeof(WeatherEntry));
+        WeatherEntry entry = {0};
 
         char *start = line;
         int col = 0;
         bool valid_entry = true;
 
-        while (start && *start && col <= 10) {
+        while (start && *start && col < NUM_COLS) {
             char *token = start;
             char *next_comma = strchr(start, ',');
             if (next_comma) {

@@ -40,14 +40,14 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  KernelParametersMapping *mapping,
                                  const KernelParamsYXT *tensor_set,
                                  ssize_t T,
-                                 const ssize_t start_x,
-                                 const ssize_t start_y);
+                                 ssize_t start_x,
+                                 ssize_t start_y);
 
-Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, const TerrainMap *terrain,
+Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const TerrainMap *terrain,
                                           const KernelParamsYXT *tensor_set,
                                           const DirKernelsMap *dir_kernels_map,
                                           KernelParametersMapping *mapping,
-                                          const ssize_t end_x, const ssize_t end_y);
+                                          ssize_t end_x, ssize_t end_y);
 
 
 #ifdef __cplusplus

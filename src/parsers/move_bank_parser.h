@@ -12,6 +12,7 @@
 #include "parsers/terrain_parser.h"
 #include "types.h"
 
+
 #ifdef __cplusplus
 extern "C" {
 
@@ -95,15 +96,6 @@ void kernel_parameters_mixed_free(KernelParamsYXT *kernel_parameters_terrain);
  */
 KernelParameters *kernel_parameters_of_landmark(int terrain_value, KernelParametersMapping *kernels_mapping);
 
-/**
- * @brief Compute kernel parameters for a terrain class influenced by a weather entry.
- * @param terrain_value Encoded terrain class value.
- * @param weather_entry Weather entry with environmental factors.
- * @param kernels_mapping Mapping providing base parameters.
- * @return Newly allocated KernelParameters, or NULL on failure.
- */
-KernelParameters *kernel_parameters_new(int terrain_value, const WeatherEntry *weather_entry,
-                                        KernelParametersMapping *kernels_mapping);
 
 /**
  * @brief Load a weather influence grid from persistent storage.
