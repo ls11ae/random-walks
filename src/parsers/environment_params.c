@@ -11,6 +11,13 @@
 
 EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTimeInterval *time_range,
                                               const Dimensions3D *dims) {
+    printf("kernel csv: %s\n", csv_path);
+    printf("Range: start: %d, %d, %d, %d -> end: %d, %d, %d, %d\n", time_range->start.year, time_range->start.month,
+           time_range->start.day, time_range->start.hour,
+           time_range->end.year, time_range->end.month, time_range->end.day, time_range->end.hour);
+
+    printf("dims: %ld, %ld, %ld\n", dims->y, dims->x, dims->t);
+
     if (csv_path == NULL) {
         printf("file not found");
         return NULL;

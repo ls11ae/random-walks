@@ -245,17 +245,18 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
                                DateTimeInterval *range,
                                Dimensions3D *dims,
                                TimedLocation start, TimedLocation goal) {
-	printf("T: %zd", T);
-	printf("kernel csv: %s", kernel_csv);
+	printf("T: %zd\n", T);
+	printf("kernel csv: %s\n", kernel_csv);
 	printf("Range: start: %d, %d, %d, %d -> end: %d, %d, %d, %d\n", range->start.year, range->start.month,
 	       range->start.day, range->start.hour,
 	       range->end.year, range->end.month, range->end.day, range->end.hour);
 
-	printf("dims: %ld, %ld, %ld", dims->y, dims->x, dims->t);
+	printf("dims: %ld, %ld, %ld\n", dims->y, dims->x, dims->t);
+
 	EnvironmentInfluenceGrid *grid = parse_kernel_params(kernel_csv, range, dims);
 	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, 0.5);
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * kernel_paramsXYT->max_S + 1, kernel_paramsXYT->max_D);
-
+	exit(0);
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
