@@ -49,7 +49,6 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
     bool first_line = true;
     int count = 0;
     int line_count = 0;
-    int max_t = 0;
     char *line = strtok(data_copy, "\n");
 #define NUM_COLS 10
     long current_x = 0, current_y = 0;
@@ -161,13 +160,11 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
         } else {
             t = 0;
         }
-        max_t = max_t > t ? max_t : t;
     LOOP_END:
         line = strtok(NULL, "\n");
     }
     printf("%i parameters created\n", count);
     printf("%i lines \n", line_count);
-    grid->dims->t = max_t + 1;
     free(data_copy);
     return grid;
 }
