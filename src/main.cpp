@@ -500,6 +500,7 @@ int main() {
     auto walk = time_walk_custom(200, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
     point2d_array_print(walk);
 
+    terrain_map_free(terrain);
     point2d_array_free(walk);
     free_environment_influence_grid(grid);
     return 0;
