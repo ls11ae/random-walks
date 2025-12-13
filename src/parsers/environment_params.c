@@ -23,7 +23,6 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
         return NULL;
     }
     char *data_copy = read_file_to_string(csv_path);
-    printf("%s", data_copy);
 
     if (data_copy == NULL) {
         printf("strdup failed");
@@ -111,11 +110,11 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
                     entry->date_time = dt;
                     break;
                 }
-                case 1: {
+                case 2: {
                     y = safe_strtol(token);
                     break;
                 }
-                case 2: {
+                case 1: {
                     x = safe_strtol(token);
                     break;
                 }
