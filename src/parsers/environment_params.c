@@ -187,6 +187,19 @@ static KernelParameters *mix_params(KernelParameters *land, KernelParameters *en
     return p;
 }
 
+KernelParameters *kernel_parameters_copy(const KernelParameters *src) {
+    if (!src) {
+        return NULL;
+    }
+
+    KernelParameters *dst = malloc(sizeof(KernelParameters));
+    if (!dst) {
+        return NULL;
+    }
+    memcpy(dst, src, sizeof(KernelParameters));
+    return dst;
+}
+
 KernelParamsYXT *
 get_kernels_environment_grid(int T, const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
                              KernelParametersMapping *kernels_mapping, float environment_weight) {
@@ -239,12 +252,17 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
                                                            : sample_timeline(source, source_len, dest_len);
             for (size_t t = 0; t < T; t++) {
                 // mix and copy to cell
-                KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
+                KernelParameters *landmark_param = kernel_parameters_copy(
+                    &kernels_mapping->data.parameters[landmark_to_index(terrain_value)]);
                 KernelParameters *environment_p = current_timeline[t]->params;
-                KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
+                KernelParameters *current = mix_params(landmark_param, environment_p, environment_weight);
                 kernel_parameters->data[y][x][t] = current;
-                if (current->S > 1000)
+                if (current->S > 1000) {
+                    printf("S: %zd\n", current->S);
                     printf("S: %zd\n", environment_p->S);
+                    printf("S: %zd\n", landmark_param->S);
+                }
+                free(landmark_param);
                 max_D = max_D > current->D ? max_D : current->D;
                 max_S = max_S > current->S ? max_S : current->S;
             }
