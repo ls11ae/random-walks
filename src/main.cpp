@@ -501,9 +501,6 @@ int main() {
     point2d_array_print(walk);
 
     point2d_array_free(walk);
-    free_kernel_parameters_yxt(kernel_paramsXYT);
-    kernel_parameters_mapping_free(mapping);
-    terrain_map_free(terrain);
     free_environment_influence_grid(grid);
     return 0;
     goto test_time_walk;

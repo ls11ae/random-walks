@@ -6,6 +6,7 @@
 #include "math/math_utils.h"
 #include "math/path_finding.h"
 #include "matrix/kernels.h"
+#include "parsers/environment_params.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
 #include "parsers/walk_json.h"
@@ -258,5 +259,8 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 		perror("no walk");
 		return NULL;
 	}
+	free_kernel_parameters_yxt(parameters);
+	kernel_parameters_mapping_free(mapping);
+	terrain_map_free(terrain);
 	return walk;
 }
