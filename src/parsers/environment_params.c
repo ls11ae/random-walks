@@ -243,7 +243,7 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
                 KernelParameters *environment_p = current_timeline[t]->params;
                 KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
                 kernel_parameters->data[y][x][t] = current;
-                if (environment_p->S > 1000)
+                if (current->S > 1000)
                     printf("S: %zd\n", environment_p->S);
                 max_D = max_D > current->D ? max_D : current->D;
                 max_S = max_S > current->S ? max_S : current->S;
