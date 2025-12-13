@@ -23,6 +23,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
         return NULL;
     }
     char *data_copy = read_file_to_string(csv_path);
+    printf("%s", data_copy);
 
     if (data_copy == NULL) {
         printf("strdup failed");
