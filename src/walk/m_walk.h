@@ -31,7 +31,9 @@ Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char 
                                     TimedLocation start, TimedLocation goal, bool full_weather_influence);
 
 Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
-                               KernelParamsYXT *parameters,
+                               const char *kernel_csv,
+                               DateTimeInterval *range,
+                               Dimensions3D *dims,
                                TimedLocation start, TimedLocation goal);
 
 Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
