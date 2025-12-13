@@ -13,7 +13,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_data, const DateTi
 
 KernelParamsYXT *
 get_kernels_environment_grid(int T, const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
-                             KernelParametersMapping *kernels_mapping, float environment_weight);
+                             const KernelParametersMapping *kernels_mapping, float environment_weight);
 
 void free_environment_influence_grid(EnvironmentInfluenceGrid *grid);
 

@@ -260,6 +260,5 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 		return NULL;
 	}
 	free_kernel_parameters_yxt(parameters);
-	kernel_parameters_mapping_free(mapping);
 	return walk;
 }
