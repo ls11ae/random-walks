@@ -242,7 +242,6 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
                 KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
                 KernelParameters *environment_p = current_timeline[t]->params;
                 KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
-                assert(environment_p->S < 50);
                 kernel_parameters->data[y][x][t] = current;
                 max_D = max_D > current->D ? max_D : current->D;
                 max_S = max_S > current->S ? max_S : current->S;
@@ -252,6 +251,9 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
     }
     kernel_parameters->max_D = max_D;
     kernel_parameters->max_S = max_S;
+    printf("%ld", max_D);
+    printf("%ld", max_S);
+    exit(0);
     return kernel_parameters;
 }
 
