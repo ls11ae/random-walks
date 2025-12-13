@@ -147,7 +147,10 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
             dest[dest_index] = malloc(sizeof(TimedKernelParameters));
             dest[dest_index]->params = malloc(sizeof(KernelParameters));
             dest[dest_index]->date_time = malloc(sizeof(DateTime));
-            interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
+            if (source[i + 1] == NULL)
+                interpolate_kernel_params(dest[dest_index], source[i], source[i], 1);
+            else
+                interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
             dest_index++;
         }
         if (i < remainder) {
