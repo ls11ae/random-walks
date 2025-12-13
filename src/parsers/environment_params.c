@@ -103,7 +103,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
 
                     if (!within_range(dt, &time_range->start, &time_range->end)) {
                         free(dt);
-                        t = -1;
+                        t = 0;
                         free(entry->params);
                         free(entry);
                         goto LOOP_END;
