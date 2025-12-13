@@ -158,7 +158,6 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
         if (entry->date_time->year != 0) {
             grid->params[y][x][t] = entry;
             count++;
-            max_t = max_t > t - 1 ? max_t : t - 1;
         } else {
             t = 0;
         }
