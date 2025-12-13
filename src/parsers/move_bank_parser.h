@@ -41,40 +41,6 @@ KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t 
  */
 KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelParametersMapping *kernels_mapping);
 
-/**
- * @brief Compute terrain-influenced parameters for a single cell with optional biases and modifiers.
- * @param terrain_value Encoded terrain class value.
- * @param biases Optional per-axis biases to apply.
- * @param modifier Optional kernel modifier (e.g., step size/direction scaling).
- * @param kernels_mapping Mapping from terrain classes to parameters or kernels.
- * @return Pointer to KernelParameters for the given terrain context (User has ownership, free with free()).
- */
-KernelParameters *k_parameters_influenced(const int terrain_value, const Point2D *biases,
-                                          const KernelModifier *modifier,
-                                          KernelParametersMapping *kernels_mapping);
-
-/**
- * @brief Parse weather data from CSV into a contiguous array of WeatherEntry.
- * @param csv_data In-memory CSV content to parse.
- * @param start_date Optional inclusive start datetime filter; pass NULL for no lower bound.
- * @param end_date Optional inclusive end datetime filter; pass NULL for no upper bound.
- * @param num_entries Output parameter receiving the number of parsed entries.
- * @return Newly allocated array of WeatherEntry of length num_entries, or NULL on failure.
- * @note Free the returned array with weather_entry_free() for each element or appropriate container free.
- */
-WeatherEntry *parse_csv(const char *csv_data, const DateTime *start_date, const DateTime *end_date, int *num_entries);
-
-/**
- * @brief Build a time-aware parameter grid using a precomputed weather influence grid.
- * @param terrain Input terrain map.
- * @param biases Weather influence grid [y][x][t] providing biases/modifiers.
- * @param kernels_mapping Mapping providing base parameters/kernels per terrain class.
- * @param full_influence If true, apply full influence of the biases; otherwise apply a reduced influence.
- * @return Newly allocated KernelParametersTerrainWeather grid, or NULL on failure.
- */
-KernelParamsYXT *
-get_kernels_terrain_biased_grid(const TerrainMap *terrain, const WeatherInfluenceGrid *biases,
-                                KernelParametersMapping *kernels_mapping, bool full_influence);
 
 /**
  * @brief Free a KernelParametersTerrain grid.
@@ -96,37 +62,6 @@ void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain);
  */
 KernelParameters *kernel_parameters_of_landmark(int terrain_value, KernelParametersMapping *kernels_mapping);
 
-
-/**
- * @brief Load a weather influence grid from persistent storage.
- * @param filename_base Base filename or path used to locate grid resources.
- * @param mapping Kernel parameters mapping used for interpretation.
- * @param grid_x Grid width.
- * @param grid_y Grid height.
- * @param start_date Inclusive start datetime.
- * @param end_date Inclusive end datetime.
- * @param times Number of time steps.
- * @param full_influence If true, apply full weather influence; otherwise reduced.
- * @return Newly allocated WeatherInfluenceGrid, or NULL on failure.
- */
-WeatherInfluenceGrid *load_weather_grid(const char *filename_base, const KernelParametersMapping *mapping, int grid_x,
-                                        int grid_y, const DateTime *start_date,
-                                        const DateTime *end_date, int times, bool full_influence);
-
-/**
- * @brief Free a WeatherInfluenceGrid instance.
- * @param grid Grid to free. It is safe to pass NULL.
- */
-void weather_influence_grid_free(WeatherInfluenceGrid *grid);
-
-/**
- * @brief Allocate a new WeatherInfluenceGrid with specified dimensions.
- * @param width Grid width.
- * @param height Grid height.
- * @param times Number of time steps.
- * @return Newly allocated grid, or NULL on failure.
- */
-WeatherInfluenceGrid *weather_influence_grid_new(size_t width, size_t height, size_t times);
 
 /**
  * @brief Apply a single weather entry to derive movement biases and kernel modifiers.

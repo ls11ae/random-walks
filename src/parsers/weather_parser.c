@@ -116,13 +116,17 @@ static float interpolate_wind_direction(float a, float b, float factor) {
     return fmodf(result + 360.0f, 360.0f);
 }
 
-void interpolate_timeline(const WeatherEntry *source, int source_len, WeatherEntry *dest, int dest_len) {
-    if (source_len >= dest_len) {
-        for (int i = 0; i < dest_len; i++) {
-            dest[i] = source[i];
-        }
-        return;
-    }
+void copy_kernel_params(TimedKernelParameters *dst, const TimedKernelParameters *src) {
+    dst->params->is_brownian = src->params->is_brownian;
+    dst->params->S = src->params->S;
+    dst->params->D = src->params->D;
+    dst->params->bias_x = src->params->bias_x;
+    dst->params->bias_y = src->params->bias_y;
+    dst->params->diffusity = src->params->diffusity;
+}
+
+TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int source_len, int dest_len) {
+    TimedKernelParameters **dest = malloc(sizeof(TimedKernelParameters *) * dest_len);
 
     int points_per_interval = dest_len / source_len;
     int remainder = dest_len % source_len;
@@ -130,45 +134,77 @@ void interpolate_timeline(const WeatherEntry *source, int source_len, WeatherEnt
     int dest_index = 0;
 
     for (int i = 0; i < source_len - 1; i++) {
-        dest[dest_index++] = source[i];
+        dest[dest_index] = malloc(sizeof(TimedKernelParameters));
+        dest[dest_index]->params = malloc(sizeof(KernelParameters));
+        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        copy_kernel_params(dest[dest_index], source[i]);
+        dest_index++;
 
         for (int j = 1; j < points_per_interval; j++) {
             if (dest_index >= dest_len) break;
 
             float factor = (float) j / points_per_interval;
-            dest[dest_index++] = interpolate_weather_entries(&source[i], &source[i + 1], factor);
+            dest[dest_index] = malloc(sizeof(TimedKernelParameters));
+            dest[dest_index]->params = malloc(sizeof(KernelParameters));
+            dest[dest_index]->date_time = malloc(sizeof(DateTime));
+            interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
+            dest_index++;
         }
         if (i < remainder) {
             float factor = (float) points_per_interval / (points_per_interval + 1);
-            dest[dest_index++] = interpolate_weather_entries(&source[i], &source[i + 1], factor);
+            dest[dest_index] = malloc(sizeof(TimedKernelParameters));
+            dest[dest_index]->params = malloc(sizeof(KernelParameters));
+            dest[dest_index]->date_time = malloc(sizeof(DateTime));
+            interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
+            dest_index++;
         }
     }
 
     if (dest_index < dest_len) {
-        dest[dest_index++] = source[source_len - 1];
+        dest[dest_index] = malloc(sizeof(TimedKernelParameters));
+        dest[dest_index]->params = malloc(sizeof(KernelParameters));
+        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        copy_kernel_params(dest[dest_index], source[source_len - 1]);
+        dest_index++;
     }
 
     while (dest_index < dest_len) {
-        dest[dest_index++] = source[source_len - 1];
+        dest[dest_index] = malloc(sizeof(TimedKernelParameters));
+        dest[dest_index]->params = malloc(sizeof(KernelParameters));
+        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        copy_kernel_params(dest[dest_index], source[source_len - 1]);
+        dest_index++;
     }
+    return dest;
 }
 
-WeatherEntry interpolate_weather_entries(const WeatherEntry *a, const WeatherEntry *b, float factor) {
-    WeatherEntry result = *a;
-
-    result.temperature = a->temperature + (b->temperature - a->temperature) * factor;
-    result.humidity = (int) (a->humidity + (b->humidity - a->humidity) * factor + 0.5f);
-    result.precipitation = a->precipitation + (b->precipitation - a->precipitation) * factor;
-    result.wind_speed = a->wind_speed + (b->wind_speed - a->wind_speed) * factor;
-    result.wind_direction = interpolate_wind_direction(a->wind_direction, b->wind_direction, factor);
-    result.snow_fall = a->snow_fall + (b->snow_fall - a->snow_fall) * factor;
-    result.weather_code = factor < 0.5f ? a->weather_code : b->weather_code;
-    result.cloud_cover = (int) (a->cloud_cover + (b->cloud_cover - a->cloud_cover) * factor + 0.5f);
-
-    return result;
+void free_timeline(TimedKernelParameters **tl, int len) {
+    for (int i = 0; i < len; i++) {
+        free(tl[i]->params);
+        free(tl[i]->date_time);
+        free(tl[i]);
+    }
+    free(tl);
 }
 
-void sample_timeline(const WeatherEntry *source, const int source_len, WeatherEntry *dest, const int dest_len) {
+
+void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelParameters *first,
+                               const TimedKernelParameters *second, float factor) {
+    KernelParameters *a = first->params;
+    KernelParameters *b = second->params;
+
+    KernelParameters *result = mixed->params;
+    mixed->landmark = 10;
+    result->is_brownian = (float) a->is_brownian + ((float) b->is_brownian - (float) a->is_brownian) * factor > 0.5;
+    result->S = (ssize_t) ((float) a->S + (float) (b->S - a->S) * factor);
+    result->D = (ssize_t) ((float) a->D + (float) (b->D - a->D) * factor);
+    result->diffusity = a->diffusity + (b->diffusity - a->diffusity) * factor;
+    result->bias_x = (ssize_t) ((float) a->bias_x + ((float) b->bias_x - (float) a->bias_x) * factor);
+    result->bias_y = (ssize_t) ((float) a->bias_y + ((float) b->bias_y - (float) a->bias_y) * factor);
+}
+
+TimedKernelParameters **sample_timeline(TimedKernelParameters **source, int source_len, const int dest_len) {
+    TimedKernelParameters **dest = malloc(sizeof(TimedKernelParameters *) * dest_len);
     float step = (float) (source_len - 1) / (dest_len - 1);
 
     for (int i = 0; i < dest_len; i++) {
@@ -177,52 +213,16 @@ void sample_timeline(const WeatherEntry *source, const int source_len, WeatherEn
         const int right_idx = left_idx + 1;
 
         if (right_idx >= source_len) {
-            dest[i] = source[source_len - 1];
+            dest[i] = malloc(sizeof(TimedKernelParameters));
+            dest[i]->params = malloc(sizeof(KernelParameters));
+            copy_kernel_params(dest[i], source[source_len - 1]);
         } else {
             const float factor = idx - left_idx;
-            dest[i] = interpolate_weather_entries(&source[left_idx], &source[right_idx], factor);
+            dest[i] = malloc(sizeof(TimedKernelParameters));
+            dest[i]->params = malloc(sizeof(KernelParameters));
+            interpolate_kernel_params(dest[i], source[left_idx], source[right_idx], factor);
         }
     }
+    return dest;
 }
-
-WeatherTimeline *create_weather_timeline(const char *file_content, const DateTime *start_date,
-                                         const DateTime *end_date, int desired_length) {
-    // Parse CSV content
-    int num_entries;
-    WeatherEntry *entries = parse_csv(file_content, start_date, end_date, &num_entries);
-
-    if (num_entries == 0) {
-        free(entries);
-        return NULL;
-    }
-
-    WeatherEntry *timeline_entries = malloc(sizeof(WeatherEntry) * desired_length);
-    if (!timeline_entries) {
-        free(entries);
-        return NULL;
-    }
-
-    if (num_entries == desired_length) {
-        // Perfect size - copy
-        memcpy(timeline_entries, entries, sizeof(WeatherEntry) * desired_length);
-    } else if (num_entries < desired_length) {
-        // Too few entries - interpolation
-        interpolate_timeline(entries, num_entries, timeline_entries, desired_length);
-    } else {
-        // Too many entries - sampling
-        sample_timeline(entries, num_entries, timeline_entries, desired_length);
-    }
-    free(entries);
-
-    WeatherTimeline *timeline = malloc(sizeof(WeatherTimeline));
-    if (!timeline) {
-        free(timeline_entries);
-        return NULL;
-    }
-
-    timeline->data = timeline_entries;
-    timeline->length = desired_length;
-    return timeline;
-}
-
 

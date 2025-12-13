@@ -239,23 +239,6 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 }
 
 
-Point2DArray *time_walk_geo_compact(ssize_t T, const char *csv_path, const char *terrain_path,
-                                    KernelParametersMapping *mapping, int grid_x, int grid_y,
-                                    const TimedLocation start, const TimedLocation goal, bool full_weather_influence) {
-	WeatherInfluenceGrid *grid =
-			load_weather_grid(csv_path, mapping, grid_x, grid_y, &start.timestamp, &goal.timestamp, (int) T,
-			                  full_weather_influence);
-	printf("weather grid loaded\n");
-
-	TerrainMap *terrain = create_terrain_map(terrain_path, ' ');
-	KernelParamsYXT *tensor_set = get_kernels_terrain_biased_grid(
-		terrain, grid, mapping, full_weather_influence);
-
-	Point2DArray *result = time_walk_custom(T, mapping, terrain, tensor_set, start, goal);
-	weather_influence_grid_free(grid);
-	return result;
-}
-
 Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
                                KernelParamsYXT *parameters,
                                TimedLocation start, TimedLocation goal) {

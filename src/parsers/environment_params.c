@@ -188,11 +188,10 @@ static KernelParameters *mix_params(KernelParameters *land, KernelParameters *en
 }
 
 KernelParamsYXT *
-get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
+get_kernels_environment_grid(int T, const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
                              KernelParametersMapping *kernels_mapping, float environment_weight) {
     const size_t width = terrain->width;
     const size_t height = terrain->height;
-    const size_t times = grid->dims->t;
 
     const size_t bias_grid_width = grid->dims->x;
     const size_t bias_grid_height = grid->dims->y;
@@ -202,17 +201,20 @@ get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluen
     KernelParamsYXT *kernel_parameters = malloc(sizeof(KernelParamsYXT));
     kernel_parameters->width = width;
     kernel_parameters->height = height;
-    kernel_parameters->time = times;
+    kernel_parameters->time = T;
 
     KernelParameters ****kernel_parameters_per_cell = malloc(sizeof(KernelParameters ***) * height);
     for (size_t h = 0; h < height; h++) {
         kernel_parameters_per_cell[h] = malloc(sizeof(KernelParameters **) * width);
         for (size_t w = 0; w < width; w++) {
-            kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * times);
+            kernel_parameters_per_cell[h][w] = malloc(sizeof(KernelParameters *) * T);
         }
     }
     kernel_parameters->data = kernel_parameters_per_cell;
 
+    bool interpolate = T > grid->dims->t;
+
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (size_t y = 0; y < height; y++) {
         for (size_t x = 0; x < width; x++) {
             // Mapping terrain cell (x, y) to grid cell (gx, gy)
@@ -225,19 +227,26 @@ get_kernels_environment_grid(const TerrainMap *terrain, const EnvironmentInfluen
 
             const int terrain_value = terrain->data[y][x];
             if (terrain_value == UNMAPPED_TERRAIN) {
-                for (size_t t = 0; t < times; t++)
+                for (size_t t = 0; t < T; t++)
                     kernel_parameters_per_cell[y][x][t] = NULL;
                 continue;
             }
-            for (size_t t = 0; t < times; t++) {
+            TimedKernelParameters **source = grid->params[gy][gx];
+            int source_len = grid->dims->t;
+            int dest_len = T;
+            TimedKernelParameters **current_timeline = interpolate
+                                                           ? interpolate_timeline(source, source_len, dest_len)
+                                                           : sample_timeline(source, source_len, dest_len);
+            for (size_t t = 0; t < T; t++) {
                 // mix and copy to cell
                 KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
-                KernelParameters *environment_p = grid->params[gy][gx][t]->params;
+                KernelParameters *environment_p = current_timeline[t]->params;
                 KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
                 kernel_parameters->data[y][x][t] = current;
                 max_D = max_D > current->D ? max_D : current->D;
                 max_S = max_S > current->S ? max_S : current->S;
             }
+            free_timeline(current_timeline, dest_len);
         }
     }
     kernel_parameters->max_D = max_D;

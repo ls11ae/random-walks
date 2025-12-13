@@ -34,14 +34,15 @@ int compare_dates(const DateTime *date1, const DateTime *date2);
 
 bool within_range(const DateTime *date, const DateTime *start, const DateTime *end);
 
-WeatherEntry interpolate_weather_entries(const WeatherEntry *a, const WeatherEntry *b, float factor);
+TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int source_len, int dest_len);
 
-void interpolate_timeline(const WeatherEntry *source, int source_len, WeatherEntry *dest, int dest_len);
+void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelParameters *first,
+                               const TimedKernelParameters *second, float factor);
 
-void sample_timeline(const WeatherEntry *source, const int source_len, WeatherEntry *dest, const int dest_len);
+void free_timeline(TimedKernelParameters **tl, int len);
 
-WeatherTimeline *create_weather_timeline(const char *file_content, const DateTime *start_date,
-                                         const DateTime *end_date, int desired_length);
+TimedKernelParameters **sample_timeline(TimedKernelParameters **source, int source_len, int dest_len);
+
 #ifdef __cplusplus
 }
 #endif

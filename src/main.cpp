@@ -483,25 +483,27 @@ std::string kernel_parameters_print(TimedKernelParameters *p) {
 
 int main() {
     const char *filename = "../../resources/CAMILA_kernel_data.csv";
+    int T = 200;
     DateTime start{.year = 1000, .month = 10, .day = 21};
     DateTime end{.year = 3001, .month = 1, .day = 3};
     DateTimeInterval range{.start = start, .end = end};
     Dimensions3D dims{5, 5, 145};
     EnvironmentInfluenceGrid *grid = parse_kernel_params(filename, &range, &dims);
+
     TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
     KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 7);
-    auto kernel_paramsXYT = get_kernels_environment_grid(terrain, grid, mapping, 0.5);
+    auto kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, 0.5);
     std::cout << "times: " << grid->dims->t << std::endl;
     TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{200, 200}};
     TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{350, 350}};
 
-    auto walk = time_walk_custom(100, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
+    auto walk = time_walk_custom(200, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
     point2d_array_print(walk);
 
-    free_kernel_parameters_yxt(kernel_paramsXYT);
-    terrain_map_free(terrain);
     point2d_array_free(walk);
+    free_kernel_parameters_yxt(kernel_paramsXYT);
     kernel_parameters_mapping_free(mapping);
+    terrain_map_free(terrain);
     free_environment_influence_grid(grid);
     return 0;
     goto test_time_walk;

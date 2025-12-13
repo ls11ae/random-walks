@@ -160,15 +160,6 @@ typedef struct {
 } KernelModifier;
 
 typedef struct {
-    Point2DArray ***data;
-    KernelModifier ***kernel_modifiers;
-    size_t width;
-    size_t height;
-    size_t times;
-} WeatherInfluenceGrid;
-
-
-typedef struct {
     double x; // longitude
     double y; // latitude
 } Coordinate;
