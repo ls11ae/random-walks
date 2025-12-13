@@ -259,8 +259,8 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
                 kernel_parameters->data[y][x][t] = current;
                 if (current->S > 1000) {
                     printf("S: %zd\n", current->S);
-                    printf("S: %zd\n", environment_p->S);
-                    printf("S: %zd\n", landmark_param->S);
+                    printf("env S: %zd\n", environment_p->S);
+                    printf("landmark S: %zd\n", landmark_param->S);
                 }
                 free(landmark_param);
                 max_D = max_D > current->D ? max_D : current->D;
