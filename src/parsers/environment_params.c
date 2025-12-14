@@ -9,6 +9,7 @@
 #include "kernel_terrain_mapping.h"
 #include "weather_parser.h"
 
+
 EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTimeInterval *time_range,
                                               const Dimensions3D *dims) {
     printf("kernel csv: %s\n", csv_path);
@@ -91,7 +92,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
             }
             switch (col) {
                 case 0: {
-                    DateTime *dt = malloc(sizeof(DateTime));
+                    DateTime *dt = calloc(1, sizeof(DateTime)); // Initialize to 0
                     int minutes = 0;
                     int result = sscanf(token, "%4d-%2d-%2dT%2d:%2d", &dt->year, &dt->month, &dt->day, &dt->hour,
                                         &minutes);
@@ -99,8 +100,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
                         result = sscanf(token, "%4d-%2d-%2d %2d:%2d", &dt->year, &dt->month, &dt->day, &dt->hour,
                                         &minutes);
                     if (result < 3)
-                        sscanf(token, "%4d-%2d-%2d", &dt->year, &dt->month, &dt->day);
-
+                        result = sscanf(token, "%4d-%2d-%2d", &dt->year, &dt->month, &dt->day);
                     if (!within_range(dt, &time_range->start, &time_range->end)) {
                         free(dt);
                         free(entry->params);
@@ -110,12 +110,12 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
                     entry->date_time = dt;
                     break;
                 }
-                case 2: {
-                    y = safe_strtol(token);
-                    break;
-                }
                 case 1: {
                     x = safe_strtol(token);
+                    break;
+                }
+                case 2: {
+                    y = safe_strtol(token);
                     break;
                 }
                 case 3: {

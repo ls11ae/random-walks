@@ -256,7 +256,6 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 	EnvironmentInfluenceGrid *grid = parse_kernel_params(kernel_csv, range, dims);
 	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, 0.5);
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * kernel_paramsXYT->max_S + 1, kernel_paramsXYT->max_D);
-	exit(0);
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
