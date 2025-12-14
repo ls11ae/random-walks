@@ -136,7 +136,7 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
     for (int i = 0; i < source_len - 1; i++) {
         dest[dest_index] = malloc(sizeof(TimedKernelParameters));
         dest[dest_index]->params = malloc(sizeof(KernelParameters));
-        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        dest[dest_index]->date_time = NULL;
         copy_kernel_params(dest[dest_index], source[i]);
         dest_index++;
 
@@ -146,7 +146,7 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
             float factor = (float) j / points_per_interval;
             dest[dest_index] = malloc(sizeof(TimedKernelParameters));
             dest[dest_index]->params = malloc(sizeof(KernelParameters));
-            dest[dest_index]->date_time = malloc(sizeof(DateTime));
+            dest[dest_index]->date_time = NULL;
             interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
             dest_index++;
         }
@@ -154,7 +154,7 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
             float factor = (float) points_per_interval / (points_per_interval + 1);
             dest[dest_index] = malloc(sizeof(TimedKernelParameters));
             dest[dest_index]->params = malloc(sizeof(KernelParameters));
-            dest[dest_index]->date_time = malloc(sizeof(DateTime));
+            dest[dest_index]->date_time = NULL;
             interpolate_kernel_params(dest[dest_index], source[i], source[i + 1], factor);
             dest_index++;
         }
@@ -163,7 +163,7 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
     if (dest_index < dest_len) {
         dest[dest_index] = malloc(sizeof(TimedKernelParameters));
         dest[dest_index]->params = malloc(sizeof(KernelParameters));
-        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        dest[dest_index]->date_time = NULL;
         copy_kernel_params(dest[dest_index], source[source_len - 1]);
         dest_index++;
     }
@@ -171,7 +171,7 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
     while (dest_index < dest_len) {
         dest[dest_index] = malloc(sizeof(TimedKernelParameters));
         dest[dest_index]->params = malloc(sizeof(KernelParameters));
-        dest[dest_index]->date_time = malloc(sizeof(DateTime));
+        dest[dest_index]->date_time = NULL;
         copy_kernel_params(dest[dest_index], source[source_len - 1]);
         dest_index++;
     }
@@ -181,7 +181,6 @@ TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int
 void free_timeline(TimedKernelParameters **tl, int len) {
     for (int i = 0; i < len; i++) {
         free(tl[i]->params);
-        free(tl[i]->date_time);
         free(tl[i]);
     }
     free(tl);
@@ -220,6 +219,7 @@ TimedKernelParameters **sample_timeline(TimedKernelParameters **source, int sour
             const float factor = idx - left_idx;
             dest[i] = malloc(sizeof(TimedKernelParameters));
             dest[i]->params = malloc(sizeof(KernelParameters));
+            dest[i]->date_time = NULL;
             interpolate_kernel_params(dest[i], source[left_idx], source[right_idx], factor);
         }
     }
