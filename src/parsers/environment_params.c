@@ -259,11 +259,23 @@ get_kernels_environment_grid(int T, const TerrainMap *terrain, const Environment
                 KernelParameters *environment_p = current_timeline[t]->params;
                 KernelParameters *current = mix_params(&landmark_param, environment_p, environment_weight);
                 kernel_parameters->data[y][x][t] = current;
-
-                max_D = max_D > current->D ? max_D : current->D;
-                max_S = max_S > current->S ? max_S : current->S;
             }
             free_timeline(current_timeline, dest_len);
+        }
+    }
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
+            const int terrain_value = terrain->data[y][x];
+            if (terrain_value == UNMAPPED_TERRAIN) {
+                continue;
+            }
+            for (size_t t = 0; t < T; t++) {
+                // mix and copy to cell
+                ssize_t D = kernel_parameters->data[y][x][t]->D;
+                ssize_t S = kernel_parameters->data[y][x][t]->S;
+                max_D = D > max_D ? D : max_D;
+                max_S = S > max_S ? S : max_S;
+            }
         }
     }
     kernel_parameters->max_D = max_D;
