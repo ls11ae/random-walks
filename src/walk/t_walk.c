@@ -131,7 +131,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 	return DP_mat;
 }
 
-Tensor **time_walk(size_t T, const int *timeline, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
+Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
                    const TensorSet *tensor_set, const ssize_t start_x, const ssize_t start_y) {
 	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
 	assert(DP_mat != NULL && "Failed to allocate DP_mat");
@@ -215,9 +215,11 @@ Tensor **time_walk(size_t T, const int *timeline, const TerrainMap *terrain_map,
 	return DP_mat;
 }
 
-Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const int *timeline, const TensorSet *tensor_set,
-                                  const TerrainMap *terrain,
-                                  const ssize_t end_x, const ssize_t end_y) {
+Point2DArray *time_walk(ssize_t T, const int *timeline, const TensorSet *tensor_set, KernelParametersMapping* mapping,
+                                  const TerrainMap *terrain, ssize_t start_x, ssize_t start_y, ssize_t end_x, ssize_t end_y) {
+
+	Tensor** DP_Matrix = time_walk_dp(T, timeline, terrain, mapping, tensor_set, start_x,
+	start_y);
 	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
@@ -311,6 +313,8 @@ Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, const ssize_t T, const int
 	}
 	path->points[0].x = x;
 	path->points[0].y = y;
+
+	tensor4D_free(DP_Matrix, T);
 	return path;
 }
 
