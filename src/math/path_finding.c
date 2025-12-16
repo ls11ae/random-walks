@@ -282,7 +282,7 @@ void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const T
         if (closest_path_per_direction[i] == 10000)
             weights[i] = 0;
         else
-            weights[i] = pow(1 - ((float) closest_path_per_direction[i] / sum), 40.0);
+            weights[i] = powf(1 - ((float) closest_path_per_direction[i] / sum), 40.0f);
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)

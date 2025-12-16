@@ -45,6 +45,10 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 Tensor **time_walk(size_t T, const int *timeline, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
                    const TensorSet *tensor_set, ssize_t start_x, ssize_t start_y);
 
+Point2DArray *backtrace_time_walk(Tensor **DP_Matrix, ssize_t T, const int *timeline, const TensorSet *tensor_set,
+                                  const TerrainMap *terrain,
+                                  ssize_t end_x, ssize_t end_y);
+
 Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const TerrainMap *terrain,
                                           const KernelParamsYXT *tensor_set,
                                           const DirKernelsMap *dir_kernels_map,
