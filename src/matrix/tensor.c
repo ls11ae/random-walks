@@ -131,14 +131,13 @@ Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
     // First pass to count points in each direction
     size_t *counts = (size_t *) calloc(D, sizeof(size_t));
     const ssize_t S = size / 2;
-    const float angle_step_size = 360.0 / (float) D;
+    const double angle_step_size = 360.0 / (float) D;
 
     for (ssize_t i = -S; i <= S; ++i) {
         for (ssize_t j = -S; j <= S; ++j) {
-            const Point2D point = {j, i};
-            const float angle = compute_angle(j, i);
-            const float closest = find_closest_angle(angle, angle_step_size);
-            size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
+            const double angle = compute_angle(j, i);
+            const double closest = find_closest_angle(angle, angle_step_size);
+            const size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
             assert(dir < D);
             counts[dir]++;
         }
@@ -153,8 +152,8 @@ Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
     // Second pass to populate the points
     for (ssize_t i = -S; i <= S; ++i) {
         for (ssize_t j = -S; j <= S; ++j) {
-            const float angle = compute_angle(j, i);
-            const float closest = find_closest_angle(angle, angle_step_size);
+            const double angle = compute_angle(j, i);
+            const double closest = find_closest_angle(angle, angle_step_size);
             size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
 
             size_t idx = result->sizes[dir]++;
@@ -283,7 +282,7 @@ Tensor *tensor_clone(const Tensor *src) {
     for (size_t i = 0; i < clone->len; i++) {
         clone->data[i] = matrix_clone(src->data[i]);
         if (!clone->data[i]) {
-            // Fehler beim Clonen → bisherige freigeben
+            // error cloning, free
             for (size_t j = 0; j < i; j++) {
                 matrix_free(clone->data[j]);
             }

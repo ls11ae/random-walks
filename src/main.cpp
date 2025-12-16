@@ -482,27 +482,61 @@ std::string kernel_parameters_print(TimedKernelParameters *p) {
 }
 
 int main() {
-    const char *filename = "../../resources/CAMILA_kernel_data.csv";
-    int T = 200;
-    DateTime start{.year = 1000, .month = 10, .day = 21};
-    DateTime end{.year = 3001, .month = 1, .day = 3};
+    /*
+    *T: 79
+        kernel csv: random_walk_package/resources/leap_of_the_cat/kernel_data/JUNINHO_kernel_data.csv
+        Range: start: 1999, 8, 4, 3 -> end: 1999, 11, 2, 3
+        dims: 5, 5, 90
+        kernel csv: random_walk_package/resources/leap_of_the_cat/kernel_data/JUNINHO_kernel_data.csv
+        Range: start: 1999, 8, 4, 3 -> end: 1999, 11, 2, 3
+        dims: 5, 5, 90
+        1890 parameters created
+        3571 lines
+    177 126 16 11
+    1999, 12, 15, 3 -> end: 2000, 1, 14, 3
+
+     *
+     *
+     */
+    const char *filename = "../../resources/LUAN_kernel_data.csv";
+
+    Tensor *t1 = generate_correlated_kernels(7, 8);
+    Tensor *t2 = generate_correlated_kernels(7, 8);
+    Tensor *t3 = generate_correlated_kernels(7, 8);
+    auto **ts = (Tensor **) malloc(3 * sizeof(Tensor *));
+    ts[0] = t1;
+    ts[1] = t2;
+    ts[2] = t3;
+
+    auto tensorset = tensor_set_new(3, ts);
+    matrix_print(tensorset->data[0]->data[0]);
+    tensor_set_free(tensorset);
+    free(ts);
+    return 0;
+
+    int T = 276;
+    DateTime start{.year = 1999, .month = 12, .day = 15, .hour = 3};
+    DateTime end{.year = 2000, .month = 1, .day = 14, .hour = 3};
     DateTimeInterval range{.start = start, .end = end};
-    Dimensions3D dims{5, 5, 145};
-    EnvironmentInfluenceGrid *grid = parse_kernel_params(filename, &range, &dims);
+    Dimensions3D dims{5, 5, 30};
 
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_142.txt", ' ');
-    KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 7);
-    auto kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, 0.5);
-    std::cout << "times: " << grid->dims->t << std::endl;
-    TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{200, 200}};
-    TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{350, 350}};
+    TerrainMap *terrain = create_terrain_map("../../resources/landcover_LUAN_-52.21_-22.65_-52.18_-22.63_200.txt",
+                                             ' ');
+    KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 3);
+    auto tmap = tensor_map_terrain(terrain, mapping);
+    kernels_map3d_free(tmap);
+    terrain_map_free(terrain);
+    kernel_parameters_mapping_free(mapping);
+    exit(0);
 
-    auto walk = time_walk_custom(200, mapping, terrain, kernel_paramsXYT, tloc1, tloc2);
+    TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{177, 126}};
+    TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{16, 11}};
+
+    auto walk = time_walk_custom(T, mapping, terrain, filename, &range, &dims, tloc1, tloc2);
     point2d_array_print(walk);
 
     terrain_map_free(terrain);
     point2d_array_free(walk);
-    free_environment_influence_grid(grid);
     return 0;
     goto test_time_walk;
     // test_mixed();
@@ -550,36 +584,7 @@ int main() {
         matrix_free(matrix);
         return 0;
     }
-    {
-        char walk_path_with_index[256];
-        snprintf(walk_path_with_index, sizeof(walk_path_with_index),
-                 "/home/omar/CLionProjects/random-walks/resources/geo_walk.json");
 
-        KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-        auto t = 20;
-        auto csv_path = "/home/omar/CLionProjects/random-walks/resources/weather_data/1F5B2F1";
-        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
-        auto grid_x = 5, grid_y = 5;
-        auto start_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 9, .day = 21, .hour = 0}, .coordinates = (Point2D){5, 5},
-        };
-        auto goal_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2021, .month = 10, .day = 19, .hour = 0},
-            .coordinates = (Point2D){25, 25},
-        };
-        auto start = std::chrono::high_resolution_clock::now();
-        auto walk = time_walk_geo_compact(t, csv_path, terrain_path, mapping,
-                                          grid_x, grid_y, start_point, goal_point, false);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        point2d_array_print(walk);
-
-        point2d_array_free(walk);
-        kernel_parameters_mapping_free(mapping);
-
-        printf("Time: %ld ms\n", duration.count());
-        return 0;
-    }
 test_time_walk : {
         KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
         auto t = 20;
@@ -595,8 +600,7 @@ test_time_walk : {
             .coordinates = (Point2D){25, 25},
         };
         auto start = std::chrono::high_resolution_clock::now();
-        auto walk = time_walk_geo_compact(t, csv_path, terrain_path, mapping,
-                                          grid_x, grid_y, start_point, goal_point, false);
+
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         point2d_array_print(walk);

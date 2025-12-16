@@ -2,6 +2,7 @@
 #include <libgen.h>
 
 #include "caching.h"
+#include "constants.h"
 #include "kernel_terrain_mapping.h"
 #include "move_bank_parser.h"
 #include "serialization.h"
@@ -41,7 +42,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
-            if (terrain_val == 0) {
+            if (terrain_val == UNMAPPED_TERRAIN) {
                 kernels_map->kernels[y][x] = NULL;
                 continue;
             }
@@ -53,6 +54,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 if (on_forbidden_terrain) {
                     arr = tensor_clone(correlated_kernels->data[7]);
                     apply_terrain_bias(x, y, terrain, arr, mapping);
+                    const uint64_t hash = tensor_hash(arr);
+                    cache_insert(cache, hash, arr, true, arr->len);
                 } else {
                     soft_reach_mat =
                             get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);

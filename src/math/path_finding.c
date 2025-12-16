@@ -48,6 +48,7 @@ Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
     const ssize_t kernel_center_x = (kernel_size) / 2;
     const ssize_t kernel_center_y = (kernel_size) / 2;
     bool full_reachable = true;
+    // check if surroundings are fully reachable, meaning no forbidden landmark, if yes, return matrix filled with 1.0
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
             const ssize_t dx = i - kernel_center_x;
