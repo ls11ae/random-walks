@@ -471,13 +471,20 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 
 Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
                                 KernelParametersMapping *mapping,
-                                const TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
+                                 TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
                                 const ssize_t end_x,
                                 const ssize_t end_y) {
 	KernelParametersMapping *mpng = malloc(sizeof(KernelParametersMapping));
 	mpng->kind = KPM_KIND_KERNELS;
 	mpng->data.kernels[landmark_to_index(TREE_COVER)] = tensor_set;
+	for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+		mpng->forbidden_landmarks[i] = false;
+	}
+	mpng->forbidden_landmarks_count = 1;
+	init_transition_matrix(mapping);
 	set_forbidden_landmark(mpng, WATER);
+	printf("%d\n" ,terrain_at(50 , 50, terrain));
+
 	mpng->animal = mapping->animal;
 	for (int i = 0; i < terrain->height; ++i) {
 		for (int j = 0; j < terrain->width; ++j) {
@@ -487,6 +494,7 @@ Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
 			}
 		}
 	}
+	matrix_print(mpng->data.kernels[landmark_to_index(TREE_COVER)]->data[0]);
 
 	KernelsMap3D *kmap = tensor_map_terrain(terrain, mpng);
 	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, mpng, kmap, T, start_x, start_y, false,

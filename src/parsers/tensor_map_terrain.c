@@ -31,14 +31,27 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     Cache *cache = cache_create(4096);
 
     int recomputed = 0;
-    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
+    TensorSet *correlated_kernels = NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) 
+        correlated_kernels = generate_correlated_tensors(mapping);
 
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    kernels_map->max_D = (ssize_t) correlated_kernels->max_D;
-    kernels_map->dir_kernels = generate_dir_kernels(mapping);
+    ssize_t D_ = mapping->data.kernels[landmark_to_index(TREE_COVER)]->len;
+    ssize_t M_ = mapping->data.kernels[landmark_to_index(TREE_COVER)]->data[0]->width;
+    Tensor* main_kernel = mapping->data.kernels[landmark_to_index(TREE_COVER)];
+
+    kernels_map->max_D = mapping->data.kernels[landmark_to_index(TREE_COVER)]->len;
+    if (mapping->kind == KPM_KIND_PARAMETERS)
+        kernels_map->dir_kernels = generate_dir_kernels(mapping);
+    else {
+        kernels_map->dir_kernels = get_dir_kernels(M_, D_);
+        printf("%zd, %zd\n", D_, M_);        
+    } 
+        
+    int k_ind = landmark_to_index(TREE_COVER);
 
     // 4) Hauptschleife: pro Terrain-Punkt
-#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+//#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
@@ -83,17 +96,18 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 }
             } else {
                 const int index = landmark_to_index(terrain_val);
-                arr = mapping->data.kernels[index];
+                arr = tensor_clone(main_kernel);
                 if (on_forbidden_terrain) {
-                    arr = tensor_clone(correlated_kernels->data[7]);
+                    arr = tensor_clone(arr);
                     apply_terrain_bias(x, y, terrain, arr, mapping);
                 } else {
-                    soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
+                    soft_reach_mat = get_reachability_kernel(x, y, arr->data[0]->width, terrain, mapping);
                     for (ssize_t d = 0; d < arr->len; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
                         matrix_normalize_L1(arr->data[d]);
                     }
                 }
+                //matrix_print(arr->data[0]);
             }
 
             // d) Aufräumen und Zuordnung
@@ -108,7 +122,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     // printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
-    tensor_set_free(correlated_kernels);
+    if (correlated_kernels)
+        tensor_set_free(correlated_kernels);
 
     return kernels_map;
 }
