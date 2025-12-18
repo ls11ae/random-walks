@@ -53,6 +53,11 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const T
                                           KernelParametersMapping *mapping,
                                           ssize_t end_x, ssize_t end_y);
 
+Point2DArray *single_state_walk(ssize_t T, Tensor *tensor_set,
+                                KernelParametersMapping *mapping,
+                                const TerrainMap *terrain, ssize_t start_x, ssize_t start_y,
+                                ssize_t end_x,
+                                ssize_t end_y);
 
 #ifdef __cplusplus
 }
