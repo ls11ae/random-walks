@@ -300,6 +300,7 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 			free(path->points);
 			free(path);
 			perror("no neighbors");
+			tensor4D_free(DP_Matrix, T);
 			return NULL;
 		}
 
