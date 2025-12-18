@@ -500,5 +500,6 @@ Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
 	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, mpng, end_x, end_y, 0, false, "", "");
 	tensor4D_free(dp, T);
 	kernels_map3d_free(kmap);
+	kernel_parameters_mapping_free(mpng);
 	return walk;
 }
