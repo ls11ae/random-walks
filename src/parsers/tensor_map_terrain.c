@@ -51,7 +51,7 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     int k_ind = landmark_to_index(TREE_COVER);
 
     // 4) Hauptschleife: pro Terrain-Punkt
-//#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
+#pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);

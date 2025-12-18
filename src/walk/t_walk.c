@@ -483,7 +483,6 @@ Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
 	mpng->forbidden_landmarks_count = 1;
 	init_transition_matrix(mapping);
 	set_forbidden_landmark(mpng, WATER);
-	printf("%d\n" ,terrain_at(50 , 50, terrain));
 
 	mpng->animal = mapping->animal;
 	for (int i = 0; i < terrain->height; ++i) {
@@ -494,7 +493,6 @@ Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
 			}
 		}
 	}
-	matrix_print(mpng->data.kernels[landmark_to_index(TREE_COVER)]->data[0]);
 
 	KernelsMap3D *kmap = tensor_map_terrain(terrain, mpng);
 	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, mpng, kmap, T, start_x, start_y, false,
