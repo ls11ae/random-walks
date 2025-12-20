@@ -143,7 +143,6 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
     // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
-        printf("%zd / %zd\n", y, terrain->height);
         for (ssize_t x = 0; x < terrain_width; x++) {
             if (!has_forbidden) {
                 kernels_map->kernels[y][x] = kernel;
@@ -151,7 +150,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
             }
             ssize_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == UNMAPPED_TERRAIN) {
-                terrain_set(terrain, x, y, 1);
+                terrain_set(terrain, x, y, 10);
             }
             bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
             // a) Einzel-Hashes
