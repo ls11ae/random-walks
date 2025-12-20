@@ -172,9 +172,9 @@ Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersM
 				}
 			}
 		}
-		if ((t * 10) / T > ((t - 1) * 10) / T) {
-			printf("(%ld/%ld)\n", t, T);
-		}
+		// if ((t * 10) / T > ((t - 1) * 10) / T) {
+		// 	printf("(%ld/%ld)\n", t, T);
+		// }
 	}
 	//printf("DP calculation finished\n");
 	return DP_mat;
