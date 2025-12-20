@@ -113,10 +113,11 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     return kernels_map;
 }
 
-KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, KernelParametersMapping *mapping) {
+KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, KernelParametersMapping *mapping) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
+    Tensor *kernel = tensor_copy(kern);
 
     // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
