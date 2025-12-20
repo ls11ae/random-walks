@@ -499,34 +499,30 @@ int main() {
      *
      */
     const char *filename = "../../resources/LUAN_kernel_data.csv";
+    ssize_t T = 70;
+    Tensor *t1 = generate_correlated_kernels(8, 15);
 
-    Tensor *t1 = generate_correlated_kernels(7, 8);
-    Tensor *t2 = generate_correlated_kernels(7, 8);
-    Tensor *t3 = generate_correlated_kernels(7, 8);
-    auto **ts = (Tensor **) malloc(3 * sizeof(Tensor *));
-    ts[0] = t1;
-    ts[1] = t2;
-    ts[2] = t3;
+    TerrainMap *terrain = create_terrain_map(
+        "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt", ' ');
+    std::cout << terrain->width << " " << terrain->height << "\n";
 
-    auto tensorset = tensor_set_new(3, ts);
-    matrix_print(tensorset->data[0]->data[0]);
-    tensor_set_free(tensorset);
-    free(ts);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 3);
+    KernelsMap3D *kmap = kernels_map_single(terrain, t1, mapping);
+    std::cout << "kmao\n";
+    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 50, 50, 100, 100);
+    point2d_array_print(walk2);
+
+    point2d_array_free(walk2);
+    kernel_parameters_mapping_free(mapping);
+    terrain_map_free(terrain);
+    tensor_free(t1);
     return 0;
 
-    int T = 276;
     DateTime start{.year = 1999, .month = 12, .day = 15, .hour = 3};
     DateTime end{.year = 2000, .month = 1, .day = 14, .hour = 3};
     DateTimeInterval range{.start = start, .end = end};
     Dimensions3D dims{5, 5, 30};
 
-    TerrainMap *terrain = create_terrain_map("../../resources/landcover_LUAN_-52.21_-22.65_-52.18_-22.63_200.txt",
-                                             ' ');
-    KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 3);
-    auto tmap = tensor_map_terrain(terrain, mapping);
-    kernels_map3d_free(tmap);
-    terrain_map_free(terrain);
-    kernel_parameters_mapping_free(mapping);
     exit(0);
 
     TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{177, 126}};

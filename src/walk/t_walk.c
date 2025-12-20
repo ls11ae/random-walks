@@ -469,37 +469,13 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 	return walk;
 }
 
-Point2DArray *single_state_walk(const ssize_t T, Tensor *tensor_set,
-                                KernelParametersMapping *mapping,
-                                 TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
+Point2DArray *single_state_walk(const ssize_t T, KernelsMap3D *kmap,
+                                TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
                                 const ssize_t end_x,
                                 const ssize_t end_y) {
-	KernelParametersMapping *mpng = malloc(sizeof(KernelParametersMapping));
-	mpng->kind = KPM_KIND_KERNELS;
-	mpng->data.kernels[landmark_to_index(TREE_COVER)] = tensor_set;
-	for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-		mpng->forbidden_landmarks[i] = false;
-	}
-	mpng->forbidden_landmarks_count = 1;
-	init_transition_matrix(mapping);
-	set_forbidden_landmark(mpng, WATER);
-
-	mpng->animal = mapping->animal;
-	for (int i = 0; i < terrain->height; ++i) {
-		for (int j = 0; j < terrain->width; ++j) {
-			int val = terrain->data[i][j];
-			if (val != WATER) {
-				val = TREE_COVER;
-			}
-		}
-	}
-
-	KernelsMap3D *kmap = tensor_map_terrain(terrain, mpng);
-	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, mpng, kmap, T, start_x, start_y, false,
+	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, NULL, kmap, T, start_x, start_y, false,
 	                     true, "");
-	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, mpng, end_x, end_y, 0, false, "", "");
+	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, NULL, end_x, end_y, 0, false, "", "");
 	tensor4D_free(dp, T);
-	kernels_map3d_free(kmap);
-	kernel_parameters_mapping_free(mpng);
 	return walk;
 }
