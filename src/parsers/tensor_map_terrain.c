@@ -151,8 +151,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
             }
             ssize_t terrain_val = terrain_at(x, y, terrain);
             if (terrain_val == UNMAPPED_TERRAIN) {
-                kernels_map->kernels[y][x] = NULL;
-                continue;
+                terrain_set(terrain, x, y, 1);
             }
             bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
             // a) Einzel-Hashes
