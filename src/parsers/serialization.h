@@ -6,6 +6,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 
 #include <stdio.h>
@@ -53,6 +56,8 @@ Tensor *deserialize_tensor(FILE *fp);
 KernelsMap4D *deserialize_kernels_map_4d(FILE *fp);
 
 KernelsMap3D *deserialize_kernels_map_3d(const char *filename);
+
+EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename);
 
 // Free functions (important for memory management)
 void free_matrix(Matrix *m);

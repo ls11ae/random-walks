@@ -481,156 +481,50 @@ std::string kernel_parameters_print(TimedKernelParameters *p) {
            + ", bx" + std::to_string(p->params->bias_x) + ", by" + std::to_string(p->params->bias_y);
 }
 
-int main() {
-    /*
-    *T: 79
-        kernel csv: random_walk_package/resources/leap_of_the_cat/kernel_data/JUNINHO_kernel_data.csv
-        Range: start: 1999, 8, 4, 3 -> end: 1999, 11, 2, 3
-        dims: 5, 5, 90
-        kernel csv: random_walk_package/resources/leap_of_the_cat/kernel_data/JUNINHO_kernel_data.csv
-        Range: start: 1999, 8, 4, 3 -> end: 1999, 11, 2, 3
-        dims: 5, 5, 90
-        1890 parameters created
-        3571 lines
-    177 126 16 11
-    1999, 12, 15, 3 -> end: 2000, 1, 14, 3
-
-     *
-     *
-     */
-    const char *filename = "../../resources/LUAN_kernel_data.csv";
-    ssize_t T = 70;
-    Tensor *t1 = generate_correlated_kernels(8, 15);
+void test_single_state_walk() {
+    ssize_t T = 3;
+    Tensor *t1 = generate_correlated_kernels(1, 21);
 
     TerrainMap *terrain = create_terrain_map(
-        "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt", ' ');
+        "/home/omar/CLionProjects/random-walks/resources/landcover_17766_-58.76_50.56_1.14_71.89_600.txt", ' ');
     std::cout << terrain->width << " " << terrain->height << "\n";
 
-    KernelParametersMapping *mapping = create_default_mixed_mapping(HEAVY, 3);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(AIRBORNE, 7);
+    std::cout << mapping->has_forbidden_landmarks << std::endl;
+
     KernelsMap3D *kmap = kernels_map_single(terrain, t1, mapping);
     std::cout << "kmao\n";
-    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 50, 50, 100, 100);
+    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 394, 49, 393, 49);
     point2d_array_print(walk2);
 
     point2d_array_free(walk2);
     kernel_parameters_mapping_free(mapping);
     terrain_map_free(terrain);
     tensor_free(t1);
-    return 0;
+}
 
-    DateTime start{.year = 1999, .month = 12, .day = 15, .hour = 3};
-    DateTime end{.year = 2000, .month = 1, .day = 14, .hour = 3};
-    DateTimeInterval range{.start = start, .end = end};
-    Dimensions3D dims{5, 5, 30};
+void test_env_grid_deserialization(const char *env_binary) {
+    EnvironmentInfluenceGrid *grid = deserialize_env_grid(env_binary);
 
-    exit(0);
-
-    TimedLocation tloc1 = {.timestamp = start, .coordinates = Point2D{177, 126}};
-    TimedLocation tloc2 = {.timestamp = end, .coordinates = Point2D{16, 11}};
-
-    auto walk = time_walk_custom(T, mapping, terrain, filename, &range, &dims, tloc1, tloc2);
-    point2d_array_print(walk);
-
-    terrain_map_free(terrain);
-    point2d_array_free(walk);
-    return 0;
-    goto test_time_walk;
-    // test_mixed();
-    //return 0;
-    {
-        auto matrix = matrix_new(15, 15);
-        auto times = 100;
-        auto SIZE = 400;
-        Point2D points[times];
-        for (int i = 0; i < times; ++i) {
-            if (i < times / 3)
-                points[i] = (Point2D){-5, 0};
-            else if (i < 2 * times / 3)
-                points[i] = (Point2D){0, 0};
-            else
-                points[i] = (Point2D){5, 0};
+    std::cout << "Dimensions: y: " << grid->dims->y << " x: " << grid->dims->x << " t: " << grid->dims->t << "\n";
+    for (int y = 0; y < grid->dims->y; ++y) {
+        for (int x = 0; x < grid->dims->x; ++x) {
+            for (int t = 0; t < grid->dims->t; ++t) {
+                std::cout << "Y " << y << " X " << x << " T " << t << "\n";
+                const DateTime *dt = grid->params[y][x][t]->date_time;
+                std::cout << "dt: " << dt->day << ", " << dt->month << ", " << dt->year << ", " << dt->hour << "\n";
+                const KernelParameters *kp = grid->params[y][x][t]->params;
+                std::cout << "kp: " << kp->bias_x << ", " << kp->bias_y << ", " << kp->diffusity << ", " << kp->
+                        is_brownian << ", " << kp->D << ", " << kp->S << "\n";
+                std::cout << "land: " << grid->params[y][x][t]->landmark << "\n";
+            }
         }
-
-        double arr[times];
-
-        Biases bs2;
-        bs2.kind = BIAS_KIND_OFFSET;
-        bs2.data.offsets = points;
-        bs2.len = times;
-
-        auto start = Point2D{200, 50};
-        auto end = Point2D{200, 180};
-
-        auto start_time = std::chrono::high_resolution_clock::now();
-        Tensor *tensor = biased_brownian_init(&bs2, matrix, SIZE, SIZE, bs2.len, start.x, start.y);
-        Point2DArray *walk = biased_brownian_backtrace(tensor, &bs2, matrix, end.x, end.y);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        TerrainMap *terrain = terrain_map_new(SIZE, SIZE);
-        Point2D stepss[] = {start, end};
-
-        auto steps = (Point2DArray){.points = stepss, .length = 2};
-        save_walk_to_json(&steps, walk, terrain, "../../resources/biased.json");
-
-        printf("Time: %ld ms\n", duration.count());
-        terrain_map_free(terrain);
-        point2d_array_print(walk);
-        point2d_array_free(walk);
-        tensor_free(tensor);
-        matrix_free(matrix);
-        return 0;
     }
+    free_environment_influence_grid(grid);
+}
 
-test_time_walk : {
-        KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
-        auto t = 20;
-        auto csv_path = "/home/omar/CLionProjects/random-walks/resources/BEGONA";
-        auto terrain_path = "/home/omar/CLionProjects/random-walks/resources/land3.txt";
-        auto ser_path = "/home/omar/CLionProjects/random-walks/resources/tmap";
-        auto grid_x = 3, grid_y = 3;
-        auto start_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2000, .month = 9, .day = 20, .hour = 0}, .coordinates = (Point2D){5, 5},
-        };
-        auto goal_point = (TimedLocation){
-            .timestamp = (DateTime){.year = 2001, .month = 1, .day = 6, .hour = 0},
-            .coordinates = (Point2D){25, 25},
-        };
-        auto start = std::chrono::high_resolution_clock::now();
-
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        point2d_array_print(walk);
-
-        point2d_array_free(walk);
-        kernel_parameters_mapping_free(mapping);
-
-        printf("Time: %ld ms\n", duration.count());
-
-        return 0;
-    }
-
-test_m :
-    //
-    //generate_and_apply_terrain_kernels();
-    //display_kernels();
-    //brownian_cuda();
-    //correlated_cuda();
-    //test_mixed_gpu();
-    //test_mixed();
-    //test_corr(4);
-    test_time_walk();
-    // int max = 100;
-    // printf("progress\n");
-    // for (int i = 0; i < max; ++i) {
-    //     print_progress(i, max);
-    //     sleep(1);
-    // }
-    //create_default_terrain_kernel_mapping(AIRBORNE, 7);
-    //test_brownian();
-    // TerrainMap *terrain3 = create_terrain_map("../../resources/landcover_6108_63.4_14.7_94.5_52.0_400.txt", ' ');
-    // upscale_terrain_map(terrain3, 2.0);
-    //test_mixed();
-    //test_brownian();
-    return
-            0;
+int main() {
+    const char *env_binary = "../../resources/env_2024-09-12_10_11.bin";
+    test_env_grid_deserialization(env_binary);
+    return 0;
 }

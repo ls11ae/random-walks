@@ -125,13 +125,6 @@ typedef struct CacheEntry {
     struct CacheEntry *next;
 } CacheEntry;
 
-typedef struct {
-    int year;
-    int month;
-    int day;
-    int hour;
-} DateTime;
-
 
 typedef struct {
     CacheEntry **buckets;
@@ -169,6 +162,12 @@ typedef struct {
     size_t length;
 } Coordinate_array;
 
+typedef struct {
+    int year;
+    int month;
+    int day;
+    int hour;
+} DateTime;
 
 typedef struct {
     bool is_brownian;
@@ -185,9 +184,6 @@ typedef struct {
     int landmark;
 } TimedKernelParameters;
 
-typedef struct {
-    DateTime start, end;
-} DateTimeInterval;
 
 typedef struct {
     size_t y, x, t;
@@ -197,6 +193,10 @@ typedef struct {
     TimedKernelParameters ****params;
     Dimensions3D *dims;
 } EnvironmentInfluenceGrid;
+
+typedef struct {
+    DateTime start, end;
+} DateTimeInterval;
 
 #define LAND_MARKS_COUNT  11
 

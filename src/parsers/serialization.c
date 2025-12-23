@@ -448,6 +448,76 @@ KernelsMap3D *deserialize_kernels_map_3d(const char *filename) {
     return kmap;
 }
 
+
+EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
+    FILE *f = fopen(filename, "rb");
+
+    // Dimensions
+    Dimensions3D *dims = malloc(sizeof(Dimensions3D));
+    if (
+        !fread(&dims->y, sizeof(size_t), 1, f) ||
+        !fread(&dims->x, sizeof(size_t), 1, f) ||
+        !fread(&dims->t, sizeof(size_t), 1, f)
+    ) {
+        free(dims);
+        handle_error("Failed to parse dimensions");
+
+        return NULL;
+    }
+    EnvironmentInfluenceGrid *grid = malloc(sizeof(EnvironmentInfluenceGrid));
+    grid->dims = dims;
+
+    TimedKernelParameters ****params = malloc(dims->y * sizeof(TimedKernelParameters ***));
+    grid->params = params;
+    for (int y = 0; y < dims->y; ++y) {
+        params[y] = malloc(dims->x * sizeof(TimedKernelParameters **));
+        for (int x = 0; x < dims->x; ++x) {
+            params[y][x] = malloc(dims->t * sizeof(TimedKernelParameters *));
+            for (int t = 0; t < dims->t; ++t) {
+                DateTime *dt = malloc(sizeof(DateTime));
+                if (!fread(&dt->year, sizeof(int), 1, f)
+                    || !fread(&dt->month, sizeof(int), 1, f)
+                    || !fread(&dt->day, sizeof(int), 1, f)
+                    || !fread(&dt->hour, sizeof(int), 1, f)
+                ) {
+                    free(dt);
+                    handle_error("Failed to parse datetime");
+                    return NULL;
+                }
+
+                KernelParameters *kp = malloc(sizeof(KernelParameters));
+                if (
+                    !fread(&kp->is_brownian, sizeof(bool), 1, f) ||
+                    !fread(&kp->S, sizeof(size_t), 1, f) ||
+                    !fread(&kp->D, sizeof(size_t), 1, f) ||
+                    !fread(&kp->diffusity, sizeof(float), 1, f) ||
+                    !fread(&kp->bias_x, sizeof(ssize_t), 1, f) ||
+                    !fread(&kp->bias_y, sizeof(ssize_t), 1, f)) {
+                    free(kp);
+                    free(dt);
+                    handle_error("Failed to parse Kernel params");
+                    return NULL;
+                }
+
+                int landmark;
+                if (!fread(&landmark, sizeof(int), 1, f)) {
+                    handle_error("Failed to parse terrain");
+                    return NULL;
+                }
+
+                TimedKernelParameters *yxt = malloc(sizeof(TimedKernelParameters));
+                yxt->date_time = dt;
+                yxt->params = kp;
+                yxt->landmark = landmark;
+
+                params[y][x][t] = yxt;
+            }
+        }
+    }
+    fclose(f);
+    return grid;
+}
+
 // --- Free Functions ---
 
 void free_matrix(Matrix *m) {
