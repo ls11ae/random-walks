@@ -204,8 +204,8 @@ KernelParameters *kernel_parameters_copy(const KernelParameters *src) {
 }
 
 KernelParamsYXT *
-get_kernels_environment_grid(int T, const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
-                             const KernelParametersMapping *kernels_mapping, float environment_weight) {
+get_kernels_environment_grid(size_t T, const TerrainMap *terrain, const EnvironmentInfluenceGrid *grid,
+                             const KernelParametersMapping *kernels_mapping, const float environment_weight) {
     const size_t width = terrain->width;
     const size_t height = terrain->height;
 

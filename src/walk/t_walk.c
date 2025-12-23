@@ -431,23 +431,14 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 	return path;
 }
 
-
-Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
-                               const char *kernel_csv,
-                               DateTimeInterval *range,
-                               Dimensions3D *dims,
-                               TimedLocation start, TimedLocation goal) {
-	printf("T: %zd\n", T);
-	printf("kernel csv: %s\n", kernel_csv);
-	printf("Range: start: %d, %d, %d, %d -> end: %d, %d, %d, %d\n", range->start.year, range->start.month,
-	       range->start.day, range->start.hour,
-	       range->end.year, range->end.month, range->end.day, range->end.hour);
-
-	printf("dims: %ld, %ld, %ld\n", dims->y, dims->x, dims->t);
-
-	EnvironmentInfluenceGrid *grid = parse_kernel_params(kernel_csv, range, dims);
-	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, 0.5);
-	DirKernelsMap *dir_kernels = get_dir_kernels(2 * kernel_paramsXYT->max_S + 1, kernel_paramsXYT->max_D);
+static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGrid *grid,
+                                    KernelParametersMapping *mapping,
+                                    const TerrainMap *terrain, const TimedLocation start, const TimedLocation goal,
+                                    const float env_weight) {
+	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, env_weight);
+	const ssize_t max_D = (ssize_t) kernel_paramsXYT->max_D;
+	const ssize_t max_S = (ssize_t) kernel_paramsXYT->max_S;
+	DirKernelsMap *dir_kernels = get_dir_kernels(2 * max_S + 1, max_D);
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
@@ -463,9 +454,28 @@ Point2DArray *time_walk_custom(ssize_t T, KernelParametersMapping *mapping, Terr
 		perror("no walk");
 		return NULL;
 	}
-	free_environment_influence_grid(grid);
 	free_kernel_parameters_yxt(kernel_paramsXYT);
+	return walk;
+}
 
+Point2DArray *time_walk_custom(const size_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
+                               const char *kernel_csv, const float env_weight,
+                               const DateTimeInterval *range,
+                               const Dimensions3D *dims,
+                               const TimedLocation start, const TimedLocation goal) {
+	EnvironmentInfluenceGrid *grid = parse_kernel_params(kernel_csv, range, dims);
+	Point2DArray *walk = time_walk_base(T, grid, mapping, terrain, start, goal, env_weight);
+
+	free_environment_influence_grid(grid);
+	return walk;
+}
+
+Point2DArray *time_walk_env_binary(const size_t T, KernelParametersMapping *mapping, const TerrainMap *terrain,
+                                   const char *env_binary_path, const float env_weight,
+                                   const TimedLocation start, const TimedLocation goal) {
+	EnvironmentInfluenceGrid *grid = deserialize_env_grid(env_binary_path);
+	Point2DArray *walk = time_walk_base(T, grid, mapping, terrain, start, goal, env_weight);
+	free_environment_influence_grid(grid);
 	return walk;
 }
 
