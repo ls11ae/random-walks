@@ -28,14 +28,14 @@ Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, Ter
 //************************************** TIME WALKS **************************************
 
 Point2DArray *time_walk_custom(size_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
-                               const char *kernel_csv, float env_weight,
+                               const char *kernel_csv, const EnvWeightProfile *env_weight,
                                const DateTimeInterval *range,
                                const Dimensions3D *dims,
                                TimedLocation start, TimedLocation goal);
 
 
 Point2DArray *time_walk_env_binary(size_t T, KernelParametersMapping *mapping, const TerrainMap *terrain,
-                                   const char *env_binary_path, float env_weight,
+                                   const char *env_binary_path, const EnvWeightProfile *env_weight,
                                    TimedLocation start, TimedLocation goal);
 
 Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,

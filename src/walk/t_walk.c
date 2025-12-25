@@ -434,7 +434,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGrid *grid,
                                     KernelParametersMapping *mapping,
                                     const TerrainMap *terrain, const TimedLocation start, const TimedLocation goal,
-                                    const float env_weight) {
+                                    const EnvWeightProfile *env_weight) {
 	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, env_weight);
 	const ssize_t max_D = (ssize_t) kernel_paramsXYT->max_D;
 	const ssize_t max_S = (ssize_t) kernel_paramsXYT->max_S;
@@ -459,7 +459,7 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
 }
 
 Point2DArray *time_walk_custom(const size_t T, KernelParametersMapping *mapping, TerrainMap *terrain,
-                               const char *kernel_csv, const float env_weight,
+                               const char *kernel_csv, const EnvWeightProfile *env_weight,
                                const DateTimeInterval *range,
                                const Dimensions3D *dims,
                                const TimedLocation start, const TimedLocation goal) {
@@ -471,7 +471,7 @@ Point2DArray *time_walk_custom(const size_t T, KernelParametersMapping *mapping,
 }
 
 Point2DArray *time_walk_env_binary(const size_t T, KernelParametersMapping *mapping, const TerrainMap *terrain,
-                                   const char *env_binary_path, const float env_weight,
+                                   const char *env_binary_path, const EnvWeightProfile *env_weight,
                                    const TimedLocation start, const TimedLocation goal) {
 	EnvironmentInfluenceGrid *grid = deserialize_env_grid(env_binary_path);
 	Point2DArray *walk = time_walk_base(T, grid, mapping, terrain, start, goal, env_weight);

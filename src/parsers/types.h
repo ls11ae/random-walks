@@ -179,6 +179,15 @@ typedef struct {
 } KernelParameters;
 
 typedef struct {
+    bool override_mode;
+    float S;
+    float D;
+    float diffusity;
+    float bias_x;
+    float bias_y;
+} EnvWeightProfile;
+
+typedef struct {
     DateTime *date_time;
     KernelParameters *params;
     int landmark;
@@ -289,6 +298,7 @@ typedef struct {
     DateTime timestamp;
     Point2D coordinates;
 } TimedLocation;
+
 
 typedef struct {
     TimedLocation *data;
