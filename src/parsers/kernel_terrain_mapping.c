@@ -245,6 +245,38 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
     return params_mapping;
 }
 
+KernelParametersMapping *
+create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs, const float base_diffusity) {
+    KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
+    params_mapping->animal = MARINE;
+    if (!params_mapping) {
+        perror("malloc kernels mapping");
+        return NULL;
+    }
+    params_mapping->kind = KPM_KIND_PARAMETERS;
+    params_mapping->has_forbidden_landmarks = true;
+    params_mapping->forbidden_landmarks[0] = TREE_COVER;
+    params_mapping->forbidden_landmarks_count = 1;
+    KernelParameters p;
+    p.D = base_dirs;
+    p.diffusity = base_diffusity;
+    p.S = base_step_size;
+    p.is_brownian = false;
+    p.bias_x = 0;
+    p.bias_y = 0;
+    params_mapping->data.parameters[landmark_to_index(WATER)] = p;
+
+    return params_mapping;
+}
+
+void update_mapping(const KernelParametersMapping *m, const int terrain, const int S, const ssize_t D,
+                    const float diffusity) {
+    KernelParameters p = m->data.parameters[landmark_to_index(terrain)];
+    p.S = S;
+    p.D = D;
+    p.diffusity = diffusity;
+}
+
 KernelParametersMapping *create_default_mixed_mapping(enum animal_type animal_type, int base_step_size) {
     return create_default_mapping(animal_type, base_step_size, MODE_MIXED);
 }

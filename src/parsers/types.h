@@ -238,7 +238,8 @@ enum animal_type {
     AMPHIBIAN,
     LIGHT,
     MEDIUM,
-    HEAVY
+    HEAVY,
+    MARINE
 };
 
 typedef struct {
