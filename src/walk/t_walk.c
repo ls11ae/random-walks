@@ -34,7 +34,8 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 		strict_reachability = true;
 	}
 	int start_terrain = terrain_at(start_x, start_y, terrain_map);
-	printf("start point:  terrain val %i \n", start_terrain);
+	if (is_forbidden_landmark(start_terrain, mapping))
+		printf("WARNING: START ON FORBIDDEN LANDMARK %i \n", start_terrain);
 	if (is_forbidden_landmark(start_terrain, mapping))
 		strict_reachability = false;
 
