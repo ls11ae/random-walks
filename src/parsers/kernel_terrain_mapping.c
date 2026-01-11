@@ -286,6 +286,9 @@ void update_mapping(const KernelParametersMapping *m, const int terrain, const i
     KernelParameters p = m->data.parameters[landmark_to_index(terrain)];
     p.S = S;
     p.D = D;
+    if (D == 1) {
+        p.is_brownian = true;
+    }
     p.diffusity = diffusity;
 }
 
