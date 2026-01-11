@@ -29,6 +29,11 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 
 	const size_t max_D = tensor_set->max_D;
 
+	bool strict_reachability = false;
+	if (mapping->animal == MARINE) {
+		strict_reachability = true;
+	}
+
 	W = terrain_map->width;
 	H = terrain_map->height;
 
@@ -57,6 +62,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 			for (ssize_t x = 0; x < W; ++x) {
 				const int terrain_val = terrain_at(x, y, terrain_map);
 				if (terrain_val == UNMAPPED_TERRAIN) continue;
+				if (strict_reachability && is_forbidden_landmark(terrain_val, mapping)) continue;
 
 				bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
 				Matrix *soft_reach_mat = NULL;
@@ -70,8 +76,10 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 					if (on_forbidden_terrain) {
 						apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 					} else {
-						soft_reach_mat = get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x][t]->S + 1,
-						                                              terrain_map, mapping);
+						const ssize_t M = 2 * tensor_set->data[y][x][t]->S + 1;
+						soft_reach_mat = strict_reachability
+							                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
+							                 : get_reachability_kernel_soft(x, y, M, terrain_map, mapping);
 						for (ssize_t d = 0; d < D; d++) {
 							matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
 							matrix_normalize_L1(tensor_at_t->data[d]);
@@ -83,8 +91,11 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 					if (on_forbidden_terrain) {
 						apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 					} else {
-						soft_reach_mat = get_reachability_kernel_soft(x, y, tensor_at_t->data[0]->width, terrain_map,
-						                                              mapping);
+						const ssize_t M = tensor_at_t->data[0]->width;
+						soft_reach_mat = strict_reachability
+							                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
+							                 : get_reachability_kernel_soft(
+								                 x, y, M, terrain_map, mapping);
 						for (ssize_t d = 0; d < tensor_at_t->len; d++) {
 							matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
 							matrix_normalize_L1(tensor_at_t->data[d]);
@@ -439,6 +450,9 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
 	const ssize_t max_D = (ssize_t) kernel_paramsXYT->max_D;
 	const ssize_t max_S = (ssize_t) kernel_paramsXYT->max_S;
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * max_S + 1, max_D);
+	printf("MaxD %zd, MaxS %zd\n", dir_kernels->max_D, dir_kernels->max_kernel_size);
+	printf("h %zd, t %zd", kernel_paramsXYT->height, kernel_paramsXYT->time);
+	exit(0);
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
