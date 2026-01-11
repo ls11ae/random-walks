@@ -261,6 +261,14 @@ create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs,
     params_mapping->has_forbidden_landmarks = true;
     params_mapping->forbidden_landmarks[0] = TREE_COVER;
     params_mapping->forbidden_landmarks_count = 1;
+
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        KernelParameters params = make_kernel_params(landmarks[i], MARINE, base_step_size, MODE_MIXED);
+        params.bias_x = (ssize_t) ((float) base_step_size * 2);
+        params.bias_y = (ssize_t) ((float) base_step_size * 2);
+        params_mapping->data.parameters[i] = params;
+    }
+
     KernelParameters p;
     p.D = base_dirs;
     p.diffusity = base_diffusity;
