@@ -452,7 +452,6 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * max_S + 1, max_D);
 	printf("MaxD %zd, MaxS %zd\n", dir_kernels->max_D, dir_kernels->max_kernel_size);
 	printf("h %zd, t %zd", kernel_paramsXYT->height, kernel_paramsXYT->time);
-	exit(0);
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
