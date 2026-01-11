@@ -248,6 +248,10 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
 KernelParametersMapping *
 create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs, const float base_diffusity) {
     KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
+    init_transition_matrix(params_mapping);
+    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        params_mapping->forbidden_landmarks[i] = 0;
+    }
     params_mapping->animal = MARINE;
     if (!params_mapping) {
         perror("malloc kernels mapping");
