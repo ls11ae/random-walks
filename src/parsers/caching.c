@@ -17,7 +17,7 @@ uint64_t compute_parameters_hash(const KernelParameters *params) {
     h = (h ^ params->D) * 1099511628211ULL;
     // Hash float values by their bit pattern
     uint64_t bits;
-    memcpy(&bits, &params->diffusity, sizeof(bits));
+    memcpy(&bits, &params->sigma_length, sizeof(bits));
     h = (h ^ bits) * 1099511628211ULL;
 
     h = (h ^ params->bias_x) * 1099511628211ULL;

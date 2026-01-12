@@ -257,6 +257,16 @@ RW_API double matrix_determinant(const Matrix *mat);
 RW_API Matrix *matrix_invert(const Matrix *input);
 
 /**
+* @brief Print the matrix to the standard output.
+*
+* Each element is printed with 5 decimal places.
+*
+* @param m A pointer to the Matrix to be printed. Must not be NULL.
+* @param filename The name of the file to save to
+*/
+RW_API void matrix_print_to_file(const Matrix *m, const char *filename);
+
+/**
  * @brief Print the matrix to the standard output.
  * 
  * Each element is printed with 5 decimal places.

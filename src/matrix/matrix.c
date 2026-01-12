@@ -395,6 +395,23 @@ RW_API Matrix *matrix_clone(const Matrix *src) {
     return clone;
 }
 
+RW_API void matrix_print_to_file(const Matrix *m, const char *filename) {
+    FILE *f = fopen(filename, "w");
+    if (!f) {
+        perror("fopen");
+        return;
+    }
+
+    for (size_t i = 0; i < m->height; i++) {
+        for (size_t j = 0; j < m->width; j++) {
+            fprintf(f, "%0.5f ", matrix_get(m, j, i));
+        }
+        fprintf(f, "\n");
+    }
+
+    fclose(f);
+}
+
 RW_API void matrix_print(const Matrix *m) {
     for (size_t i = 0; i < m->height; i++) {
         for (size_t j = 0; j < m->width; j++) {

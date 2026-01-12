@@ -37,7 +37,7 @@ extern "C" {
  * @param deg The degree of the rotation
  * @param subsampling Subsampling parameter
 */
-void rotate_kernel_ss(Matrix *kernel, double deg, int subsampling);
+void rotate_kernel(Matrix *kernel, double deg);
 
 /**
  * @brief Generate a Gaussian PDF matrix
@@ -102,7 +102,7 @@ Matrix *generate_chi_kernel(ssize_t size, ssize_t subsample_size, int k, int d);
  * @param size The size of the kernel (size x size)
  * @return A pointer to the generated Tensor
  */
-Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size);
+Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size, double sigma_angle, double sigma_length);
 
 /**
  * @brief Generate Tensor containing d rotated versions of a given kernel matrix for Correlated Random Walks 

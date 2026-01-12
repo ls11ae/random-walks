@@ -182,6 +182,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 
 	for (ssize_t t = T - 1; t >= 1; --t) {
 		int terrain_val = terrain_at(x, y, terrain);
+		printf("terrain: %i\n", terrain_val);
 		if (is_forbidden_landmark(terrain_val, mapping))
 			printf("WARNING: WALK THROUGH FORBIDDEN LANDMARK %i \n", start_terrain);
 		Tensor *current_tensor = set_env_kernel(y, x, t, mapping, tensor_set, terrain, strict_reachability);

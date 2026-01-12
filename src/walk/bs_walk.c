@@ -22,7 +22,7 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 			                                               offset.y);
 		} else {
 			current_kernel = matrix_clone(base_kernel);
-			rotate_kernel_ss(current_kernel, biases->data.rotation_deg[t], 2);
+			rotate_kernel(current_kernel, biases->data.rotation_deg[t]);
 		}
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
@@ -83,7 +83,7 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 			                                       offset.y);
 		} else {
 			kernel = matrix_clone(base_kernel);
-			rotate_kernel_ss(kernel, biases->data.rotation_deg[t], 2);
+			rotate_kernel(kernel, biases->data.rotation_deg[t]);
 		}
 
 		ssize_t count = 0;

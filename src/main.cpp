@@ -38,7 +38,7 @@ double chi_square_pdf(const double x, const int k) {
     return pow(x, (k / 2.0) - 1) * exp(-x / 2.0) / (pow(2, k / 2.0) * tgamma(k / 2.0));
 }
 
-static int count_water_steps(Point2DArray *steps, TerrainMap *terrain);
+static int count_forbidden_steps(Point2DArray *steps, TerrainMap *terrain, KernelParametersMapping *mapping);
 
 void test_mixed_gpu() {
 #ifdef USE_CUDA
@@ -68,7 +68,7 @@ void test_mixed_gpu() {
     steps[2] = (Point2D){100, 100};
     steps[3] = (Point2D){80, 50};
     steps[4] = steps[0];
-    auto kernel = generate_correlated_kernels(8, 15);
+    auto kernel = generate_correlated_kernels(8, 15, 0, 0);
     Point2DArray *step_arr = point_2d_array_new(steps, 5);
     auto t_map = tensor_map_terrain(terrain, mapping);
     KernelPoolC *pool = build_kernel_pool_c(t_map, terrain);
@@ -90,7 +90,7 @@ void test_mixed_gpu() {
 }
 
 double test_corr(ssize_t D = 8) {
-    auto kernel = generate_correlated_kernels(4, 11);
+    auto kernel = generate_correlated_kernels(4, 11, 0, 0);
     auto dp = correlated_init(30, 30, kernel, 30, 15, 15, false,
                               "/home/omar/CLionProjects/random-walks/resources/dptmp");
     auto walk = correlated_backtrace(false, dp, "/home/omar/CLionProjects/random-walks/resources/dptmp", 30, kernel, 5,
@@ -145,7 +145,7 @@ Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t
 int serialize_tensor() {
     // --- Create a KernelsMap4D instance for serialization ---
     FILE *fp = fopen("../../resources/tensor.bin", "w+b");
-    Tensor *tensor = generate_correlated_kernels(8, 15);
+    Tensor *tensor = generate_correlated_kernels(8, 15, 0, 0);
     serialize_tensor(fp, tensor);
     auto *loaded = deserialize_tensor(fp);
     for (int d = 0; d < loaded->len; ++d) {
@@ -195,8 +195,8 @@ void test_mixed() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     printf("Time: %ld ms\n", duration.count());
     //point2d_array_print(walk);
-    printf("Steps in water: %i: %f %%\n", count_water_steps(walk, terrain),
-           count_water_steps(walk, terrain) * 100.0 / static_cast<double>(walk->length));
+    printf("Steps in water: %i: %f %%\n", count_forbidden_steps(walk, terrain, mapping),
+           count_forbidden_steps(walk, terrain, mapping) * 100.0 / static_cast<double>(walk->length));
 
     kernel_parameters_mapping_free(mapping);
     terrain_map_free(terrain);
@@ -206,8 +206,8 @@ void test_mixed() {
 }
 
 void test_sym_link() {
-    Tensor *t1 = generate_correlated_kernels(8, 15);
-    Tensor *t2 = generate_correlated_kernels(8, 15);
+    Tensor *t1 = generate_correlated_kernels(8, 15, 0, 0);
+    Tensor *t2 = generate_correlated_kernels(8, 15, 0, 0);
     if (!tensor_equals(t1, t2)) {
         printf("Error: tensors should be equal\n");
         return;
@@ -364,7 +364,7 @@ void correlated_cuda() {
     auto H = 2 * 500 + 1;
     auto S = 7;
     auto D = 8;
-    auto kernel = generate_correlated_kernels(D, 2 * S + 1);
+    auto kernel = generate_correlated_kernels(D, 2 * S + 1, 0, 0);
     Tensor anglemask;
     compute_overlap_percentages(2 * S + 1, D, &anglemask);
     auto dirkernel = get_dir_kernel(D, 15);
@@ -405,10 +405,12 @@ static inline void print_progress(size_t count, size_t max) {
     fflush(stdout);
 }
 
-static int count_water_steps(Point2DArray *steps, TerrainMap *terrain) {
+static int count_forbidden_steps(Point2DArray *steps, TerrainMap *terrain, KernelParametersMapping *mapping) {
     int result = 0;
     for (int i = 0; i < steps->length; ++i) {
-        if (terrain_at(steps->points[i].x, steps->points[i].y, terrain) == WATER) {
+        auto terrain_val = terrain_at(steps->points[i].x, steps->points[i].y, terrain);
+        int ind = landmark_to_index(static_cast<landmarkType>(terrain_val));
+        if (is_forbidden_landmark((landmarkType) ind, mapping)) {
             result++;
         }
     }
@@ -435,7 +437,7 @@ void display_kernels() {
         ssize_t M = p.S * 2 + 1;
         if (p.is_brownian) {
             double scale, sigma;
-            get_gaussian_parameters(p.diffusity, index_to_landmark_value(i), &sigma, &scale);
+            get_gaussian_parameters(p.sigma_length, index_to_landmark_value(i), &sigma, &scale);
             Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p.bias_x, p.bias_y);
 
             Tensor *result = tensor_new(M, M, 1);
@@ -457,7 +459,7 @@ void display_kernels() {
 
 void generate_and_apply_terrain_kernels() {
     TerrainMap *terrain1 = create_terrain_map("../../resources/terraintest.txt", ' ');
-    Tensor *tensor1 = generate_correlated_kernels(4, 7);
+    Tensor *tensor1 = generate_correlated_kernels(4, 7, 0, 0);
     auto mapping = create_default_mixed_mapping(MEDIUM, 7);
     FILE *file = fopen("../../resources/kernels.txt", "w");
     for (int i = 0; i < tensor1->len; ++i) {
@@ -474,16 +476,16 @@ void generate_and_apply_terrain_kernels() {
     apply_terrain_bias(13, 6, terrain1, tensor1, mapping);
 }
 
-std::string kernel_parameters_print(TimedKernelParameters *p) {
-    return std::to_string(p->params->is_brownian) + ", S: " + std::to_string(p->params->S) + ", D: " +
-           std::to_string(p->params->D) +
-           ", diff: " + std::to_string(p->params->diffusity)
-           + ", bx" + std::to_string(p->params->bias_x) + ", by" + std::to_string(p->params->bias_y);
+std::string kernel_parameters_print(KernelParameters *p) {
+    return std::to_string(p->is_brownian) + ", S: " + std::to_string(p->S) + ", D: " +
+           std::to_string(p->D) +
+           ", diff: " + std::to_string(p->sigma_length)
+           + ", bx: " + std::to_string(p->bias_x) + ", by: " + std::to_string(p->bias_y);
 }
 
 void test_single_state_walk() {
     ssize_t T = 3;
-    Tensor *t1 = generate_correlated_kernels(1, 21);
+    Tensor *t1 = generate_correlated_kernels(1, 21, 0, 0);
 
     TerrainMap *terrain = create_terrain_map(
         "/home/omar/CLionProjects/random-walks/resources/landcover_17766_-58.76_50.56_1.14_71.89_600.txt", ' ');
@@ -514,7 +516,7 @@ void test_env_grid_deserialization(const char *env_binary) {
                 const DateTime *dt = grid->params[y][x][t]->date_time;
                 std::cout << "dt: " << dt->day << ", " << dt->month << ", " << dt->year << ", " << dt->hour << "\n";
                 const KernelParameters *kp = grid->params[y][x][t]->params;
-                std::cout << "kp: " << kp->bias_x << ", " << kp->bias_y << ", " << kp->diffusity << ", " << kp->
+                std::cout << "kp: " << kp->bias_x << ", " << kp->bias_y << ", " << kp->sigma_length << ", " << kp->
                         is_brownian << ", " << kp->D << ", " << kp->S << "\n";
                 std::cout << "land: " << grid->params[y][x][t]->landmark << "\n";
             }
@@ -523,8 +525,62 @@ void test_env_grid_deserialization(const char *env_binary) {
     free_environment_influence_grid(grid);
 }
 
-int main() {
-    const char *env_binary = "../../resources/env_2024-09-12_10_11.bin";
-    test_env_grid_deserialization(env_binary);
+int test_env_walks() {
+    const char *env_binary =
+            "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/tiger_sharks/kernels/204413/204413_kernels_20240913T12-20240914T12.bin";
+    auto grid = deserialize_env_grid(env_binary);
+    auto dims = grid->dims;
+    auto p = grid->params;
+
+    for (int y = 0; y < dims->y; ++y) {
+        printf("y: %i\n", y);
+        for (int x = 0; x < dims->x; ++x) {
+            for (int t = 0; t < dims->t; ++t) {
+                std::cout << "[(" << y << "," << x << "," << t << "): " << kernel_parameters_print(p[y][x][t]->params)
+                        << "], ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+
+    /*
+    *start 148, 24
+
+end 916, 265
+
+start date 2024-09-13 12:00:00, end date 2024-09-14 12:00:00
+
+T 24 - S 84 - D 8
+     */
+
+    std::cout << grid->dims->t << " x:  " << grid->dims->x << " y:  " << grid->dims->y << std::endl;
+    auto mapping2 = create_default_marine_mapping(42, 8, 2.0);
+
+    TerrainMap *terrain = create_terrain_map(
+        "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/tiger_sharks/landcover/landcover_204413_-162.03_20.85_-134.25_26.11_500.txt",
+        ' ');
+    auto T = 24;
+    DateTime dt_start{.year = 2024, .month = 9, .day = 13, .hour = 3};
+    Point2D st{.x = 74, .y = 12};
+    DateTime dt_end{.year = 2024, .month = 9, .day = 14, .hour = 12};
+    Point2D en{.x = 457, .y = 132};
+    TimedLocation start{.timestamp = dt_start, .coordinates = st};
+    TimedLocation goal{.timestamp = dt_end, .coordinates = en};
+    EnvWeightProfile weights{false, 0, 0, 0, 0, 0};
+
+    auto walk = time_walk_env_binary(T, mapping2, terrain, env_binary, &weights, start, goal);
+    point2d_array_print(walk);
+
+    std::cout << "forbidden steps: " << count_forbidden_steps(walk, terrain, mapping2) << std::endl;
     return 0;
+}
+
+int main() {
+    auto kernel = generate_correlated_kernels(16, 65, 0.3, 1);
+    matrix_print(kernel->data[0]);
+    matrix_print_to_file(kernel->data[0], "kernels.txt");
+    auto kernel2 = generate_correlated_kernels(16, 65, 0.3, 1);
+    matrix_print_to_file(kernel->data[1], "kernels2.txt");
+    matrix_print(kernel2->data[0]);
 }

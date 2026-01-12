@@ -122,7 +122,7 @@ void copy_kernel_params(TimedKernelParameters *dst, const TimedKernelParameters 
     dst->params->D = src->params->D;
     dst->params->bias_x = src->params->bias_x;
     dst->params->bias_y = src->params->bias_y;
-    dst->params->diffusity = src->params->diffusity;
+    dst->params->sigma_length = src->params->sigma_length;
 }
 
 TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int source_len, int dest_len) {
@@ -197,7 +197,7 @@ void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelPa
     result->is_brownian = (float) a->is_brownian + ((float) b->is_brownian - (float) a->is_brownian) * factor > 0.5;
     result->S = (ssize_t) ((float) a->S + (float) (b->S - a->S) * factor);
     result->D = (ssize_t) ((float) a->D + (float) (b->D - a->D) * factor);
-    result->diffusity = a->diffusity + (b->diffusity - a->diffusity) * factor;
+    result->sigma_length = a->sigma_length + (b->sigma_length - a->sigma_length) * factor;
     result->bias_x = (ssize_t) ((float) a->bias_x + ((float) b->bias_x - (float) a->bias_x) * factor);
     result->bias_y = (ssize_t) ((float) a->bias_y + ((float) b->bias_y - (float) a->bias_y) * factor);
 }

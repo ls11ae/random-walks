@@ -185,7 +185,7 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
 
     params.is_brownian = is_brownian;
     params.D = D;
-    params.diffusity = diffusity;
+    params.sigma_length = diffusity;
     params.S = (ssize_t) (base_step_multiplier * (float) base_step_size);
 
     params.bias_x = 0;
@@ -271,7 +271,7 @@ create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs,
 
     KernelParameters p;
     p.D = base_dirs;
-    p.diffusity = base_diffusity;
+    p.sigma_length = base_diffusity;
     p.S = base_step_size;
     p.is_brownian = false;
     p.bias_x = 0;
@@ -289,7 +289,7 @@ void update_mapping(const KernelParametersMapping *m, const int terrain, const i
     if (D == 1) {
         p.is_brownian = true;
     }
-    p.diffusity = diffusity;
+    p.sigma_length = diffusity;
 }
 
 KernelParametersMapping *create_default_mixed_mapping(enum animal_type animal_type, int base_step_size) {
@@ -364,11 +364,11 @@ static Tensor *build_default_kernel_for(enum landmarkType terrain_value, const K
 
     if (is_brownian) {
         double sigma = 0.0, scale = 1.0;
-        get_gaussian_parameters((double) p->diffusity, (int) terrain_value, &sigma, &scale);
+        get_gaussian_parameters((double) p->sigma_length, (int) terrain_value, &sigma, &scale);
         Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, scale, p->bias_x, p->bias_y);
         return tensor_from_single_matrix(m);
     }
-    return generate_correlated_kernels(p->D, M);
+    return generate_correlated_kernels(p->D, M, p->sigma_angle, p->sigma_length);
 }
 
 static KernelParametersMapping *create_default_kernels_internal(enum animal_type animal_type,

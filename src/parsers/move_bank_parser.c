@@ -18,7 +18,7 @@ KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t 
     kernel_parameters->is_brownian = is_brownian;
     kernel_parameters->S = S;
     kernel_parameters->D = D;
-    kernel_parameters->diffusity = diffusity;
+    kernel_parameters->sigma_length = diffusity;
     kernel_parameters->bias_x = max_bias_x;
     kernel_parameters->bias_y = max_bias_y;
     return kernel_parameters;

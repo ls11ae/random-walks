@@ -173,7 +173,8 @@ typedef struct {
     bool is_brownian;
     ssize_t S;
     ssize_t D;
-    float diffusity;
+    float sigma_length;
+    float sigma_angle;
     ssize_t bias_x;
     ssize_t bias_y;
 } KernelParameters;
@@ -182,7 +183,8 @@ typedef struct {
     bool override_mode;
     float S;
     float D;
-    float diffusity;
+    float sigma_length;
+    float sigma_angle;
     float bias_x;
     float bias_y;
 } EnvWeightProfile;
