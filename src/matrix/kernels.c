@@ -167,7 +167,7 @@ void rotate_kernel(Matrix *kernel, const double deg) {
 }
 
 
-static double warped_normal(double mu, double rho, double x) {
+static double wrapped_normal(const double rho, const double x) {
 	const double sigma = sqrt(-2 * log10(rho));
 	return normal_pdf(0, sigma, x);
 }
@@ -196,50 +196,24 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const double scaling) {
 	return kernel;
 }
 
-Matrix *generate_angle_kernel_ss(size_t size, double angle_diffusity) {
-	ssize_t subsampling = 1;
+Matrix *generate_angle_kernel_ss(ssize_t size, double angle_diffusity) {
 	Matrix *kernel = matrix_new(size, size);
 
-	size_t grid_size = size * subsampling + 1;
-	Matrix *values = matrix_new(grid_size, grid_size);
-
-	const long long half = (long long) (size * subsampling) / 2;
+	ssize_t grid_size = size;
+	const long long half = (long long) (size - 1) / 2;
 
 	for (long long y = -half; y <= half; ++y) {
 		for (long long x = -half; x <= half; ++x) {
 			double angle = atan2((double) y, (double) x);
 			size_t yy = (size_t) (y + half);
 			size_t xx = (size_t) (x + half);
-			if (matrix_in_bounds(values, xx, yy)) {
-				values->data.points[yy * grid_size + xx] = warped_normal(
-					0.0, MIN_RHO + (1 - angle_diffusity) * MAX_RHO, angle); // rho between 0.1 and 0.99
-			}
-		}
-	}
 
-	for (size_t y = 0; y < size * subsampling; y += subsampling) {
-		for (size_t x = 0; x < size * subsampling; x += subsampling) {
-			double sum = 0.0;
-			for (size_t k = 0; k < subsampling; ++k) {
-				for (size_t l = 0; l < subsampling; ++l) {
-					size_t yy = y + k;
-					size_t xx = x + l;
-					if (matrix_in_bounds(values, xx, yy)) {
-						sum += values->data.points[yy * grid_size + xx];
-					}
-				}
-			}
-			size_t r_y = y / subsampling;
-			size_t r_x = x / subsampling;
-			if (matrix_in_bounds(kernel, r_x, r_y)) {
-				double current_value = sum / (double) (subsampling * subsampling);
-				kernel->data.points[r_y * size + r_x] = current_value;
-			}
+			kernel->data.points[yy * grid_size + xx] = wrapped_normal(
+				MIN_RHO + (1 - angle_diffusity) * MAX_RHO, angle); // rho between 0.1 and 0.99
 		}
 	}
 
 	matrix_normalize_L1(kernel);
-	matrix_free(values);
 	return kernel;
 }
 
