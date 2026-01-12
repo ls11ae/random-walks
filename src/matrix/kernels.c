@@ -453,8 +453,8 @@ static inline int landmark_to_index_from_value(int terrain_value) {
 	return -1; // invalid
 }
 
-Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
-                        const TensorSet *correlated_tensors, bool serialized) {
+Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, bool full_bias,
+                                 const TensorSet *correlated_tensors, bool serialized) {
 	ssize_t M = p->S * 2 + 1;
 	Tensor *result = NULL;
 	if (p->is_brownian) {
@@ -486,6 +486,22 @@ Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_
 		return tensor_clone(result);
 	}
 	return result;
+}
+
+Tensor *generate_kernel(const KernelParameters *p, const int terrain_value) {
+	ssize_t M = p->S * 2 + 1;
+	Tensor *result = NULL;
+	if (p->is_brownian) {
+		double scale, sigma;
+		get_gaussian_parameters(p->diffusity, terrain_value, &sigma, &scale);
+		Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+		result = malloc(sizeof(Tensor));
+		result->data = malloc(sizeof(Matrix *));
+		result->len = 1;
+		result->data[0] = kernel;
+		return result;
+	}
+	return generate_correlated_kernels(p->D, 2 * p->S + 1);
 }
 
 Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height) {

@@ -128,8 +128,15 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
  * @param serialized True if called from a serialized kernels map function, otherwise false
  * @return Kernel taylored to terrain value and kernel parameters
  */
-Tensor *generate_tensor(const KernelParameters *p, int terrain_value, bool full_bias,
-                        const TensorSet *correlated_tensors, bool serialized);
+Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, bool full_bias,
+                                 const TensorSet *correlated_tensors, bool serialized);
+
+/**
+* @brief Generate terrain dependant Brownian or Correlated kernel, depending on kernel params and terrain
+* @param p Parameters for kernel to be generated
+* @param terrain_value Current terrain value
+*/
+Tensor *generate_kernel(const KernelParameters *p, int terrain_value);
 
 /**
  * @Brief Creates a Matrix ptr holding the kernel from a passed array

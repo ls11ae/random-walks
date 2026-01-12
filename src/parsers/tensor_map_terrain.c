@@ -71,8 +71,9 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                         // c) Cache‐Miss → neu berechnen und einfügen
                         recomputed++;
                         ssize_t D = tensor_set->data[y][x]->D;
-                        arr = generate_tensor(tensor_set->data[y][x], (int) terrain_val, false, correlated_kernels,
-                                              true);
+                        arr = generate_kernel_from_set(tensor_set->data[y][x], (int) terrain_val, false,
+                                                       correlated_kernels,
+                                                       true);
                         for (ssize_t d = 0; d < D; d++) {
                             matrix_mul_inplace(arr->data[d], soft_reach_mat);
                             if (!on_forbidden_terrain)
@@ -249,7 +250,7 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
                 KernelParameters *current_parameters = tensor_set->data[y][x];
                 ssize_t D = current_parameters->D;
                 reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain, mapping);
-                arr = generate_tensor(current_parameters, (int) terrain_val, false, correlated_kernels, true);
+                arr = generate_kernel_from_set(current_parameters, (int) terrain_val, false, correlated_kernels, true);
 
                 for (ssize_t d = 0; d < D; d++) {
                     Matrix *mat = matrix_elementwise_mul(arr->data[d], reach_mat);
