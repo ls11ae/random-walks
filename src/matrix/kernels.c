@@ -136,112 +136,36 @@ Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, in
 	return result;
 }
 
+
 void rotate_kernel(Matrix *kernel, const double deg) {
 	if (!kernel) return;
 	const ssize_t size = (ssize_t) kernel->height;
-	int subsampling = 1;
-	const ssize_t bin_width = size * subsampling;
-	const ssize_t total_size = bin_width * bin_width;
-	Matrix *values = matrix_new(bin_width, bin_width);
-	ScalarMapping *bins = (ScalarMapping *) calloc(total_size, sizeof(ScalarMapping));
-	if (!bins) {
-		matrix_free(values);
-		return;
-	}
-
-	const double angle = DEG_TO_RAD(deg);
-	const double center = (double) ((size / 2) * subsampling);
-
-	// Step 1: Upscale kernel into values matrix
-	for (ssize_t i = 0; i < size; ++i) {
-		for (ssize_t j = 0; j < size; ++j) {
-			const double val = matrix_get(kernel, j, i);
-			for (int k = 0; k < subsampling; ++k) {
-				for (int l = 0; l < subsampling; ++l) {
-					const ssize_t x = j * subsampling + l;
-					const ssize_t y = i * subsampling + k;
-					matrix_set(values, x, y, val);
-				}
-			}
-		}
-	}
-
-	// Step 2: Rotate each point and accumulate into bins
-	for (ssize_t i = 0; i < bin_width; ++i) {
-		for (ssize_t j = 0; j < bin_width; ++j) {
-			const double val = matrix_get(values, j, i);
-			const double di = (double) i - center;
-			const double dj = (double) j - center;
-
-			const double new_i_rot = di * cos(angle) - dj * sin(angle) + center;
-			const double new_j_rot = di * sin(angle) + dj * cos(angle) + center;
-
-			const ssize_t new_i = (ssize_t) round(new_i_rot);
-			const ssize_t new_j = (ssize_t) round(new_j_rot);
-
-			if (new_i < 0 || new_i >= (int) bin_width || new_j < 0 || new_j >= (int) bin_width)
-				continue;
-
-			const ssize_t idx = (ssize_t) new_i * bin_width + (ssize_t) new_j;
-			bins[idx].value += val;
-			bins[idx].index++;
-		}
-	}
-
-	// Step 3: Average the bins
-	for (size_t i = 0; i < total_size; ++i) {
-		if (bins[i].index > 0) {
-			bins[i].value /= (double) bins[i].index;
-		}
-	}
-
-	// Step 4: Downsample bins into kernel
-	for (ssize_t i = 0; i < size; ++i) {
-		for (ssize_t j = 0; j < size; ++j) {
-			double sum = 0.0;
-			for (int k = 0; k < subsampling; ++k) {
-				for (int l = 0; l < subsampling; ++l) {
-					const ssize_t y_bin = i * subsampling + k;
-					const ssize_t x_bin = j * subsampling + l;
-					if (y_bin < bin_width && x_bin < bin_width) {
-						sum += bins[y_bin * bin_width + x_bin].value;
-					}
-				}
-			}
-			matrix_set(kernel, j, i, sum / (double) (subsampling * subsampling));
-		}
-	}
-
-	free(bins);
-	matrix_free(values);
-}
-
-
-/*
- *
-*void rotate_kernel(Matrix *kernel, const double deg) {	if (!kernel) return;
-	const ssize_t size = (ssize_t) kernel->height;
 	Matrix *values = matrix_clone(kernel);
+	matrix_fill(kernel, 0.0);
 	const double angle = DEG_TO_RAD(deg);
-	const double center = (double) ((size / 2));
+	const double center = (double) (size - 1) / 2.0;
+
 	for (ssize_t i = 0; i < size; ++i) {
 		for (ssize_t j = 0; j < size; ++j) {
-			const double val = matrix_get(values, j, i);
 			const double di = (double) i - center;
 			const double dj = (double) j - center;
-			const double new_i_rot = di * cos(angle) - dj * sin(angle) + center;
-			const double new_j_rot = di * sin(angle) + dj * cos(angle) + center;
-			const ssize_t new_i = (ssize_t) round(new_i_rot);
-			const ssize_t new_j = (ssize_t) round(new_j_rot);
-			if (new_i < 0 || new_i >= (int) size || new_j < 0 || new_j >= (int) size) continue;
-			matrix_set(kernel, new_j, new_i, val);
+
+			const double src_i = di * cos(angle) + dj * sin(angle) + center;
+			const double src_j = -di * sin(angle) + dj * cos(angle) + center;
+
+			const ssize_t src_i_rounded = (ssize_t) round(src_i);
+			const ssize_t src_j_rounded = (ssize_t) round(src_j);
+
+			if (src_i_rounded >= 0 && src_i_rounded < size &&
+			    src_j_rounded >= 0 && src_j_rounded < size) {
+				const double val = matrix_get(values, src_j_rounded, src_i_rounded);
+				matrix_set(kernel, j, i, val);
+			}
 		}
 	}
 	matrix_free(values);
 }
 
- *
- */
 
 static double warped_normal(double mu, double rho, double x) {
 	const double sigma = sqrt(-2 * log10(rho));

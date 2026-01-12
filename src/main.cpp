@@ -577,10 +577,10 @@ T 24 - S 84 - D 8
 }
 
 int main() {
-    auto kernel = generate_correlated_kernels(16, 65, 0.3, 1);
+    auto kernel = generate_correlated_kernels(8, 15, 0.2, 1);
     matrix_print(kernel->data[0]);
     matrix_print_to_file(kernel->data[0], "kernels.txt");
-    auto kernel2 = generate_correlated_kernels(16, 65, 0.3, 1);
+    auto kernel2 = generate_correlated_kernels(8, 15, 0.2, 1);
     matrix_print_to_file(kernel->data[1], "kernels2.txt");
-    matrix_print(kernel2->data[0]);
+    matrix_print(kernel->data[1]);
 }
