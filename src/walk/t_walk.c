@@ -113,9 +113,11 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				Tensor *tensor_at_t = set_env_kernel(y, x, t, mapping, tensor_set, terrain_map, strict_reachability);
-				if (is_forbidden_landmark(terrain_at(x, y, terrain_map), mapping))
+				int terrain_val = terrain_at(x, y, terrain_map);
+				if (terrain_val == UNMAPPED_TERRAIN || strict_reachability && is_forbidden_landmark(
+					    terrain_val, mapping))
 					continue;
+				Tensor *tensor_at_t = set_env_kernel(y, x, t, mapping, tensor_set, terrain_map, strict_reachability);
 				const size_t D = tensor_at_t->len;
 				const Vector2D *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 				for (ssize_t d = 0; d < D; ++d) {
@@ -182,7 +184,6 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 
 	for (ssize_t t = T - 1; t >= 1; --t) {
 		int terrain_val = terrain_at(x, y, terrain);
-		printf("terrain: %i\n", terrain_val);
 		if (is_forbidden_landmark(terrain_val, mapping))
 			printf("WARNING: WALK THROUGH FORBIDDEN LANDMARK %i \n", start_terrain);
 		Tensor *current_tensor = set_env_kernel(y, x, t, mapping, tensor_set, terrain, strict_reachability);
