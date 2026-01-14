@@ -12,13 +12,15 @@
 #include "weather_parser.h"
 #include "parsers/constants.h"
 
-KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
+KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float len_diffusivity,
+                                           float angle_diffusivity, ssize_t max_bias_x,
                                            ssize_t max_bias_y) {
     KernelParameters *kernel_parameters = malloc(sizeof(KernelParameters));
     kernel_parameters->is_brownian = is_brownian;
     kernel_parameters->S = S;
     kernel_parameters->D = D;
-    kernel_parameters->sigma_length = diffusity;
+    kernel_parameters->sigma_length = len_diffusivity;
+    kernel_parameters->sigma_angle = angle_diffusivity;
     kernel_parameters->bias_x = max_bias_x;
     kernel_parameters->bias_y = max_bias_y;
     return kernel_parameters;

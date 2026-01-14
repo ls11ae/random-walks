@@ -25,12 +25,14 @@ extern "C" {
  * @param is_brownian Whether the kernel follows Brownian motion characteristics.
  * @param S Base step size parameter.
  * @param D Number of directions supported by the kernel.
- * @param diffusity Diffusivity factor for random movement.
+ * @param len_diffusivity Diffusivity factor for the spread along the direction axis.
+ * @param angle_diffusivity Diffusivity factor for the spread along the rotational axis.
  * @param max_bias_x Maximum bias along the X axis.
  * @param max_bias_y Maximum bias along the Y axis.
  * @return Newly allocated KernelParameters pointer, or NULL on failure.
  */
-KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float diffusity, ssize_t max_bias_x,
+KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float len_diffusivity,
+                                           float angle_diffusivity, ssize_t max_bias_x,
                                            ssize_t max_bias_y);
 
 /**

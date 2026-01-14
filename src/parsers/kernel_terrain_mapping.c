@@ -23,20 +23,20 @@ static Tensor *tensor_from_single_matrix(Matrix *m) {
 }
 
 void init_transition_matrix(KernelParametersMapping *mapping) {
-    double default_stay_probabilities[LAND_MARKS_COUNT] = {
-        0.8, // TREE_COVER
-        0.75, // SHRUBLAND
-        0.85, // GRASSLAND
-        0.84, // CROPLAND
-        0.7, // BUILT_UP
-        0.95, // SPARSE_VEGETATION
-        0.8, // SNOW_AND_ICE
-        0.9, // WATER
-        0.8, // HERBACEOUS_WETLAND
-        0.85, // MANGROVES
-        0.7 // MOSS_AND_LICHEN
-    };
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
+        const double default_stay_probabilities[LAND_MARKS_COUNT] = {
+            0.8, // TREE_COVER
+            0.75, // SHRUBLAND
+            0.85, // GRASSLAND
+            0.84, // CROPLAND
+            0.7, // BUILT_UP
+            0.95, // SPARSE_VEGETATION
+            0.8, // SNOW_AND_ICE
+            0.9, // WATER
+            0.8, // HERBACEOUS_WETLAND
+            0.85, // MANGROVES
+            0.7 // MOSS_AND_LICHEN
+        };
         mapping->stay_probabilities[i] = default_stay_probabilities[i];
 
         for (int j = 0; j < LAND_MARKS_COUNT; j++) {
@@ -96,81 +96,94 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
                                            const int base_step_size,
                                            const enum kernel_mode mode) {
     KernelParameters params;
-    float base_step_multiplier;
-    float diffusity;
+    double base_step_multiplier;
+    float len_diff;
+    float angle_diff;
     int is_brownian, D;
 
     switch (terrain_value) {
         case TREE_COVER:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 8;
-            diffusity = 2.9f;
+            len_diff = 0.4f;
+            angle_diff = 0.8f;
             base_step_multiplier = 0.7f;
             break;
         case SHRUBLAND:
             is_brownian = 0;
             D = 8;
-            diffusity = 0.8f;
+            len_diff = 0.8f;
+            angle_diff = 0.3f;
             base_step_multiplier = 0.5f;
             break;
         case GRASSLAND:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 6;
-            diffusity = 1.5f;
+            len_diff = 0.9f;
+            angle_diff = 0.2f;
             base_step_multiplier = 1.0f;
             break;
         case CROPLAND:
             is_brownian = 0;
             D = 8;
-            diffusity = 1.2f;
+            len_diff = 0.8f;
+            angle_diff = 0.4f;
             base_step_multiplier = 0.7f;
             break;
         case BUILT_UP:
             is_brownian = 0;
             D = 4;
-            diffusity = 0.7f;
+            len_diff = 0.5f;
+            angle_diff = 0.2f;
             base_step_multiplier = 0.6f;
             break;
         case SPARSE_VEGETATION:
             is_brownian = 0;
             D = 8;
-            diffusity = 2.5f;
+            len_diff = 0.6f;
+            angle_diff = 0.5f;
             base_step_multiplier = 0.8f;
             break;
         case SNOW_AND_ICE:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 10;
-            diffusity = 2.4f;
+            len_diff = 0.4f;
+            angle_diff = 0.1f;
             base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.7f;
             break;
         case WATER:
             is_brownian = 0;
             D = 8;
-            diffusity = 0.1f;
+            len_diff = 0.5f;
+            angle_diff = 0.2f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
             break;
         case HERBACEOUS_WETLAND:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 8;;
-            diffusity = 0.3f;
+            len_diff = 0.5f;
+            angle_diff = 0.5f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.0f : 0.4f;
             break;
         case MANGROVES:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 5;;
-            diffusity = 0.2f;
+            len_diff = 0.8f;
+            angle_diff = 0.4f;
             base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.45f;
             break;
         case MOSS_AND_LICHEN:
             is_brownian = 0;
             D = 8;
-            diffusity = 1.0f;
+            len_diff = 1.0f;
+            angle_diff = 0.5f;
             base_step_multiplier = 0.6f;
             break;
         default:
             is_brownian = animal_type != AIRBORNE;
             D = animal_type != AIRBORNE ? 1 : 6;
-            diffusity = 1.0f;
+            len_diff = 1.0f;
+            angle_diff = 0.3f;
             base_step_multiplier = 1.0f;
             break;
     }
@@ -185,7 +198,8 @@ static KernelParameters make_kernel_params(const enum landmarkType terrain_value
 
     params.is_brownian = is_brownian;
     params.D = D;
-    params.sigma_length = diffusity;
+    params.sigma_length = len_diff;
+    params.sigma_angle = angle_diff;
     params.S = (ssize_t) (base_step_multiplier * (float) base_step_size);
 
     params.bias_x = 0;
@@ -246,7 +260,8 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
 }
 
 KernelParametersMapping *
-create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs, const float base_diffusity) {
+create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs, const float len_diffusivity,
+                              const float angle_diffusivity) {
     KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
     init_transition_matrix(params_mapping);
     for (int i = 0; i < LAND_MARKS_COUNT; i++) {
@@ -271,7 +286,8 @@ create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs,
 
     KernelParameters p;
     p.D = base_dirs;
-    p.sigma_length = base_diffusity;
+    p.sigma_length = len_diffusivity;
+    p.sigma_angle = angle_diffusivity;
     p.S = base_step_size;
     p.is_brownian = false;
     p.bias_x = 0;
