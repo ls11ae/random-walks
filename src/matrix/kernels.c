@@ -232,6 +232,8 @@ Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel)
 Tensor *generate_correlated_kernels(const ssize_t dirs, const ssize_t size,
                                     const double angle_diffusity,
                                     const double length_diffusity) {
+	assert(angle_diffusity >= 0 && angle_diffusity <= 1.0f && length_diffusity >= 0 && length_diffusity <= 1.0
+		&& "diffusivity params not in range [0,1]");
 	Tensor *kernels = tensor_new(size, size, dirs);
 	if (!kernels) return NULL;
 

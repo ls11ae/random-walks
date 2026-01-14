@@ -100,9 +100,11 @@ Matrix *generate_chi_kernel(ssize_t size, ssize_t subsample_size, int k, int d);
  * @brief Generate Tensor containing d rotated versions of a kernel matrix for Correlated Random Walks 
  * @param dirs The number of directions (rotated kernels)
  * @param size The size of the kernel (size x size)
+ * @param angle_diffusivity Diffusivity factor for the spread along the rotational axis.
+ * @param length_diffusivity Diffusivity factor for the spread along the direction axis.
  * @return A pointer to the generated Tensor
  */
-Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size, double sigma_angle, double sigma_length);
+Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size, double angle_diffusivity, double length_diffusivity);
 
 /**
  * @brief Generate Tensor containing d rotated versions of a given kernel matrix for Correlated Random Walks 
