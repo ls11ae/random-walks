@@ -192,40 +192,13 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
     return grid;
 }
 
-static KernelParameters *kernel_parameters_copy(const KernelParameters *src) {
-    if (!src) {
-        return NULL;
-    }
-
-    KernelParameters *dst = malloc(sizeof(KernelParameters));
-    if (!dst) {
-        return NULL;
-    }
-    memcpy(dst, src, sizeof(KernelParameters));
-    return dst;
-}
-
-static KernelParameters *mix_params(KernelParameters *land, KernelParameters *env, float weight) {
-    KernelParameters *p = malloc(sizeof(KernelParameters));
-    p->S = (ssize_t) ((1.0f - weight) * (float) land->S + weight * (float) env->S);
-    p->D = (ssize_t) ((1.0f - weight) * (float) land->D + weight * (float) env->D);
-    p->sigma_length = ((1.0f - weight) * land->sigma_length + weight * env->sigma_length);
-    p->bias_x = env->bias_x;
-    p->bias_y = env->bias_y;
-    p->is_brownian = land->is_brownian;
-    if (p->is_brownian)
-        p->D = BROWNIAN_DIRECTIONS;
-    if (!p->is_brownian && p->D < CRW_MIN_DIRECTIONS)
-        p->D = CRW_MIN_DIRECTIONS;
-    return p;
-}
-
 static KernelParameters *
 mix_all_params(const KernelParameters *land, const KernelParameters *env, const EnvWeightProfile *weights) {
     KernelParameters *p = malloc(sizeof(KernelParameters));
     p->S = (ssize_t) ((1.0f - weights->S) * (float) land->S + weights->S * (float) env->S);
     p->D = (ssize_t) ((1.0f - weights->D) * (float) land->D + weights->D * (float) env->D);
     p->sigma_length = ((1.0f - weights->sigma_length) * land->sigma_length + weights->sigma_length * env->sigma_length);
+    p->sigma_angle = ((1.0f - weights->sigma_angle) * land->sigma_angle + weights->sigma_angle * env->sigma_angle);
     p->bias_x = (ssize_t) ((1.0f - weights->bias_x) * (float) land->bias_x + weights->bias_x * (float) env->bias_x);
     p->bias_y = (ssize_t) ((1.0f - weights->bias_y) * (float) land->bias_y + weights->bias_y * (float) env->bias_y);
     p->is_brownian = weights->override_mode ? env->is_brownian : land->is_brownian;
