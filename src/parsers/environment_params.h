@@ -9,7 +9,8 @@ extern "C" {
 #include "parsers/types.h"
 
 EnvWeightProfile *
-env_weights_new(bool override_mode, float S, float D, float diffusity,
+env_weights_new(bool override_mode, float S, float D, float len_diff,
+                float angle_diff,
                 float bias_x, float bias_y);
 
 void env_weights_free(EnvWeightProfile *env_w);

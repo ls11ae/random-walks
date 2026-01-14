@@ -11,13 +11,15 @@
 
 
 EnvWeightProfile *
-env_weights_new(const bool override_mode, const float S, const float D, const float diffusity,
+env_weights_new(const bool override_mode, const float S, const float D, const float len_diff,
+                const float angle_diff,
                 const float bias_x, const float bias_y) {
     EnvWeightProfile *env_w = malloc(sizeof(EnvWeightProfile));
     env_w->override_mode = override_mode;
     env_w->S = S;
     env_w->D = D;
-    env_w->sigma_length = diffusity;
+    env_w->sigma_length = len_diff;
+    env_w->sigma_angle = angle_diff;
     env_w->bias_x = bias_x;
     env_w->bias_y = bias_y;
     return env_w;
