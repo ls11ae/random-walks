@@ -116,7 +116,7 @@ static float interpolate_wind_direction(float a, float b, float factor) {
     return fmodf(result + 360.0f, 360.0f);
 }
 
-void copy_kernel_params(TimedKernelParameters *dst, const TimedKernelParameters *src) {
+void copy_kernel_params(const TimedKernelParameters *dst, const TimedKernelParameters *src) {
     dst->params->is_brownian = src->params->is_brownian;
     dst->params->S = src->params->S;
     dst->params->D = src->params->D;
@@ -194,10 +194,11 @@ void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelPa
 
     KernelParameters *result = mixed->params;
     mixed->landmark = 10;
-    result->is_brownian = (float) a->is_brownian + ((float) b->is_brownian - (float) a->is_brownian) * factor > 0.5;
+    result->is_brownian = a->is_brownian;
     result->S = (ssize_t) ((float) a->S + (float) (b->S - a->S) * factor);
     result->D = (ssize_t) ((float) a->D + (float) (b->D - a->D) * factor);
     result->sigma_length = a->sigma_length + (b->sigma_length - a->sigma_length) * factor;
+    result->sigma_angle = a->sigma_angle + (b->sigma_angle - a->sigma_angle) * factor;
     result->bias_x = (ssize_t) ((float) a->bias_x + ((float) b->bias_x - (float) a->bias_x) * factor);
     result->bias_y = (ssize_t) ((float) a->bias_y + ((float) b->bias_y - (float) a->bias_y) * factor);
 }
