@@ -199,6 +199,8 @@ mix_all_params(const KernelParameters *land, const KernelParameters *env, const 
     p->D = (ssize_t) ((1.0f - weights->D) * (float) land->D + weights->D * (float) env->D);
     p->sigma_length = ((1.0f - weights->sigma_length) * land->sigma_length + weights->sigma_length * env->sigma_length);
     p->sigma_angle = ((1.0f - weights->sigma_angle) * land->sigma_angle + weights->sigma_angle * env->sigma_angle);
+    assert(p->sigma_angle <= 1.0f);
+    assert(p->sigma_length <= 1.0f);
     p->bias_x = (ssize_t) ((1.0f - weights->bias_x) * (float) land->bias_x + weights->bias_x * (float) env->bias_x);
     p->bias_y = (ssize_t) ((1.0f - weights->bias_y) * (float) land->bias_y + weights->bias_y * (float) env->bias_y);
     p->is_brownian = weights->override_mode ? env->is_brownian : land->is_brownian;
@@ -263,7 +265,7 @@ get_kernels_environment_grid(size_t T, const TerrainMap *terrain, const Environm
             for (size_t t = 0; t < T; t++) {
                 // mix and copy to cell
                 KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
-                KernelParameters *environment_p = current_timeline[t]->params;
+                const KernelParameters *environment_p = current_timeline[t]->params;
                 KernelParameters *current = mix_all_params(&landmark_param, environment_p, weights);
                 kernel_parameters->data[y][x][t] = current;
             }
