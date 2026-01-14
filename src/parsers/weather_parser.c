@@ -123,6 +123,7 @@ void copy_kernel_params(const TimedKernelParameters *dst, const TimedKernelParam
     dst->params->bias_x = src->params->bias_x;
     dst->params->bias_y = src->params->bias_y;
     dst->params->sigma_length = src->params->sigma_length;
+    dst->params->sigma_angle = src->params->sigma_angle;
 }
 
 TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int source_len, int dest_len) {
