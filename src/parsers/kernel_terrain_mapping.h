@@ -23,17 +23,19 @@ extern "C" {
  * @brief Create a default mixed-model parameters mapping for the given animal type.
  * @param base_step_size Base step size. Terrain dependant scaling around that value
  * @param base_dirs Base directions
- * @param base_diffusity Base diffusity
+ * @param len_diffusivity Base diffusivity for length
+ * @param angle_diffusivity Base diffusivity for opening angle
  * @return Newly allocated KernelParametersMapping, or NULL on failure.
  */
-KernelParametersMapping *create_default_marine_mapping(int base_step_size, ssize_t base_dirs, float base_diffusity);
+KernelParametersMapping *create_default_marine_mapping(int base_step_size, ssize_t base_dirs,
+                                                       float len_diffusivity, float angle_diffusivity);
 
 /**
  * @param m mapping to be updated
  * @param terrain Terrain value for which the mapping should be updated
  * @param S new base stepsize
  * @param D new number of directions
- * @param diffusity new base diffusity
+ * @param diffusity new base diffusivity
  */
 void
 update_mapping(const KernelParametersMapping *m, int terrain, int S, ssize_t D, float diffusity);

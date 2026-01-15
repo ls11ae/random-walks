@@ -21,10 +21,10 @@ double normal_distribution_generate(NormalDistribution *dist, double x) {
     return dist->_a * exp(c * c * dist->_b);
 }
 
-double normal_pdf(double mu, double sigma, double x) {
+double normal_pdf(const double mean, const double stddev, const double x) {
     // Calculate the PDF value for the normal distribution at x
-    double factor = 1.0 / (sigma * sqrt(2 * M_PI));
-    double exponent = -0.5 * pow((x - mu) / sigma, 2);
+    double factor = 1.0 / (stddev * sqrt(2 * M_PI));
+    double exponent = -0.5 * pow((x - mean) / stddev, 2);
     return factor * exp(exponent);
 };
 

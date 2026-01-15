@@ -116,13 +116,14 @@ static float interpolate_wind_direction(float a, float b, float factor) {
     return fmodf(result + 360.0f, 360.0f);
 }
 
-void copy_kernel_params(TimedKernelParameters *dst, const TimedKernelParameters *src) {
+void copy_kernel_params(const TimedKernelParameters *dst, const TimedKernelParameters *src) {
     dst->params->is_brownian = src->params->is_brownian;
     dst->params->S = src->params->S;
     dst->params->D = src->params->D;
     dst->params->bias_x = src->params->bias_x;
     dst->params->bias_y = src->params->bias_y;
-    dst->params->diffusity = src->params->diffusity;
+    dst->params->sigma_length = src->params->sigma_length;
+    dst->params->sigma_angle = src->params->sigma_angle;
 }
 
 TimedKernelParameters **interpolate_timeline(TimedKernelParameters **source, int source_len, int dest_len) {
@@ -194,35 +195,77 @@ void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelPa
 
     KernelParameters *result = mixed->params;
     mixed->landmark = 10;
-    result->is_brownian = (float) a->is_brownian + ((float) b->is_brownian - (float) a->is_brownian) * factor > 0.5;
+    result->is_brownian = a->is_brownian;
     result->S = (ssize_t) ((float) a->S + (float) (b->S - a->S) * factor);
     result->D = (ssize_t) ((float) a->D + (float) (b->D - a->D) * factor);
-    result->diffusity = a->diffusity + (b->diffusity - a->diffusity) * factor;
+    result->sigma_length = a->sigma_length + (b->sigma_length - a->sigma_length) * factor;
+    result->sigma_angle = a->sigma_angle + (b->sigma_angle - a->sigma_angle) * factor;
     result->bias_x = (ssize_t) ((float) a->bias_x + ((float) b->bias_x - (float) a->bias_x) * factor);
     result->bias_y = (ssize_t) ((float) a->bias_y + ((float) b->bias_y - (float) a->bias_y) * factor);
 }
 
 TimedKernelParameters **sample_timeline(TimedKernelParameters **source, int source_len, const int dest_len) {
+    if (dest_len <= 0 || source_len == 0) {
+        return NULL;
+    }
+
     TimedKernelParameters **dest = malloc(sizeof(TimedKernelParameters *) * dest_len);
-    float step = (float) (source_len - 1) / (dest_len - 1);
+    if (!dest) return NULL;
+
+    // edge case: dest_len == 1
+    if (dest_len == 1) {
+        dest[0] = malloc(sizeof(TimedKernelParameters));
+        if (!dest[0]) {
+            free(dest);
+            return NULL;
+        }
+        dest[0]->params = malloc(sizeof(KernelParameters));
+        if (!dest[0]->params) {
+            free(dest[0]);
+            free(dest);
+            return NULL;
+        }
+        const int mid_idx = source_len / 2;
+        copy_kernel_params(dest[0], source[mid_idx]);
+        return dest;
+    }
+
+    const float step = (float) (source_len - 1) / (float) (dest_len - 1);
 
     for (int i = 0; i < dest_len; i++) {
-        float idx = i * step;
+        const float idx = (float) i * step;
         const int left_idx = (int) idx;
         const int right_idx = left_idx + 1;
 
+        dest[i] = malloc(sizeof(TimedKernelParameters));
+        if (!dest[i]) {
+            for (int j = 0; j < i; j++) {
+                free(dest[j]->params);
+                free(dest[j]);
+            }
+            free(dest);
+            return NULL;
+        }
+
+        dest[i]->params = malloc(sizeof(KernelParameters));
+        if (!dest[i]->params) {
+            free(dest[i]);
+            for (int j = 0; j < i; j++) {
+                free(dest[j]->params);
+                free(dest[j]);
+            }
+            free(dest);
+            return NULL;
+        }
+
         if (right_idx >= source_len) {
-            dest[i] = malloc(sizeof(TimedKernelParameters));
-            dest[i]->params = malloc(sizeof(KernelParameters));
             copy_kernel_params(dest[i], source[source_len - 1]);
         } else {
-            const float factor = idx - left_idx;
-            dest[i] = malloc(sizeof(TimedKernelParameters));
-            dest[i]->params = malloc(sizeof(KernelParameters));
+            // Interpolation
+            const float factor = idx - (float) left_idx;
             dest[i]->date_time = NULL;
             interpolate_kernel_params(dest[i], source[left_idx], source[right_idx], factor);
         }
     }
     return dest;
 }
-

@@ -490,7 +490,8 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
                     !fread(&kp->is_brownian, sizeof(bool), 1, f) ||
                     !fread(&kp->S, sizeof(size_t), 1, f) ||
                     !fread(&kp->D, sizeof(size_t), 1, f) ||
-                    !fread(&kp->diffusity, sizeof(float), 1, f) ||
+                    !fread(&kp->sigma_length, sizeof(float), 1, f) ||
+                    !fread(&kp->sigma_angle, sizeof(float), 1, f) ||
                     !fread(&kp->bias_x, sizeof(ssize_t), 1, f) ||
                     !fread(&kp->bias_y, sizeof(ssize_t), 1, f)) {
                     free(kp);
