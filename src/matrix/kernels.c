@@ -413,15 +413,11 @@ Tensor *generate_kernel(const KernelParameters *p, const int terrain_value) {
 	return generate_correlated_kernels(p->D, 2 * p->S + 1, p->sigma_angle, p->sigma_length);
 }
 
-Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height) {
-	Matrix *kernel = malloc(sizeof(Matrix));
-	kernel->data.points = array;
-	kernel->len = width * height;
-	kernel->width = width;
-	kernel->height = height;
-	return kernel;
+Matrix *kernel_from_array(const double *array, const ssize_t w, const ssize_t h) {
+	Matrix *m = matrix_new(w, h);
+	memcpy(m->data.points, array, sizeof(double) * w * h);
+	return m;
 }
-
 
 Matrix *generate_directed_matrix(const ssize_t S, const float angle_diff, const ssize_t bias_x, const ssize_t bias_y) {
 	const ssize_t size = 2 * S + 1;

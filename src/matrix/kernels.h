@@ -154,12 +154,11 @@ Tensor *generate_kernel(const KernelParameters *p, int terrain_value);
 /**
  * @Brief Creates a Matrix ptr holding the kernel from a passed array
  * @param array Kernel as a flat doubles array
- * @param width Width of the kernel
- * @param height Height of the kernel
+ * @param w Width of the kernel
+ * @param h Height of the kernel
  * @return Kernel from an array
  */
-Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height);
-
+Matrix *kernel_from_array(const double *array, ssize_t w, ssize_t h);
 #ifdef __cplusplus
 }
 #endif
