@@ -294,7 +294,7 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 	assert(base_kernel->width == base_kernel->height);
 
 	Tensor *kernels = malloc(sizeof(Tensor));
-	kernels->data = malloc(dirs * sizeof(Matrix));
+	kernels->data = malloc(dirs * sizeof(Matrix *));
 	kernels->len = dirs;
 
 	// discretize angles
