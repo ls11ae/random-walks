@@ -221,6 +221,13 @@ RW_API Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
 RW_API void matrix_mul_inplace(Matrix *a, const Matrix *b);
 
 /**
+ * Multiplies every element by a given factor
+ * @param a Matrix whose elements are multiplied by a factor
+ * @param factor Factor applied to each matrix element
+ */
+RW_API void matrix_factor_inplace(Matrix *a, double factor);
+
+/**
  * @brief Calculate the sum of all elements in the matrix.
  * 
  * @param matrix A pointer to the Matrix. Must not be NULL.

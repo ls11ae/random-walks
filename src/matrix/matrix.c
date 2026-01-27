@@ -204,6 +204,14 @@ RW_API void matrix_mul_inplace(Matrix *a, const Matrix *b) {
     }
 }
 
+RW_API void matrix_factor_inplace(Matrix *a, double factor) {
+    assert(a != NULL); // Überprüft, ob matrix nicht NULL ist
+
+    for (size_t i = 0; i < a->len; ++i) {
+        a->data.points[i] *= factor;
+    }
+}
+
 RW_API double matrix_sum(const Matrix *matrix) {
     if (matrix == NULL) return 0.0;
     double sum = 0.0;
