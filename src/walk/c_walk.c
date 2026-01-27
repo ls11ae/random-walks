@@ -271,7 +271,7 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 
 					double b = matrix_get(kernel->data[d], kernel_x, kernel_y);
 					double factor = matrix_get(angles_mask->data[direction], kernel_x, kernel_y);
-					// factor = 1.0; // Uncomment to disable angles_mask
+					//factor = 1.0; // Uncomment to disable angles_mask
 					p_b_a = b * factor;
 				}
 

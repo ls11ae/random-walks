@@ -411,6 +411,7 @@ static int count_forbidden_steps(Point2DArray *steps, TerrainMap *terrain, Kerne
         auto terrain_val = terrain_at(steps->points[i].x, steps->points[i].y, terrain);
         int ind = landmark_to_index(static_cast<landmarkType>(terrain_val));
         if (is_forbidden_landmark((landmarkType) ind, mapping)) {
+            std::cout << ind << std::endl;
             result++;
         }
     }
@@ -517,6 +518,7 @@ void test_env_grid_deserialization(const char *env_binary) {
                 std::cout << "dt: " << dt->day << ", " << dt->month << ", " << dt->year << ", " << dt->hour << "\n";
                 const KernelParameters *kp = grid->params[y][x][t]->params;
                 std::cout << "kp: " << kp->bias_x << ", " << kp->bias_y << ", " << kp->sigma_length << ", " << kp->
+                        sigma_angle << ", " << kp->
                         is_brownian << ", " << kp->D << ", " << kp->S << "\n";
                 std::cout << "land: " << grid->params[y][x][t]->landmark << "\n";
             }
@@ -526,61 +528,56 @@ void test_env_grid_deserialization(const char *env_binary) {
 }
 
 int test_env_walks() {
-    const char *env_binary =
-            "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/tiger_sharks/kernels/204413/204413_kernels_20240913T12-20240914T12.bin";
-    auto grid = deserialize_env_grid(env_binary);
-    auto dims = grid->dims;
-    auto p = grid->params;
-
-    for (int y = 0; y < dims->y; ++y) {
-        printf("y: %i\n", y);
-        for (int x = 0; x < dims->x; ++x) {
-            for (int t = 0; t < dims->t; ++t) {
-                std::cout << "[(" << y << "," << x << "," << t << "): " << kernel_parameters_print(p[y][x][t]->params)
-                        << "], ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
-
-    /*
-    *start 148, 24
-
-end 916, 265
-
-start date 2024-09-13 12:00:00, end date 2024-09-14 12:00:00
-
-T 24 - S 84 - D 8
-     */
-
-    std::cout << grid->dims->t << " x:  " << grid->dims->x << " y:  " << grid->dims->y << std::endl;
-    auto mapping2 = create_default_marine_mapping(42, 8, 2.0);
-
     TerrainMap *terrain = create_terrain_map(
-        "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/tiger_sharks/landcover/landcover_204413_-162.03_20.85_-134.25_26.11_500.txt",
+        "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/movebank_test/landcover/landcover_LUAN_-52.21_-22.65_-52.18_-22.63_300.txt",
         ' ');
-    auto T = 24;
-    DateTime dt_start{.year = 2024, .month = 9, .day = 13, .hour = 3};
-    Point2D st{.x = 74, .y = 12};
-    DateTime dt_end{.year = 2024, .month = 9, .day = 14, .hour = 12};
-    Point2D en{.x = 457, .y = 132};
+
+    auto env_binary =
+            "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/movebank_test/kernels/LUAN/LUAN_kernels_19991215T03-20000114T03.bin";
+
+
+    auto mapping2 = create_default_mixed_mapping(MEDIUM, 4);
+    std::cout << is_forbidden_landmark(WATER, mapping2);
+    auto T = 413;
+    DateTime dt_start{.year = 1999, .month = 12, .day = 15, .hour = 3};
+    Point2D st{267, 189};
+    DateTime dt_end{.year = 2000, .month = 1, .day = 14, .hour = 3};
+    Point2D en{25, 18};
+    std::cout << "terrain end " << terrain_at(25, 18, terrain);
     TimedLocation start{.timestamp = dt_start, .coordinates = st};
     TimedLocation goal{.timestamp = dt_end, .coordinates = en};
-    EnvWeightProfile weights{false, 0, 0, 0, 0, 0};
-
+    EnvWeightProfile weights{false, 0, 0, 0, 0, 1, 1};
+    std::cout << "sigma angle " << weights.sigma_angle << std::endl;
     auto walk = time_walk_env_binary(T, mapping2, terrain, env_binary, &weights, start, goal);
     point2d_array_print(walk);
 
     std::cout << "forbidden steps: " << count_forbidden_steps(walk, terrain, mapping2) << std::endl;
+    point2d_array_free(walk);
+    terrain_map_free(terrain);
+    kernel_parameters_mapping_free(mapping2);
     return 0;
 }
 
 int main() {
+    auto bias = generate_directed_matrix(15, 0.2, 5, 5);
+    matrix_print(bias);
+    matrix_print_to_file(bias, "kernel8.txt");
+    auto kernels = generate_correlated_kernels(8, 31, 0.3, 0.9);
+    for (int i = 0; i < kernels->len; ++i) {
+        matrix_mul_inplace(kernels->data[i], bias);
+        matrix_normalize_L1(kernels->data[i]);
+        matrix_set(kernels->data[i], 15, 15, 0.000000001);
+        char filename[256];
+        snprintf(filename, 256, "kernel%i.txt", i);
+        matrix_print_to_file(kernels->data[i], filename);
+    }
+    return 0;
     auto kernel = generate_correlated_kernels(8, 15, 0.2, 1);
     matrix_print(kernel->data[0]);
     matrix_print_to_file(kernel->data[0], "kernels.txt");
     auto kernel2 = generate_correlated_kernels(8, 15, 0.2, 1);
     matrix_print_to_file(kernel->data[1], "kernels2.txt");
     matrix_print(kernel->data[1]);
+    tensor_free(kernel);
+    tensor_free(kernel2);
 }

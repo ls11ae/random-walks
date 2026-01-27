@@ -103,6 +103,7 @@ void get_gaussian_parameters(double diffusity, int terrain_value, double *out_si
 	*out_scale = 1.0f; // Scaling deaktiviert
 }
 
+
 Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, int k, int d) {
 	const ssize_t big_size = size * subsample_size;
 	Matrix *m = matrix_new(big_size, big_size);
@@ -293,7 +294,7 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 	assert(base_kernel->width == base_kernel->height);
 
 	Tensor *kernels = malloc(sizeof(Tensor));
-	kernels->data = malloc(dirs * sizeof(Matrix));
+	kernels->data = malloc(dirs * sizeof(Matrix *));
 	kernels->len = dirs;
 
 	// discretize angles
@@ -412,11 +413,25 @@ Tensor *generate_kernel(const KernelParameters *p, const int terrain_value) {
 	return generate_correlated_kernels(p->D, 2 * p->S + 1, p->sigma_angle, p->sigma_length);
 }
 
-Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height) {
-	Matrix *kernel = malloc(sizeof(Matrix));
-	kernel->data.points = array;
-	kernel->len = width * height;
-	kernel->width = width;
-	kernel->height = height;
-	return kernel;
+Matrix *kernel_from_array(const double *array, const ssize_t w, const ssize_t h) {
+	Matrix *m = matrix_new(w, h);
+	memcpy(m->data.points, array, sizeof(double) * w * h);
+	return m;
+}
+
+Matrix *generate_directed_matrix(const ssize_t S, const float angle_diff, const ssize_t bias_x, const ssize_t bias_y) {
+	const ssize_t size = 2 * S + 1;
+
+	Matrix *length_kernel = generate_length_kernel_ss(size, 1);
+	Matrix *angle_kernel = generate_angle_kernel_ss(size, angle_diff);
+	Matrix *combined_kernel = generate_combined_kernel_ss(length_kernel, angle_kernel);
+	const double rad = atan2((double) bias_y, (double) bias_x);
+	const double deg = rad * 180 / M_PI;
+	rotate_kernel(combined_kernel, deg);
+	matrix_normalize_L1(combined_kernel);
+
+	matrix_free(length_kernel);
+	matrix_free(angle_kernel);
+
+	return combined_kernel;
 }

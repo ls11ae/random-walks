@@ -87,6 +87,17 @@ void get_gaussian_parameters(double diffusity, int terrain_value,
                              double *out_sigma, double *out_scale);
 
 /**
+ * @brief Creates a single Matrix with larger weights for a specified direction
+ * @param S step size
+ * @param angle_diff opening angle parameter between 0 and 1
+ * @param bias_x direction on x-axis
+ * @param bias_y direction on y-axis
+ * @return Matrix with weights for biased CRW kernels
+ */
+Matrix *generate_directed_matrix(ssize_t S, float angle_diff, ssize_t bias_x, ssize_t bias_y);
+
+
+/**
  * @brief Generate a Chi distribution kernel matrix
  * @param size The size of the kernel (size x size)
  * @param subsample_size The subsample size for numerical integration
@@ -143,12 +154,11 @@ Tensor *generate_kernel(const KernelParameters *p, int terrain_value);
 /**
  * @Brief Creates a Matrix ptr holding the kernel from a passed array
  * @param array Kernel as a flat doubles array
- * @param width Width of the kernel
- * @param height Height of the kernel
+ * @param w Width of the kernel
+ * @param h Height of the kernel
  * @return Kernel from an array
  */
-Matrix *kernel_from_array(double *array, ssize_t width, ssize_t height);
-
+Matrix *kernel_from_array(const double *array, ssize_t w, ssize_t h);
 #ifdef __cplusplus
 }
 #endif
