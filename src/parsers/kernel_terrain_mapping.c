@@ -285,11 +285,11 @@ create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs,
     }
 
     KernelParameters p;
-    p.D = 1;
+    p.D = base_dirs;
     p.sigma_length = len_diffusivity;
     p.sigma_angle = angle_diffusivity;
     p.S = base_step_size;
-    p.is_brownian = true;
+    p.is_brownian = base_dirs == 1;
     p.bias_x = 0;
     p.bias_y = 0;
     params_mapping->data.parameters[landmark_to_index(WATER)] = p;
