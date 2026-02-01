@@ -16,11 +16,9 @@
 #include "walk/c_walk.h"
 
 
-Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
+Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
                                       ssize_t y_offset) {
-	scale = 1.0; // TODO: remove scaling
 	assert(sigma > 0 && "Sigma must be positive");
-	sigma = (sigma < 2.0) ? 2.0 : sigma;
 	Matrix *matrix = matrix_new(width, height);
 	if (matrix == NULL) return NULL;
 
@@ -30,7 +28,6 @@ Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigm
 	x_offset += width_half;
 	y_offset += height_half;
 
-	//prozess distribution subsample_matrix
 	ssize_t index = 0;
 	for (ssize_t y = 0; y < matrix->height; y++) {
 		for (ssize_t x = 0; x < matrix->width; x++) {
@@ -57,7 +54,7 @@ Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigm
 Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
                                   ssize_t y_offset) {
 	scale = 1.0; // TODO: remove scaling
-	Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, scale, x_offset, y_offset);
+	Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, x_offset, y_offset);
 	if (x_offset != 0 || y_offset != 0) {
 		// Mische Gaußverteilung mit Gleichverteilung
 		const double alpha = 0.001;
@@ -367,13 +364,13 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, b
 	ssize_t M = p->S * 2 + 1;
 	Tensor *result = NULL;
 	if (p->is_brownian) {
-		double scale, sigma;
-		get_gaussian_parameters(p->sigma_length, terrain_value, &sigma, &scale);
+		const double sigma_max = p->S / 3.0;
+		const double sigma = sigma_max * sqrt(p->sigma_length);
 		Matrix *kernel;
 		if (full_bias)
-			kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+			kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, p->bias_x, p->bias_y);
 		else
-			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) 1, p->bias_x, p->bias_y);
 
 		result = malloc(sizeof(Tensor));
 		result->data = malloc(sizeof(Matrix *));
@@ -397,13 +394,13 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, b
 	return result;
 }
 
-Tensor *generate_kernel(const KernelParameters *p, const int terrain_value) {
+Tensor *generate_kernel(const KernelParameters *p) {
 	ssize_t M = p->S * 2 + 1;
 	Tensor *result = NULL;
 	if (p->is_brownian) {
-		double scale, sigma;
-		get_gaussian_parameters(p->sigma_length, terrain_value, &sigma, &scale);
-		Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p->bias_x, p->bias_y);
+		const double sigma_max = p->S / 3.0;
+		const double sigma = sigma_max * sqrt(p->sigma_length);
+		Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, p->bias_x, p->bias_y);
 		result = malloc(sizeof(Tensor));
 		result->data = malloc(sizeof(Matrix *));
 		result->len = 1;

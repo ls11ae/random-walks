@@ -53,7 +53,7 @@ void rotate_kernel(Matrix *kernel, double deg);
  * @param y_offset The y-offset for the Gaussian
  * @return A pointer to the generated Matrix
  */
-Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
+Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
                                       ssize_t y_offset);
 
 /**
@@ -147,9 +147,8 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, b
 /**
 * @brief Generate terrain dependant Brownian or Correlated kernel, depending on kernel params and terrain
 * @param p Parameters for kernel to be generated
-* @param terrain_value Current terrain value
 */
-Tensor *generate_kernel(const KernelParameters *p, int terrain_value);
+Tensor *generate_kernel(const KernelParameters *p);
 
 /**
  * @Brief Creates a Matrix ptr holding the kernel from a passed array

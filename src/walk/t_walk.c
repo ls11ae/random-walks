@@ -29,7 +29,7 @@ Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, Kernel
 	Tensor *tensor_at_t = NULL;
 
 	if (mapping->kind == KPM_KIND_PARAMETERS) {
-		tensor_at_t = generate_kernel(params, terrain_val);
+		tensor_at_t = generate_kernel(params);
 		const size_t D = tensor_at_t->len;
 		if (on_forbidden_terrain) {
 			apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
@@ -75,7 +75,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  const ssize_t start_x,
                                  const ssize_t start_y) {
 	const int start_terrain = terrain_at(start_x, start_y, terrain_map);
-	Tensor *start_kernel = generate_kernel(tensor_set->data[start_y][start_x][0], start_terrain);
+	Tensor *start_kernel = generate_kernel(tensor_set->data[start_y][start_x][0]);
 
 	const size_t max_D = tensor_set->max_D;
 

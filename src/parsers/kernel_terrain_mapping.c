@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <math.h>
 #include "move_bank_parser.h"
 #include "matrix/kernels.h"
 #include "matrix/matrix.h"
@@ -379,9 +379,9 @@ static Tensor *build_default_kernel_for(enum landmarkType terrain_value, const K
     const ssize_t M = 2 * S + 1;
 
     if (is_brownian) {
-        double sigma = 0.0, scale = 1.0;
-        get_gaussian_parameters((double) p->sigma_length, (int) terrain_value, &sigma, &scale);
-        Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, scale, p->bias_x, p->bias_y);
+        const double sigma_max = S / 3.0;
+        const double sigma = sigma_max * sqrt(p->sigma_length);
+        Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, p->bias_x, p->bias_y);
         return tensor_from_single_matrix(m);
     }
     return generate_correlated_kernels(p->D, M, p->sigma_angle, p->sigma_length);

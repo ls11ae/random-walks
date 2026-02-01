@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 #include "math/math_utils.h"
 #include "matrix/kernels.h"
@@ -12,13 +13,14 @@ Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, co
 	Tensor *tensor = tensor_new(W, H, T);
 	if (!tensor) return NULL;
 	matrix_set(tensor->data[0], start_x, start_y, 1.0);
+	const double sigma_max = S / 3.0;
 
 	for (int t = 1; t < T; t++) {
 		printf("[DEBUG] Processing timestep t=%d\n", t);
 		Matrix *current_kernel = NULL;
 		if (kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
+			current_kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, sigma_max, offset.x,
 			                                               offset.y);
 		} else {
 			current_kernel = matrix_clone(base_kernel);
@@ -79,7 +81,7 @@ Point2DArray *biased_brownian_backtrace(const Tensor *tensor, const Biases *bias
 		Matrix *kernel = NULL;
 		if (biases->kind == BIAS_KIND_OFFSET) {
 			const Point2D offset = biases->data.offsets[t];
-			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, 5, 0, offset.x,
+			kernel = matrix_generator_gaussian_pdf(base_kernel->width, base_kernel->height, S / 3.0, offset.x,
 			                                       offset.y);
 		} else {
 			kernel = matrix_clone(base_kernel);
