@@ -114,11 +114,11 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     return kernels_map;
 }
 
-KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, KernelParametersMapping *mapping) {
+KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, KernelParametersMapping *mapping,
+                                 bool soft_reachability) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
-    Tensor *kernel = tensor_copy(kern);
 
     // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
@@ -135,11 +135,11 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
     Cache *cache = has_forbidden ? cache_create(4096) : NULL;
 
     int recomputed = 0;
-    const size_t D = kernel->len;
-    const ssize_t M = kernel->data[0]->width;
+    const size_t D = kern->len;
+    const ssize_t M = kern->data[0]->width;
 
     // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    kernels_map->max_D = (ssize_t) kernel->len;
+    kernels_map->max_D = (ssize_t) kern->len;
     kernels_map->dir_kernels = get_dir_kernels(M, D);
 
     // 4) Hauptschleife: pro Terrain-Punkt
@@ -147,7 +147,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             if (!has_forbidden) {
-                kernels_map->kernels[y][x] = kernel;
+                kernels_map->kernels[y][x] = kern;
                 continue;
             }
             ssize_t terrain_val = terrain_at(x, y, terrain);
@@ -158,13 +158,14 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
             // a) Einzel-Hashes
             Tensor *arr;
             if (on_forbidden_terrain) {
-                arr = tensor_clone(kernel);
+                arr = tensor_clone(kern);
                 apply_terrain_bias(x, y, terrain, arr, mapping);
                 const uint64_t hash = tensor_hash(arr);
                 cache_insert(cache, hash, arr, true, arr->len);
             } else {
-                Matrix *soft_reach_mat =
-                        get_reachability_kernel_soft(x, y, M, terrain, mapping);
+                Matrix *soft_reach_mat = soft_reachability
+                                             ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
+                                             : get_reachability_kernel(x, y, M, terrain, mapping);
                 uint64_t combined = compute_matrix_hash(soft_reach_mat);
 
                 // b) Cache‐Lookup
@@ -174,7 +175,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
                 } else {
                     // c) Cache‐Miss → neu berechnen und einfügen
                     recomputed++;
-                    arr = tensor_clone(kernel);
+                    arr = tensor_clone(kern);
                     for (ssize_t d = 0; d < D; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
                         if (!on_forbidden_terrain)

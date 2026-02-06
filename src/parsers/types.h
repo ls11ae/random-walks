@@ -37,16 +37,13 @@ static inline int SYMLINK(const char *target, const char *linkpath, int is_dir) 
 
 #ifdef __cplusplus
 extern "C" {
-
-
-
 #endif
 /**
 * @struct Pair
 * @brief Represents a pair of doubles
 */
 typedef struct {
-    double fist;
+    double first;
     double second;
 } Pair;
 

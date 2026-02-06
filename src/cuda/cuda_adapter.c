@@ -49,7 +49,7 @@ void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_siz
     *out_D = input->count;
     int total_points = 0;
     for (size_t d = 0; d < input->count; ++d)
-        total_points += input->sizes[d];
+        total_points += (int) input->sizes[d];
 
     *out_offsets = (int2 *) malloc(total_points * sizeof(int2));
     *out_sizes = (int *) malloc(input->count * sizeof(int));
@@ -58,12 +58,12 @@ void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_siz
     for (size_t d = 0; d < input->count; ++d) {
         (*out_sizes)[d] = (int) input->sizes[d];
         for (size_t i = 0; i < input->sizes[d]; ++i) {
-            (*out_offsets)[index++] = (int2){input->data[d][i].x, input->data[d][i].y};
+            (*out_offsets)[index++] = (int2){(int) input->data[d][i].x, (int) input->data[d][i].y};
         }
     }
 }
 
-Tensor **convert_dp_host_to_tensor(const float *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W) {
+Tensor **convert_dp_host_to_tensor(const float *dp_host, const ssize_t T, ssize_t D, ssize_t H, ssize_t W) {
     Tensor **DP_Matrix = (Tensor **) malloc(T * sizeof(Tensor *));
 
     for (ssize_t t = 0; t < T; ++t) {

@@ -104,23 +104,6 @@ double test_corr(ssize_t D = 8) {
     return 0;
 }
 
-double test_brownian() {
-    const ssize_t M = 11;
-    const ssize_t T = 20;
-    const ssize_t W = 50;
-    const ssize_t H = 50;
-    Matrix *kernel = matrix_generator_gaussian_pdf(M, M, 3.0, 5.5, 0, 0);
-
-    Point2DArray *steps = point_2d_array_new((Point2D[]){{5, 5}, {30, 30}, {10, 10}, {40, 40}}, 4);
-    auto walk = brownian_multi_step(W, H, T, kernel, steps);
-    point2d_array_print(walk);
-
-    point2d_array_free(steps);
-    point2d_array_free(walk);
-    matrix_free(kernel);
-    return 0;
-}
-
 Point2DArray *create_bias_array(const int T, const ssize_t bias_x, const ssize_t bias_y) {
     Point2D *bias_points = (Point2D *) malloc(sizeof(Point2D) * T);
     for (int t = 0; t < T; t++) {
@@ -339,7 +322,7 @@ int test_geo_multi() {
 
 void brownian_cuda() {
 #ifdef USE_CUDA
-    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 6, 1, 0, 0);
+    Matrix *kernel = matrix_generator_gaussian_pdf(15, 15, 6, 0, 0);
     auto T = 700;
     const auto W = 2 * 500 + 1;
     auto H = 2 * 500 + 1;
@@ -360,16 +343,16 @@ void brownian_cuda() {
 void correlated_cuda() {
 #ifdef USE_CUDA
     auto T = 300;
-    const auto W = 2 * 500 + 1;
-    auto H = 2 * 500 + 1;
+    const auto W = 2 * 300 + 1;
+    auto H = 2 * 300 + 1;
     auto S = 7;
     auto D = 8;
-    auto kernel = generate_correlated_kernels(D, 2 * S + 1, 0, 0);
+    auto kernel = generate_correlated_kernels(D, 2 * S + 1, 0.3, 1);
     Tensor anglemask;
     compute_overlap_percentages(2 * S + 1, D, &anglemask);
     auto dirkernel = get_dir_kernel(D, 15);
     auto path = gpu_correlated_walk(T, W, H, T, T, T / 5, T / 5, kernel,
-                                    &anglemask, dirkernel, true, "../../resources");
+                                    &anglemask, dirkernel, false, "../../resources");
 
     point2d_array_print(path);
     point2d_array_free(path);
@@ -439,7 +422,7 @@ void display_kernels() {
         if (p.is_brownian) {
             double scale, sigma;
             get_gaussian_parameters(p.sigma_length, index_to_landmark_value(i), &sigma, &scale);
-            Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, (double) scale, p.bias_x, p.bias_y);
+            Matrix *kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, p.bias_x, p.bias_y);
 
             Tensor *result = tensor_new(M, M, 1);
             result->len = 1;
@@ -486,20 +469,21 @@ std::string kernel_parameters_print(KernelParameters *p) {
 
 void test_single_state_walk() {
     ssize_t T = 3;
-    Tensor *t1 = generate_correlated_kernels(1, 21, 0, 0);
+    Tensor *t1 = generate_correlated_kernels(4, 15, 0, 0);
 
     TerrainMap *terrain = create_terrain_map(
-        "/home/omar/CLionProjects/random-walks/resources/landcover_17766_-58.76_50.56_1.14_71.89_600.txt", ' ');
+        "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt", ' ');
     std::cout << terrain->width << " " << terrain->height << "\n";
 
-    KernelParametersMapping *mapping = create_default_mixed_mapping(AIRBORNE, 7);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
     std::cout << mapping->has_forbidden_landmarks << std::endl;
 
     KernelsMap3D *kmap = kernels_map_single(terrain, t1, mapping);
-    std::cout << "kmao\n";
-    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 394, 49, 393, 49);
+    std::cout << "kmap\n";
+    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 50, 50, 100, 100);
     point2d_array_print(walk2);
 
+    kernels_map3d_free(kmap);
     point2d_array_free(walk2);
     kernel_parameters_mapping_free(mapping);
     terrain_map_free(terrain);
@@ -558,26 +542,65 @@ int test_env_walks() {
     return 0;
 }
 
-int main() {
-    auto bias = generate_directed_matrix(15, 0.2, 5, 5);
-    matrix_print(bias);
-    matrix_print_to_file(bias, "kernel8.txt");
-    auto kernels = generate_correlated_kernels(8, 31, 0.3, 0.9);
-    for (int i = 0; i < kernels->len; ++i) {
-        matrix_mul_inplace(kernels->data[i], bias);
-        matrix_normalize_L1(kernels->data[i]);
-        matrix_set(kernels->data[i], 15, 15, 0.000000001);
-        char filename[256];
-        snprintf(filename, 256, "kernel%i.txt", i);
-        matrix_print_to_file(kernels->data[i], filename);
+static TerrainMap init_terrain_map() {
+    TerrainMap terrain;
+    terrain.width = 14;
+    terrain.height = 17;
+    int **terrain_values = static_cast<int **>(malloc(terrain.height * sizeof(int *)));
+    for (int j = 0; j < terrain.height; j++) {
+        terrain_values[j] = static_cast<int *>(malloc(terrain.width * sizeof(int)));
+        for (int i = 0; i < terrain.width; i++) {
+            terrain_values[j][i] = 50; // terrain
+        }
     }
+
+    terrain_values[2][6] = WATER;
+    terrain_values[2][7] = WATER;
+    terrain_values[2][8] = WATER;
+
+    terrain_values[3][5] = WATER;
+
+    terrain_values[4][5] = WATER;
+    terrain_values[4][6] = WATER;
+    terrain_values[4][10] = WATER;
+
+    terrain_values[5][5] = WATER;
+    terrain_values[5][7] = WATER;
+    terrain_values[5][8] = WATER;
+
+    terrain_values[6][7] = WATER;
+    terrain_values[6][8] = WATER;
+
+    terrain_values[8][5] = WATER;
+    terrain_values[8][7] = WATER;
+
+    terrain_values[10][3] = WATER;
+
+    terrain_values[11][3] = WATER;
+    terrain_values[11][9] = WATER;
+    terrain_values[11][10] = WATER;
+
+    terrain_values[12][3] = WATER;
+    terrain_values[12][4] = WATER;
+    terrain_values[12][9] = WATER;
+    terrain_values[12][10] = WATER;
+    terrain.data = terrain_values;
+    return terrain;
+}
+
+int main() {
+    test_single_state_walk();
     return 0;
-    auto kernel = generate_correlated_kernels(8, 15, 0.2, 1);
-    matrix_print(kernel->data[0]);
-    matrix_print_to_file(kernel->data[0], "kernels.txt");
-    auto kernel2 = generate_correlated_kernels(8, 15, 0.2, 1);
-    matrix_print_to_file(kernel->data[1], "kernels2.txt");
-    matrix_print(kernel->data[1]);
-    tensor_free(kernel);
-    tensor_free(kernel2);
+    auto terrain = init_terrain_map();
+    for (int y = 0; y < terrain.height; ++y) {
+        for (int x = 0; x < terrain.width; ++x)
+            std::cout << terrain_at(x, y, &terrain) << " ";
+        std::cout << std::endl;
+    }
+    auto mapping = create_default_brownian_mapping(MEDIUM, 3);
+    auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain, mapping);
+
+    matrix_print(reachability_kernel1);
+
+    return 0;
 }
