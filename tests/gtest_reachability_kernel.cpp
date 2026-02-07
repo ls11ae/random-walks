@@ -67,7 +67,7 @@ protected:
 };
 
 TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
-    auto mapping = create_default_brownian_mapping(MEDIUM, 3);
+    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 3);
     auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain_map, mapping);
     // First row
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 1.0);
@@ -130,7 +130,7 @@ TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
 }
 
 TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
-    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
     auto reachability_kernel1 = get_reachability_kernel(4, 11, 3, &terrain_map, mapping);
 
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 0.0);
@@ -149,7 +149,7 @@ TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
 }
 
 TEST_F(ReachabilityTest, FullReachability) {
-    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
     auto reachability_kernel1 = get_reachability_kernel(6, 14, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)
@@ -161,7 +161,7 @@ TEST_F(ReachabilityTest, FullReachability) {
 }
 
 TEST_F(ReachabilityTest, ZeroReachability) {
-    auto mapping = create_default_brownian_mapping(MEDIUM, 1);
+    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
     auto reachability_kernel1 = get_reachability_kernel(3, 12, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)

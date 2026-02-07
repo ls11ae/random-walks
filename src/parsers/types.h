@@ -37,6 +37,9 @@ static inline int SYMLINK(const char *target, const char *linkpath, int is_dir) 
 
 #ifdef __cplusplus
 extern "C" {
+
+
+
 #endif
 /**
 * @struct Pair
@@ -234,10 +237,7 @@ typedef enum {
 
 enum animal_type {
     AIRBORNE,
-    AMPHIBIAN,
-    LIGHT,
-    MEDIUM,
-    HEAVY,
+    TERRESTRIAL,
     MARINE
 };
 

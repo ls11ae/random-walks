@@ -228,23 +228,14 @@ KernelParametersMapping *create_default_mapping(const enum animal_type animal_ty
             params_mapping->has_forbidden_landmarks = false;
             params_mapping->forbidden_landmarks_count = 0;
             break;
-        case HEAVY: bias_factor = 0.2f;
+        case TERRESTRIAL: bias_factor = 0.4f;
             params_mapping->has_forbidden_landmarks = true;
             params_mapping->forbidden_landmarks[0] = WATER;
             params_mapping->forbidden_landmarks_count = 1;
-            break;
-        case MEDIUM: bias_factor = 0.4f;
-            params_mapping->has_forbidden_landmarks = true;
-            params_mapping->forbidden_landmarks[0] = WATER;
-            params_mapping->forbidden_landmarks_count = 1;
-            break;
-        case AMPHIBIAN: bias_factor = 0.0f;
-            params_mapping->has_forbidden_landmarks = false;
-            params_mapping->forbidden_landmarks_count = 0;
             break;
         default: bias_factor = 0.6f;
             params_mapping->has_forbidden_landmarks = true;
-            params_mapping->forbidden_landmarks[0] = WATER;
+            params_mapping->forbidden_landmarks[0] = TREE_COVER;
             params_mapping->forbidden_landmarks_count = 1;
             break;
     }
@@ -410,27 +401,16 @@ static KernelParametersMapping *create_default_kernels_internal(enum animal_type
             mapping->has_forbidden_landmarks = false;
             mapping->forbidden_landmarks_count = 0;
             break;
-        case HEAVY:
-            bias_factor = 0.2f;
-            mapping->has_forbidden_landmarks = true;
-            mapping->forbidden_landmarks[0] = WATER;
-            mapping->forbidden_landmarks_count = 1;
-            break;
-        case MEDIUM:
+        case TERRESTRIAL:
             bias_factor = 0.4f;
             mapping->has_forbidden_landmarks = true;
             mapping->forbidden_landmarks[0] = WATER;
             mapping->forbidden_landmarks_count = 1;
             break;
-        case AMPHIBIAN:
-            bias_factor = 0.0f;
-            mapping->has_forbidden_landmarks = false;
-            mapping->forbidden_landmarks_count = 0;
-            break;
         default:
             bias_factor = 0.6f;
             mapping->has_forbidden_landmarks = true;
-            mapping->forbidden_landmarks[0] = WATER;
+            mapping->forbidden_landmarks[0] = TREE_COVER;
             mapping->forbidden_landmarks_count = 1;
             break;
     }

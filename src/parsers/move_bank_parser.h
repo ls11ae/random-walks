@@ -66,17 +66,6 @@ KernelParameters *kernel_parameters_of_landmark(int terrain_value, KernelParamet
 
 
 /**
- * @brief Apply a single weather entry to derive movement biases and kernel modifiers.
- * @param entry Weather conditions.
- * @param max_bias Maximum magnitude for bias to clamp to.
- * @param mapping Kernel parameters mapping for contextual interpretation.
- * @param bias Output bias vector (modified in place).
- * @param modifier Output kernel modifier (modified in place).
- */
-void apply_weather_influence(const WeatherEntry *entry, ssize_t max_bias,
-                             const KernelParametersMapping *mapping, Point2D *bias, KernelModifier *modifier);
-
-/**
  * @brief Free a WeatherEntry instance or array element.
  * @param entry Pointer to the entry to free. It is safe to pass NULL.
  */
