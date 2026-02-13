@@ -8,7 +8,7 @@ TEST(BrownianNormal, RunsAndReturnsValidData) {
     ssize_t start_x = 100, start_y = 100;
     ssize_t end_x = 180, end_y = 150;
     auto T = 100;
-    auto kernel = matrix_generator_gaussian_pdf(9, 9, 3.0, 1, 0, 0);
+    auto kernel = matrix_generator_gaussian_pdf(9, 9, 3.0, 0, 0);
     Tensor *walker = brownian_init(kernel, 2 * T + 1, 2 * T + 1, T, start_x, start_y);
 
     ASSERT_NE(walker, nullptr);
@@ -32,7 +32,7 @@ TEST(BrownianNormal, RunsAndReturnsValidData) {
 
 TEST(BrownianMultiStep, RunsAndReturnsValidData) {
     auto T = 100, W = 201, H = 201;
-    auto kernel = matrix_generator_gaussian_pdf(9, 9, 4, 1, 0, 0);
+    auto kernel = matrix_generator_gaussian_pdf(9, 9, 4, 0, 0);
     Point2D steps[3];
     steps[0] = (Point2D){.x = 100, .y = 100};
     steps[1] = (Point2D){.x = 180, .y = 180};

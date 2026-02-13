@@ -149,7 +149,6 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 				tensor_free(tensor_at_t);
 			}
 		}
-		printf("(%ld/%ld)\n", t, T);
 	}
 	return DP_mat;
 }
@@ -278,9 +277,7 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
 	const ssize_t max_D = (ssize_t) kernel_paramsXYT->max_D;
 	const ssize_t max_S = (ssize_t) kernel_paramsXYT->max_S;
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * max_S + 1, max_D);
-	printf("MaxD %zd, MaxS %zd\n", max_D, max_S);
-	printf("MaxD dkm %zd, MaxS dkm %zd\n", dir_kernels->max_D, dir_kernels->max_kernel_size);
-	printf("h %zd, t %zd", kernel_paramsXYT->height, kernel_paramsXYT->time);
+
 	Tensor **dp = mixed_walk_time_compact(terrain->width, terrain->height, terrain, dir_kernels, mapping,
 	                                      kernel_paramsXYT, T,
 	                                      start.coordinates.x,
@@ -356,7 +353,6 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 	}
 
 	for (ssize_t t = 1; t < T; ++t) {
-		printf("%zd/%zd\n", t, T);
 		const int state = timeline[t];
 		const Vector2D *dir_cell_set = tensor_set->grid_cells[state];
 #pragma omp for collapse(2) schedule(dynamic)

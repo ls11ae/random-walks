@@ -134,7 +134,6 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 			prev = current;
 		}
 
-		printf("(%ld/%ld)\n", t, T);
 	}
 
 	// Cleanup for serialization mode
@@ -360,7 +359,6 @@ Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder,
 		tensor4D_free(DP_Matrix, T);
 		if (!pth) {
 			// Check immediately after calling backtrace
-			printf("points returned invalid\n");
 			printf("points returned invalid\n");
 			fflush(stdout); // Force output to appear
 
