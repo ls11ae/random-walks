@@ -27,8 +27,8 @@ typedef struct {
     std::vector<int2> offsets_pool; // packed int2
     std::vector<int> offsets_index_per_kernel_dir; // kernel_index * max_D + di -> index into offsets_pool start
     std::vector<int> offsets_size_per_kernel_dir; // kernel_index * max_D + di -> size
-    int max_D = 0;
-    int max_kernel_width = 0;
+    int max_D;
+    int max_kernel_width;
 } KernelPool;
 
 typedef struct {

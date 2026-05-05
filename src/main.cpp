@@ -56,7 +56,7 @@ void test_mixed_gpu() {
             terrain_set(terrain, x, y, 80);
         }
     }
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, S);
 
     // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
     // matrix_print(m);
@@ -156,7 +156,7 @@ void test_mixed() {
                 terrain_set(terrain, x, y, 80);
         }
     }
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, S);
 
     // Matrix *m = get_reachability_kernel_soft(282, 300, 31, terrain, mapping);
     // matrix_print(m);
@@ -277,7 +277,7 @@ void test_serialization(int argc, char **argv) {
     sprintf(dp_path, "%s/DP_T%zd_X%zd_Y%zd", path, T, steps[0].x, steps[0].y);
 
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, S);
     const auto start = std::chrono::high_resolution_clock::now();
     m_walk(terrain->width, terrain->height, terrain, mapping, NULL, T, stepss->points[0].x,
            stepss->points[0].y, true, true, path);
@@ -306,7 +306,7 @@ int test_geo_multi() {
 
     const auto start = std::chrono::high_resolution_clock::now();
     const int S = 7;
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, S);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, S);
     // auto walk = time_walk_geo_multi(T, csv_path, "../../resources/landcover_baboons123_200.txt",
     //                                 "../../resources/time_walk_serialized.json", mapping, grid_x, grid_y, steps, true,
     //                                 serialized_path);
@@ -348,11 +348,11 @@ void correlated_cuda() {
     auto S = 7;
     auto D = 8;
     auto kernel = generate_correlated_kernels(D, 2 * S + 1, 0.3, 1);
-    Tensor anglemask;
-    compute_overlap_percentages(2 * S + 1, D, &anglemask);
+    Tensor *anglemask = tensor_new(2 * S + 1, 2 * S + 1, D);
+    compute_overlap_percentages(2 * S + 1, D, anglemask);
     auto dirkernel = get_dir_kernel(D, 15);
     auto path = gpu_correlated_walk(T, W, H, T, T, T / 5, T / 5, kernel,
-                                    &anglemask, dirkernel, false, "../../resources");
+                                    anglemask, dirkernel, false, "../../resources");
 
     point2d_array_print(path);
     point2d_array_free(path);
@@ -412,7 +412,7 @@ static inline int index_to_landmark_value(int index) {
 
 
 void display_kernels() {
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, 7);
     TensorSet *set = generate_correlated_tensors(mapping);
 
     for (int i = 0; i < LAND_MARKS_COUNT; ++i) {
@@ -444,7 +444,7 @@ void display_kernels() {
 void generate_and_apply_terrain_kernels() {
     TerrainMap *terrain1 = create_terrain_map("../../resources/terraintest.txt", ' ');
     Tensor *tensor1 = generate_correlated_kernels(4, 7, 0, 0);
-    auto mapping = create_default_mixed_mapping(MEDIUM, 7);
+    auto mapping = create_default_mixed_mapping(TERRESTRIAL, 7);
     FILE *file = fopen("../../resources/kernels.txt", "w");
     for (int i = 0; i < tensor1->len; ++i) {
         for (int y = 0; y < tensor1->data[i]->height; ++y) {
@@ -468,19 +468,19 @@ std::string kernel_parameters_print(KernelParameters *p) {
 }
 
 void test_single_state_walk() {
-    ssize_t T = 3;
-    Tensor *t1 = generate_correlated_kernels(4, 15, 0, 0);
+    ssize_t T = 39;
+    Tensor *t1 = generate_correlated_kernels(8, 21, 0, 0);
 
     TerrainMap *terrain = create_terrain_map(
-        "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_200.txt", ' ');
+        "/home/omar/CLionProjects/random-walks/resources/terrain.txt", ' ');
     std::cout << terrain->width << " " << terrain->height << "\n";
 
-    KernelParametersMapping *mapping = create_default_mixed_mapping(MEDIUM, 7);
+    KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, 7);
     std::cout << mapping->has_forbidden_landmarks << std::endl;
 
-    KernelsMap3D *kmap = kernels_map_single(terrain, t1, mapping);
+    KernelsMap3D *kmap = kernels_map_single(terrain, t1, mapping, true);
     std::cout << "kmap\n";
-    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 50, 50, 100, 100);
+    Point2DArray *walk2 = single_state_walk(T, kmap, terrain, 154, 50, 26, 299);
     point2d_array_print(walk2);
 
     kernels_map3d_free(kmap);
@@ -520,7 +520,7 @@ int test_env_walks() {
             "/home/omar/PycharmProjects/random-walks-python/random_walk_package/resources/movebank_test/kernels/LUAN/LUAN_kernels_19991215T03-20000114T03.bin";
 
 
-    auto mapping2 = create_default_mixed_mapping(MEDIUM, 4);
+    auto mapping2 = create_default_mixed_mapping(TERRESTRIAL, 4);
     std::cout << is_forbidden_landmark(WATER, mapping2);
     auto T = 413;
     DateTime dt_start{.year = 1999, .month = 12, .day = 15, .hour = 3};
@@ -589,7 +589,9 @@ static TerrainMap init_terrain_map() {
 }
 
 int main() {
-    test_single_state_walk();
+    test_mixed_gpu();
+    return 0;
+    correlated_cuda();
     return 0;
     auto terrain = init_terrain_map();
     for (int y = 0; y < terrain.height; ++y) {
@@ -597,7 +599,7 @@ int main() {
             std::cout << terrain_at(x, y, &terrain) << " ";
         std::cout << std::endl;
     }
-    auto mapping = create_default_brownian_mapping(MEDIUM, 3);
+    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 3);
     auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain, mapping);
 
     matrix_print(reachability_kernel1);
