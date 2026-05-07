@@ -22,9 +22,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 include_directories(
         ${R_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/benchmarks
+        benchmark/include/benchmark/
 )
 
 find_package(OpenMP REQUIRED)
+find_package(benchmark REQUIRED)
 
 if (OpenMP_FOUND)
     if (MINGW)
@@ -79,6 +82,7 @@ endif ()
 # Quellen
 file(GLOB_RECURSE SOURCES
         "${PROJECT_SOURCE_DIR}/src/*.c"
+        "${PROJECT_SOURCE_DIR}/benchmarks/*.cpp"
         "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/src/main.cpp")
@@ -89,11 +93,9 @@ if (ENABLE_CUDA)
 endif ()
 
 file(GLOB_RECURSE HEADERS "${PROJECT_SOURCE_DIR}/src/*.h")
-
 # Hauptbibliothek
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-# Compilerdefinitionen setzen
 if (ENABLE_CUDA)
     target_compile_definitions(${PROJECT_NAME} PUBLIC USE_CUDA)
 endif ()
@@ -102,18 +104,22 @@ target_link_libraries(${PROJECT_NAME}
         PRIVATE
         OpenMP::OpenMP_C
         OpenMP::OpenMP_CXX
+        benchmark::benchmark
         ${R_LIBRARIES}
 )
 
-# Executable
-#add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
-#target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
-#if (ENABLE_CUDA)
-#    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
-#endif ()
+if (ENABLE_CUDA)
+    target_link_libraries(${PROJECT_NAME}
+            PUBLIC
+            CUDA::cudart
+    )
+endif ()
 
-# Tests
-enable_testing()
-if (BUILD_TESTING)
-    add_subdirectory(tests)
+# Executable
+add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
+target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
+
+if (ENABLE_CUDA)
+    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
+    target_link_libraries(${PROJECT_NAME}_main PRIVATE CUDA::cudart)
 endif ()
