@@ -84,6 +84,147 @@ extern "C" KernelPoolC *build_kernel_pool_c(const KernelsMap3D *km,
 	return kernelpool_to_c(pool);
 }
 
+MixedGpuPrepared mixed_gpu_prepare(
+	const int W,
+	const int H,
+	const KernelsMap3D *kernels_map,
+	const KernelPoolC *pool
+) {
+	MixedGpuPrepared prepared{};
+
+	prepared.n_kernels = static_cast<int>(pool->kernel_offsets_size);
+	prepared.Dmax = static_cast<int>(kernels_map->max_D);
+
+	const int n_kernels = prepared.n_kernels;
+	const int Dmax = prepared.Dmax;
+
+	prepared.kernel_pool_elements = pool->kernel_pool_size;
+	prepared.offsets_count = pool->offsets_pool_size;
+
+	prepared.kernel_pool = static_cast<double *>(
+		malloc(prepared.kernel_pool_elements * sizeof(double))
+	);
+	prepared.kernel_offsets = static_cast<int *>(
+		malloc(static_cast<size_t>(n_kernels) * sizeof(int))
+	);
+	prepared.kernel_widths = static_cast<int *>(
+		malloc(static_cast<size_t>(n_kernels) * sizeof(int))
+	);
+	prepared.kernel_Ds = static_cast<int *>(
+		malloc(static_cast<size_t>(n_kernels) * sizeof(int))
+	);
+	prepared.kernel_index_by_cell = static_cast<int *>(
+		malloc(static_cast<size_t>(W) * H * sizeof(int))
+	);
+	prepared.offsets_pool = static_cast<int2 *>(
+		malloc(prepared.offsets_count * sizeof(int2))
+	);
+
+	prepared.offsets_index_per_kernel_dir = static_cast<int *>(
+		calloc(static_cast<size_t>(n_kernels) * Dmax, sizeof(int))
+	);
+	prepared.offsets_size_per_kernel_dir = static_cast<int *>(
+		calloc(static_cast<size_t>(n_kernels) * Dmax, sizeof(int))
+	);
+
+	if (!prepared.kernel_pool ||
+	    !prepared.kernel_offsets ||
+	    !prepared.kernel_widths ||
+	    !prepared.kernel_Ds ||
+	    !prepared.kernel_index_by_cell ||
+	    !prepared.offsets_pool ||
+	    !prepared.offsets_index_per_kernel_dir ||
+	    !prepared.offsets_size_per_kernel_dir) {
+		fprintf(stderr, "mixed_gpu_prepare: malloc failed\n");
+		abort();
+	}
+
+	memcpy(
+		prepared.kernel_pool,
+		pool->kernel_pool,
+		prepared.kernel_pool_elements * sizeof(double)
+	);
+
+	memcpy(
+		prepared.kernel_offsets,
+		pool->kernel_offsets,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	);
+
+	memcpy(
+		prepared.kernel_widths,
+		pool->kernel_widths,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	);
+
+	memcpy(
+		prepared.kernel_Ds,
+		pool->kernel_Ds,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	);
+
+	memcpy(
+		prepared.kernel_index_by_cell,
+		pool->kernel_index_by_cell,
+		static_cast<size_t>(W) * H * sizeof(int)
+	);
+
+	memcpy(
+		prepared.offsets_pool,
+		pool->offsets_pool,
+		prepared.offsets_count * sizeof(int2)
+	);
+
+	for (int k = 0; k < n_kernels; ++k) {
+		const int base = k * Dmax;
+
+		for (int di = 0; di < Dmax; ++di) {
+			const int src_idx = k * Dmax + di;
+
+			if (src_idx < pool->offsets_index_size) {
+				prepared.offsets_index_per_kernel_dir[base + di] =
+						pool->offsets_index_per_kernel_dir[src_idx];
+
+				prepared.offsets_size_per_kernel_dir[base + di] =
+						pool->offsets_size_per_kernel_dir[src_idx];
+			} else {
+				prepared.offsets_index_per_kernel_dir[base + di] = 0;
+				prepared.offsets_size_per_kernel_dir[base + di] = 0;
+			}
+		}
+	}
+
+	return prepared;
+}
+
+void mixed_gpu_prepared_free(MixedGpuPrepared *prepared) {
+	if (!prepared) return;
+
+	free(prepared->kernel_pool);
+	free(prepared->kernel_offsets);
+	free(prepared->kernel_widths);
+	free(prepared->kernel_Ds);
+	free(prepared->kernel_index_by_cell);
+	free(prepared->offsets_pool);
+	free(prepared->offsets_index_per_kernel_dir);
+	free(prepared->offsets_size_per_kernel_dir);
+
+	prepared->kernel_pool = nullptr;
+	prepared->kernel_offsets = nullptr;
+	prepared->kernel_widths = nullptr;
+	prepared->kernel_Ds = nullptr;
+	prepared->kernel_index_by_cell = nullptr;
+	prepared->offsets_pool = nullptr;
+	prepared->offsets_index_per_kernel_dir = nullptr;
+	prepared->offsets_size_per_kernel_dir = nullptr;
+
+	prepared->n_kernels = 0;
+	prepared->Dmax = 0;
+	prepared->kernel_pool_elements = 0;
+	prepared->offsets_count = 0;
+}
+
+
 extern "C" void kernelpoolc_free(const KernelPoolC *pool) {
 	if (!pool) return;
 	free(pool->kernel_pool);
@@ -265,6 +406,221 @@ void dp_step_kernel_mixed(
 	}
 
 	dp_current[cur_idx] = sum;
+}
+
+void gpu_mixed_walk_flat(
+	double *h_dp_flat,
+	const int T,
+	const int W,
+	const int H,
+	const int start_x,
+	const int start_y,
+	const MixedGpuPrepared *prepared,
+	const bool serialize
+) {
+	if (!prepared || T <= 0 || W <= 0 || H <= 0) {
+		return;
+	}
+
+	if (serialize) {
+		fprintf(stderr, "gpu_mixed_walk_flat: serialize=true is not implemented in this flat benchmark path\n");
+		abort();
+	}
+
+	if (!h_dp_flat) {
+		fprintf(stderr, "gpu_mixed_walk_flat: h_dp_flat must not be nullptr\n");
+		abort();
+	}
+
+	const int n_kernels = prepared->n_kernels;
+	const int Dmax = prepared->Dmax;
+
+	const size_t layer_elements =
+			static_cast<size_t>(Dmax) * H * W;
+
+	const size_t dp_layer_size =
+			layer_elements * sizeof(double);
+
+	const size_t total_size =
+			static_cast<size_t>(T) * dp_layer_size;
+
+	memset(h_dp_flat, 0, total_size);
+
+	double *d_kernel_pool = nullptr;
+	int *d_kernel_offsets = nullptr;
+	int *d_kernel_widths = nullptr;
+	int *d_kernel_Ds = nullptr;
+	int *d_kernel_index_by_cell = nullptr;
+	int2 *d_offsets_pool = nullptr;
+	int *d_offsets_index_per_kernel_dir = nullptr;
+	int *d_offsets_size_per_kernel_dir = nullptr;
+
+	double *d_dp_prev = nullptr;
+	double *d_dp_current = nullptr;
+
+	CUDA_CALL(cudaMalloc(
+		&d_kernel_pool,
+		prepared->kernel_pool_elements * sizeof(double)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_kernel_pool,
+		prepared->kernel_pool,
+		prepared->kernel_pool_elements * sizeof(double),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_kernel_offsets,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_kernel_offsets,
+		prepared->kernel_offsets,
+		static_cast<size_t>(n_kernels) * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_kernel_widths,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_kernel_widths,
+		prepared->kernel_widths,
+		static_cast<size_t>(n_kernels) * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_kernel_Ds,
+		static_cast<size_t>(n_kernels) * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_kernel_Ds,
+		prepared->kernel_Ds,
+		static_cast<size_t>(n_kernels) * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_kernel_index_by_cell,
+		static_cast<size_t>(W) * H * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_kernel_index_by_cell,
+		prepared->kernel_index_by_cell,
+		static_cast<size_t>(W) * H * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_offsets_pool,
+		prepared->offsets_count * sizeof(int2)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_offsets_pool,
+		prepared->offsets_pool,
+		prepared->offsets_count * sizeof(int2),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_offsets_index_per_kernel_dir,
+		static_cast<size_t>(n_kernels) * Dmax * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_offsets_index_per_kernel_dir,
+		prepared->offsets_index_per_kernel_dir,
+		static_cast<size_t>(n_kernels) * Dmax * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(
+		&d_offsets_size_per_kernel_dir,
+		static_cast<size_t>(n_kernels) * Dmax * sizeof(int)
+	));
+	CUDA_CALL(cudaMemcpy(
+		d_offsets_size_per_kernel_dir,
+		prepared->offsets_size_per_kernel_dir,
+		static_cast<size_t>(n_kernels) * Dmax * sizeof(int),
+		cudaMemcpyHostToDevice
+	));
+
+	CUDA_CALL(cudaMalloc(&d_dp_prev, dp_layer_size));
+	CUDA_CALL(cudaMalloc(&d_dp_current, dp_layer_size));
+
+	std::vector<double> host_init_layer(layer_elements, 0.0);
+
+	const int start_k =
+			prepared->kernel_index_by_cell[start_y * W + start_x];
+
+	int start_D = (start_k >= 0) ? prepared->kernel_Ds[start_k] : Dmax;
+	if (start_D <= 0) start_D = 1;
+	if (start_D > Dmax) start_D = Dmax;
+
+	const double init_val = 1.0 / static_cast<double>(start_D);
+
+	for (int d = 0; d < start_D; ++d) {
+		host_init_layer[INDEX3D(d, start_y, start_x, H, W)] = init_val;
+	}
+
+	CUDA_CALL(cudaMemcpy(
+		d_dp_prev,
+		host_init_layer.data(),
+		dp_layer_size,
+		cudaMemcpyHostToDevice
+	));
+
+	memcpy(h_dp_flat, host_init_layer.data(), dp_layer_size);
+
+	dim3 block(8, 8, 8);
+	dim3 grid(
+		(W + block.x - 1) / block.x,
+		(H + block.y - 1) / block.y,
+		(Dmax + block.z - 1) / block.z
+	);
+
+	for (int t = 1; t < T; ++t) {
+		dp_step_kernel_mixed<<<grid, block>>>(
+			d_dp_prev,
+			d_dp_current,
+			d_kernel_pool,
+			d_kernel_offsets,
+			d_kernel_widths,
+			d_kernel_Ds,
+			d_kernel_index_by_cell,
+			d_offsets_pool,
+			d_offsets_index_per_kernel_dir,
+			d_offsets_size_per_kernel_dir,
+			Dmax,
+			H,
+			W
+		);
+
+		CUDA_CALL(cudaGetLastError());
+
+		CUDA_CALL(cudaMemcpy(
+			h_dp_flat + static_cast<size_t>(t) * layer_elements,
+			d_dp_current,
+			dp_layer_size,
+			cudaMemcpyDeviceToHost
+		));
+
+		std::swap(d_dp_prev, d_dp_current);
+	}
+
+	CUDA_CALL(cudaDeviceSynchronize());
+
+	CUDA_CALL(cudaFree(d_dp_prev));
+	CUDA_CALL(cudaFree(d_dp_current));
+	CUDA_CALL(cudaFree(d_kernel_pool));
+	CUDA_CALL(cudaFree(d_kernel_offsets));
+	CUDA_CALL(cudaFree(d_kernel_widths));
+	CUDA_CALL(cudaFree(d_kernel_Ds));
+	CUDA_CALL(cudaFree(d_kernel_index_by_cell));
+	CUDA_CALL(cudaFree(d_offsets_pool));
+	CUDA_CALL(cudaFree(d_offsets_index_per_kernel_dir));
+	CUDA_CALL(cudaFree(d_offsets_size_per_kernel_dir));
 }
 
 static Point2DArray *backtrace_mixed_gpu(
@@ -454,172 +810,53 @@ static Point2DArray *backtrace_mixed_gpu(
 // ----------------------------------------------------------------------
 // Runner: sets up device memory, copies, launches kernel per t
 // ----------------------------------------------------------------------
-Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
-                             const int start_x, const int start_y,
-                             const int end_x, const int end_y,
-                             KernelsMap3D *kernels_map,
-                             KernelParametersMapping *mapping,
-                             TerrainMap *terrain_map,
-                             const bool serialize,
-                             const char *serialization_path, KernelPoolC *pool) {
-	const int n_kernels = static_cast<int>(pool->kernel_offsets_size);
-	const int Dmax = static_cast<int>(kernels_map->max_D);
-	const int max_D = Dmax;
+Point2DArray *gpu_mixed_walk(
+	const int T,
+	const int W,
+	const int H,
+	const int start_x,
+	const int start_y,
+	KernelsMap3D *kernels_map,
+	const bool serialize,
+	KernelPoolC *pool
+) {
+	MixedGpuPrepared prepared =
+			mixed_gpu_prepare(W, H, kernels_map, pool);
 
-	// 2) Allocate & copy device arrays
-	double *d_kernel_pool = nullptr;
-	int *d_kernel_offsets = nullptr;
-	int *d_kernel_widths = nullptr;
-	int *d_kernel_Ds = nullptr;
-	int *d_kernel_index_by_cell = nullptr;
-	int2 *d_offsets_pool = nullptr;
-	int *d_offsets_index_per_kernel_dir = nullptr;
-	int *d_offsets_size_per_kernel_dir = nullptr;
+	const size_t layer_elements =
+			static_cast<size_t>(prepared.Dmax) * H * W;
 
-	// kernel_pool elements count
-	size_t kernel_pool_elements = pool->kernel_pool_size;
-	CUDA_CALL(cudaMalloc(&d_kernel_pool, kernel_pool_elements * sizeof(double)));
-	CUDA_CALL(
-		cudaMemcpy(d_kernel_pool, pool->kernel_pool, kernel_pool_elements * sizeof(double), cudaMemcpyHostToDevice
-		));
+	const size_t total_elements =
+			static_cast<size_t>(T) * layer_elements;
 
-	CUDA_CALL(cudaMalloc(&d_kernel_offsets, n_kernels * sizeof(int)));
-	CUDA_CALL(cudaMemcpy(d_kernel_offsets, pool->kernel_offsets, n_kernels * sizeof(int), cudaMemcpyHostToDevice))
-	;
-
-	CUDA_CALL(cudaMalloc(&d_kernel_widths, n_kernels * sizeof(int)));
-	CUDA_CALL(cudaMemcpy(d_kernel_widths, pool->kernel_widths, n_kernels * sizeof(int), cudaMemcpyHostToDevice));
-
-	CUDA_CALL(cudaMalloc(&d_kernel_Ds, n_kernels * sizeof(int)));
-	CUDA_CALL(cudaMemcpy(d_kernel_Ds, pool->kernel_Ds, n_kernels * sizeof(int), cudaMemcpyHostToDevice));
-
-	CUDA_CALL(cudaMalloc(&d_kernel_index_by_cell, W * H * sizeof(int)));
-	CUDA_CALL(
-		cudaMemcpy(d_kernel_index_by_cell, pool->kernel_index_by_cell, W * H * sizeof(int), cudaMemcpyHostToDevice));
-
-	size_t offsets_count = pool->offsets_pool_size;
-	CUDA_CALL(cudaMalloc(&d_offsets_pool, offsets_count * sizeof(int2)));
-	CUDA_CALL(
-		cudaMemcpy(d_offsets_pool, pool->offsets_pool, offsets_count * sizeof(int2), cudaMemcpyHostToDevice));
-
-	std::vector<int> offsets_index_padded;
-	std::vector<int> offsets_size_padded;
-	offsets_index_padded.resize(n_kernels * Dmax, 0);
-	offsets_size_padded.resize(n_kernels * Dmax, 0);
-
-	for (int k = 0; k < n_kernels; ++k) {
-		int base = k * Dmax;
-		for (int di = 0; di < Dmax; ++di) {
-			int src_idx = k * Dmax + di;
-			if (src_idx < pool->offsets_index_size) {
-				offsets_index_padded[base + di] = pool->offsets_index_per_kernel_dir[src_idx];
-				offsets_size_padded[base + di] = pool->offsets_size_per_kernel_dir[src_idx];
-			} else {
-				offsets_index_padded[base + di] = 0;
-				offsets_size_padded[base + di] = 0;
-			}
-		}
-	}
-
-	CUDA_CALL(cudaMalloc(&d_offsets_index_per_kernel_dir, n_kernels * Dmax * sizeof(int)));
-	CUDA_CALL(
-		cudaMemcpy(d_offsets_index_per_kernel_dir, offsets_index_padded.data(), n_kernels * Dmax * sizeof(int),
-			cudaMemcpyHostToDevice));
-
-	CUDA_CALL(cudaMalloc(&d_offsets_size_per_kernel_dir, n_kernels * Dmax * sizeof(int)));
-	CUDA_CALL(
-		cudaMemcpy(d_offsets_size_per_kernel_dir, offsets_size_padded.data(), n_kernels * Dmax * sizeof(int),
-			cudaMemcpyHostToDevice));
-
-	// 3) Allocate DP buffers on device and host buffer
-	double *d_dp_prev = nullptr, *d_dp_current = nullptr;
-	size_t dp_layer_size = static_cast<size_t>(Dmax) * H * W * sizeof(double);
-	CUDA_CALL(cudaMalloc(&d_dp_prev, dp_layer_size));
-	CUDA_CALL(cudaMalloc(&d_dp_current, dp_layer_size));
-	// host DP flat if not serializing
 	double *h_dp_flat = nullptr;
+
 	if (!serialize) {
-		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(T) * dp_layer_size));
+		h_dp_flat = static_cast<double *>(
+			malloc(total_elements * sizeof(double))
+		);
+
 		if (!h_dp_flat) {
 			perror("malloc h_dp_flat failed");
-			exit(EXIT_FAILURE);
+			abort();
 		}
-		memset(h_dp_flat, 0, static_cast<size_t>(T) * dp_layer_size);
 	}
 
-	// init t=0
-	std::vector<double> host_init_layer(Dmax * H * W, 0.0f);
-	double init_val = 0.0f;
-	// find start kernel and its D to distribute initial prob across directions
-	int start_k = pool->kernel_index_by_cell[start_y * W + start_x];
-	int start_D = (start_k >= 0) ? pool->kernel_Ds[start_k] : Dmax;
-	if (start_D == 0) start_D = 1;
-	init_val = 1.0f / static_cast<double>(start_D);
-	for (int d = 0; d < max_D; ++d) {
-		host_init_layer[INDEX3D(d, start_y, start_x, H, W)] = init_val;
-	}
-	// copy to device
-	CUDA_CALL(cudaMemcpy(d_dp_prev, host_init_layer.data(), dp_layer_size, cudaMemcpyHostToDevice));
-	if (!serialize) {
-		// copy into host flat t=0
-		memcpy(h_dp_flat, host_init_layer.data(), dp_layer_size);
-	} else {
-		// todo: serialize
-	}
+	gpu_mixed_walk_flat(
+		h_dp_flat,
+		T,
+		W,
+		H,
+		start_x,
+		start_y,
+		&prepared,
+		serialize
+	);
 
-	// 4) Launch configuration
-	dim3 block(8, 8, 8);
-	dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (Dmax + block.z - 1) / block.z);
+	// Backtrace currently disabled for DP-only benchmark.
 
-	for (int t = 1; t < T; ++t) {
-		dp_step_kernel_mixed<<<grid, block>>>(d_dp_prev, d_dp_current,
-		                                      d_kernel_pool, d_kernel_offsets, d_kernel_widths, d_kernel_Ds,
-		                                      d_kernel_index_by_cell,
-		                                      d_offsets_pool,
-		                                      d_offsets_index_per_kernel_dir,
-		                                      d_offsets_size_per_kernel_dir,
-		                                      Dmax, H, W);
-		cudaError_t err = cudaGetLastError();
-		if (err != cudaSuccess) {
-			fprintf(stderr, "Kernel launch failed t=%d: %s\n", t, cudaGetErrorString(err));
-			exit(EXIT_FAILURE);
-		}
-		// copy back layer if needed
-		if (serialize) {
-			std::vector<double> temp_layer(Dmax * H * W);
-			CUDA_CALL(cudaMemcpy(temp_layer.data(), d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost));
-			// serialize temp_layer to file - omitted here (use your serialize_array)
-		} else {
-			CUDA_CALL(
-				cudaMemcpy(h_dp_flat + static_cast<size_t>(t) * Dmax * H * W, d_dp_current, dp_layer_size,
-					cudaMemcpyDeviceToHost));
-		}
-		// swap
-		std::swap(d_dp_prev, d_dp_current);
-	}
+	free(h_dp_flat);
+	mixed_gpu_prepared_free(&prepared);
 
-	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
-	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	//                                       serialization_path, "");
-	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
-	                                serialization_path, "");
-
-	// cleanup
-	if (h_dp_flat) free(h_dp_flat);
-
-	// tensor4D_free(host_dp, T);
-	CUDA_CALL(cudaFree(d_dp_prev));
-	CUDA_CALL(cudaFree(d_dp_current));
-	CUDA_CALL(cudaFree(d_kernel_pool));
-	CUDA_CALL(cudaFree(d_kernel_offsets));
-	CUDA_CALL(cudaFree(d_kernel_widths));
-	CUDA_CALL(cudaFree(d_kernel_Ds));
-	CUDA_CALL(cudaFree(d_kernel_index_by_cell));
-	CUDA_CALL(cudaFree(d_offsets_pool));
-	CUDA_CALL(cudaFree(d_offsets_index_per_kernel_dir));
-	CUDA_CALL(cudaFree(d_offsets_size_per_kernel_dir));
-
-	// reset device
-	cudaDeviceReset();
-	return walk;
+	return nullptr;
 }

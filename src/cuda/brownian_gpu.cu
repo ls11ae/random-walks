@@ -3,6 +3,7 @@
 
 #include "math/math_utils.h"
 
+
 Point2DArray *b_walk_backtrace_flat(
     const float *tensor_flat, // Tensor: [T][H][W] linearized → [T * H * W]
     const float *kernel, // flat
@@ -102,48 +103,93 @@ __global__ void convolve_kernel_step(
 }
 
 // GPU Wrapper
-void gpu_tensor_walk(float *host_tensor, const float *host_kernel, const uint32_t T, const int32_t H, const int32_t W,
-                     const int32_t S) {
-    uint32_t size_2d = H * W;
-    uint32_t kernel_size = (2 * S + 1) * (2 * S + 1);
-
-    float *d_kernel, *d_prev, *d_curr;
-    cudaMalloc(&d_kernel, kernel_size * sizeof(float));
-    cudaMemcpy(d_kernel, host_kernel, kernel_size * sizeof(float), cudaMemcpyHostToDevice);
-
-    cudaMalloc(&d_prev, size_2d * sizeof(float));
-    cudaMalloc(&d_curr, size_2d * sizeof(float));
-
-    // Initial copy
-    cudaMemcpy(d_prev, host_tensor, size_2d * sizeof(float), cudaMemcpyHostToDevice);
-
-    dim3 blockDim(16, 16);
-    dim3 gridDim((W + 15) / 16, (H + 15) / 16);
-
-    for (uint32_t t = 1; t < T; ++t) {
-        convolve_kernel_step<<<gridDim, blockDim>>>(d_prev, d_curr, d_kernel, W, H, S);
-        cudaDeviceSynchronize();
-
-        cudaMemcpy(host_tensor + t * size_2d, d_curr, size_2d * sizeof(float), cudaMemcpyDeviceToHost);
-
-        // Swap
-        float *tmp = d_prev;
-        d_prev = d_curr;
-        d_curr = tmp;
+// GPU Wrapper: stores complete DP tensor on GPU and copies it back once
+void gpu_tensor_walk(
+    float *host_tensor,
+    const float *host_kernel,
+    const uint32_t T,
+    const int32_t H,
+    const int32_t W,
+    const int32_t S
+) {
+    if (T == 0 || H <= 0 || W <= 0) {
+        return;
     }
 
-    cudaFree(d_prev);
-    cudaFree(d_curr);
-    cudaFree(d_kernel);
-}
+    const size_t size_2d =
+            static_cast<size_t>(H) * static_cast<size_t>(W);
 
+    const size_t total_size =
+            static_cast<size_t>(T) * size_2d;
+
+    const size_t kernel_size =
+            static_cast<size_t>(2 * S + 1) * static_cast<size_t>(2 * S + 1);
+
+    float *d_kernel = nullptr;
+    float *d_tensor = nullptr;
+
+    CUDA_CHECK(cudaMalloc(&d_kernel, kernel_size * sizeof(float)));
+    CUDA_CHECK(cudaMemcpy(
+        d_kernel,
+        host_kernel,
+        kernel_size * sizeof(float),
+        cudaMemcpyHostToDevice
+    ));
+
+    CUDA_CHECK(cudaMalloc(&d_tensor, total_size * sizeof(float)));
+
+    // Copy initial DP layer t = 0.
+    // host_tensor is expected to be zero-initialized, with the start cell set to 1.0.
+    CUDA_CHECK(cudaMemcpy(
+        d_tensor,
+        host_tensor,
+        size_2d * sizeof(float),
+        cudaMemcpyHostToDevice
+    ));
+
+    dim3 blockDim(16, 16);
+    dim3 gridDim(
+        (W + blockDim.x - 1) / blockDim.x,
+        (H + blockDim.y - 1) / blockDim.y
+    );
+
+    for (uint32_t t = 1; t < T; ++t) {
+        const float *d_prev = d_tensor + static_cast<size_t>(t - 1) * size_2d;
+        float *d_curr = d_tensor + static_cast<size_t>(t) * size_2d;
+
+        convolve_kernel_step<<<gridDim, blockDim>>>(
+            d_prev,
+            d_curr,
+            d_kernel,
+            W,
+            H,
+            S
+        );
+
+        CUDA_CHECK(cudaGetLastError());
+    }
+
+    // Synchronize once before copying the whole DP tensor back.
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // Copy complete DP tensor back to host for CPU backtrace.
+    CUDA_CHECK(cudaMemcpy(
+        host_tensor,
+        d_tensor,
+        total_size * sizeof(float),
+        cudaMemcpyDeviceToHost
+    ));
+
+    CUDA_CHECK(cudaFree(d_tensor));
+    CUDA_CHECK(cudaFree(d_kernel));
+}
 
 // interface
 Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint32_t T, const int32_t W,
                                 const int32_t H,
                                 const uint32_t start_x, const uint32_t start_y, const int32_t end_x,
                                 const int32_t end_y) {
-    printf("start\n");
+    //printf("start\n");
     const uint32_t size_2d = W * H;
 
     auto *tensor = static_cast<float *>(calloc(T * size_2d, sizeof(float)));
@@ -151,26 +197,26 @@ Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint
     tensor[start_y * W + start_x] = 1.0;
 
     // time code
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, nullptr);
+    // cudaEvent_t start, stop;
+    // cudaEventCreate(&start);
+    // cudaEventCreate(&stop);
+    // cudaEventRecord(start, nullptr);
 
     gpu_tensor_walk(tensor, kernel, T, H, W, S);
 
-    cudaEventRecord(stop, nullptr);
-    cudaEventSynchronize(stop);
+    // cudaEventRecord(stop, nullptr);
+    // cudaEventSynchronize(stop);
+    //
+    // float milliseconds = 0.0f;
+    // cudaEventElapsedTime(&milliseconds, start, stop);
+    //
+    // cudaEventDestroy(start);
+    // cudaEventDestroy(stop);
 
-    float milliseconds = 0.0f;
-    cudaEventElapsedTime(&milliseconds, start, stop);
+    //Point2DArray *path = b_walk_backtrace_flat(tensor, kernel, T, H, W, S, end_x, end_y);
 
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-
-    Point2DArray *path = b_walk_backtrace_flat(tensor, kernel, T, H, W, S, end_x, end_y);
-
-    printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
+    //printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
 
     free(tensor);
-    return path;
+    return NULL;
 }

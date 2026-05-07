@@ -10,14 +10,14 @@
 #define INDEX_3D(d, y, x) ((d) * (H) * (W) + (y) * (W) + (x))
 #define KERNEL_INDEX(d, ky, kx, KERNEL_WIDTH) (((d) * KERNEL_WIDTH * KERNEL_WIDTH) + ((ky) * KERNEL_WIDTH) + (kx))
 
-#ifdef __CUDACC__
-#include <cuda_runtime.h>
+#if defined(USE_CUDA) || defined(__CUDACC__)
+#include <vector_types.h>
 #else
 typedef struct {
-    int x, y;
+    int x;
+    int y;
 } int2;
 #endif
-
 #ifdef __cplusplus
 extern "C" {
 

@@ -4,8 +4,16 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "cuda_adapter.h"
 #include "parsers/types.h"
+#define CUDA_CHECK(call)                                                       \
+do {                                                                       \
+cudaError_t err = (call);                                               \
+if (err != cudaSuccess) {                                               \
+fprintf(stderr, "CUDA error %s:%d: %s\n",                           \
+__FILE__, __LINE__, cudaGetErrorString(err));               \
+std::abort();                                                       \
+}                                                                       \
+} while (0)
 
 #ifdef __cplusplus
 extern "C" {

@@ -32,6 +32,25 @@ typedef struct {
 } KernelPool;
 
 typedef struct {
+    int n_kernels;
+    int Dmax;
+
+    size_t kernel_pool_elements;
+    size_t offsets_count;
+
+    double *kernel_pool;
+    int *kernel_offsets;
+    int *kernel_widths;
+    int *kernel_Ds;
+    int *kernel_index_by_cell;
+
+    int2 *offsets_pool;
+    int *offsets_index_per_kernel_dir;
+    int *offsets_size_per_kernel_dir;
+} MixedGpuPrepared;
+
+
+typedef struct {
     double *kernel_pool;
     int kernel_pool_size;
 
@@ -61,6 +80,26 @@ typedef struct {
     int max_kernel_width;
 } KernelPoolC;
 
+MixedGpuPrepared mixed_gpu_prepare(
+    int W,
+    int H,
+    const KernelsMap3D *kernels_map,
+    const KernelPoolC *pool
+);
+
+void mixed_gpu_prepared_free(MixedGpuPrepared *prepared);
+
+void gpu_mixed_walk_flat(
+    double *h_dp_flat,
+    int T,
+    int W,
+    int H,
+    int start_x,
+    int start_y,
+    const MixedGpuPrepared *prepared,
+    bool serialize
+);
+
 KernelPoolC *build_kernel_pool_c(const KernelsMap3D *km,
                                  const TerrainMap *terrain_map);
 
@@ -71,12 +110,9 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 
 Point2DArray *gpu_mixed_walk(int T, int W, int H,
                              int start_x, int start_y,
-                             int end_x, int end_y,
                              KernelsMap3D *kernels_map,
-                             KernelParametersMapping *mapping,
-                             TerrainMap *terrain_map,
                              bool serialize,
-                             const char *serialization_path, KernelPoolC *pool);
+                             KernelPoolC *pool);
 
 #ifdef __cplusplus
 }

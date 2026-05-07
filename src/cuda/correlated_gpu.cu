@@ -52,6 +52,93 @@ __global__ void dp_step_kernel(
 	dp_current[INDEX_3D(d, y, x)] = sum;
 }
 
+CorrelatedGpuPrepared correlated_gpu_prepare(
+	const Tensor *kernel_tensor,
+	const Tensor *angle_mask_tensor,
+	const Vector2D *dir_kernel_data
+) {
+	CorrelatedGpuPrepared prepared{};
+
+	const int D = static_cast<int>(kernel_tensor->len);
+	const int kernel_width = static_cast<int>(kernel_tensor->data[0]->width);
+	const int S = kernel_width / 2;
+	const int max_neighbors = kernel_width * kernel_width;
+
+	prepared.D = D;
+	prepared.S = S;
+	prepared.kernel_width = kernel_width;
+	prepared.max_neighbors = max_neighbors;
+
+	const size_t kernel_elements =
+			static_cast<size_t>(D) * kernel_width * kernel_width;
+
+	prepared.kernel = static_cast<float *>(
+		malloc(kernel_elements * sizeof(float))
+	);
+
+	prepared.angle_mask = static_cast<float *>(
+		malloc(kernel_elements * sizeof(float))
+	);
+
+	if (!prepared.kernel || !prepared.angle_mask) {
+		std::fprintf(stderr, "malloc failed in correlated_gpu_prepare\n");
+		std::abort();
+	}
+
+	tensor_flat(kernel_tensor, prepared.kernel);
+	tensor_flat(angle_mask_tensor, prepared.angle_mask);
+
+	uint32_t actual_D = 0;
+	int2 *h_offsets = nullptr;
+	int *h_sizes = nullptr;
+
+	dir_kernel_to_cuda(dir_kernel_data, &h_offsets, &h_sizes, &actual_D);
+
+	if (static_cast<int>(actual_D) != D) {
+		std::fprintf(stderr,
+		             "Warning: actual_D=%u differs from kernel D=%d\n",
+		             actual_D, D);
+	}
+
+	prepared.sizes = static_cast<int *>(malloc(D * sizeof(int)));
+	prepared.offsets_expanded = static_cast<int2 *>(
+		calloc(static_cast<size_t>(D) * max_neighbors, sizeof(int2))
+	);
+
+	if (!prepared.sizes || !prepared.offsets_expanded) {
+		std::fprintf(stderr, "malloc failed in correlated_gpu_prepare\n");
+		std::abort();
+	}
+
+	memcpy(prepared.sizes, h_sizes, D * sizeof(int));
+
+	int idx = 0;
+	for (int d = 0; d < D; ++d) {
+		const int base = d * max_neighbors;
+		for (int i = 0; i < h_sizes[d]; ++i) {
+			prepared.offsets_expanded[base + i] = h_offsets[idx++];
+		}
+	}
+
+	free(h_offsets);
+	free(h_sizes);
+
+	return prepared;
+}
+
+void correlated_gpu_prepared_free(CorrelatedGpuPrepared *prepared) {
+	if (!prepared) return;
+
+	free(prepared->kernel);
+	free(prepared->angle_mask);
+	free(prepared->offsets_expanded);
+	free(prepared->sizes);
+
+	prepared->kernel = nullptr;
+	prepared->angle_mask = nullptr;
+	prepared->offsets_expanded = nullptr;
+	prepared->sizes = nullptr;
+}
 
 Point2DArray *backtrace_correlated_gpu(const float *DP_Matrix, const float *angle_mask,
                                        const int2 *offsets,
@@ -176,165 +263,272 @@ Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const flo
 	                                dp_path, true);
 }
 
-Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const int start_x, const int start_y,
-                                  const int end_x, const int end_y,
-                                  const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
-                                  const Vector2D *dir_kernel_data, const bool serialize,
-                                  const char *serialization_path) {
-	float *d_kernel, *d_mask;
-	int2 *d_offsets;
-	int *d_sizes;
+static inline size_t idx3d_host(
+	int d,
+	int y,
+	int x,
+	int H,
+	int W
+) {
+	return static_cast<size_t>(d) * H * W
+	       + static_cast<size_t>(y) * W
+	       + static_cast<size_t>(x);
+}
 
-	const ssize_t tensor_width = kernel_tensor->data[0]->width;
-	auto *h_kernel = static_cast<float *>(malloc(kernel_tensor->len * tensor_width * tensor_width * sizeof(float)));
-	auto *h_mask = static_cast<float *>(malloc(angle_mask_tensor->len * tensor_width * tensor_width * sizeof(float)));
+void gpu_correlated_walk_flat(
+	float *h_dp_flat,
+	const float *h_kernel,
+	const float *h_mask,
+	const int2 *h_offsets_expanded,
+	const int *h_sizes,
+	const int T,
+	const int W,
+	const int H,
+	const int D,
+	const int S,
+	const int start_x,
+	const int start_y,
+	const bool serialize,
+	const char *serialization_path
+) {
+	if (T <= 0 || W <= 0 || H <= 0 || D <= 0) {
+		return;
+	}
 
-	tensor_flat(kernel_tensor, h_kernel);
-	tensor_flat(angle_mask_tensor, h_mask);
+	const int kernel_width = 2 * S + 1;
+	const int max_neighbors = kernel_width * kernel_width;
 
-	const auto D = static_cast<int32_t>(kernel_tensor->len);
-	const int S = static_cast<int>(kernel_tensor->data[0]->width) / 2;
-	const int KERNEL_WIDTH = 2 * S + 1;
-	const int max_neighbors = KERNEL_WIDTH * KERNEL_WIDTH;
+	const size_t layer_elements =
+			static_cast<size_t>(D) * H * W;
 
-	// Extract directional kernel
-	uint32_t actual_D = 0;
-	int2 *h_offsets;
-	int *h_sizes;
-	dir_kernel_to_cuda(dir_kernel_data, &h_offsets, &h_sizes, &actual_D);
+	const size_t layer_bytes =
+			layer_elements * sizeof(float);
 
-	// Initialize offsets array
-	const auto h_offsets_expanded = static_cast<int2 *>(malloc(D * max_neighbors * sizeof(int2)));
-	memset(h_offsets_expanded, 0, D * max_neighbors * sizeof(int2));
+	const size_t kernel_elements =
+			static_cast<size_t>(D) * kernel_width * kernel_width;
 
-	int idx = 0;
-	for (int d = 0; d < D; d++) {
-		const int base = d * max_neighbors;
-		for (int i = 0; i < h_sizes[d]; i++) {
-			h_offsets_expanded[base + i] = h_offsets[idx++];
+	const size_t kernel_bytes =
+			kernel_elements * sizeof(float);
+
+	const size_t offset_bytes =
+			static_cast<size_t>(D) * max_neighbors * sizeof(int2);
+
+	if (!serialize && !h_dp_flat) {
+		std::fprintf(stderr, "h_dp_flat must not be null when serialize=false\n");
+		std::abort();
+	}
+
+	float *h_initial_layer = nullptr;
+
+	if (serialize) {
+		h_initial_layer = static_cast<float *>(calloc(layer_elements, sizeof(float)));
+		if (!h_initial_layer) {
+			std::fprintf(stderr, "calloc h_initial_layer failed\n");
+			std::abort();
 		}
+	} else {
+		const size_t total_elements =
+				static_cast<size_t>(T) * layer_elements;
+
+		memset(h_dp_flat, 0, total_elements * sizeof(float));
 	}
 
-	const uint32_t kernel_size = D * KERNEL_WIDTH * KERNEL_WIDTH * sizeof(float);
-	const uint32_t offset_size = D * max_neighbors * sizeof(int2);
+	float *initial_layer = serialize ? h_initial_layer : h_dp_flat;
 
-	cudaMalloc(&d_kernel, kernel_size);
-	cudaMalloc(&d_mask, kernel_size);
-	cudaMalloc(&d_offsets, offset_size);
-	cudaMalloc(&d_sizes, D * sizeof(int));
-
-	cudaMemcpy(d_kernel, h_kernel, kernel_size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_mask, h_mask, kernel_size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_offsets, h_offsets_expanded, offset_size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_sizes, h_sizes, D * sizeof(int), cudaMemcpyHostToDevice);
-
-	// Allocate DP matrix
-	float *d_dp_prev, *d_dp_current;
-	uint32_t dp_layer_size = D * H * W * sizeof(float);
-	cudaMalloc(&d_dp_prev, dp_layer_size);
-	cudaMalloc(&d_dp_current, dp_layer_size);
-
-	// Host buffer for the entire DP-Tensor
-	const size_t elements = static_cast<size_t>(serialize ? 1 : T) * D * H * W * sizeof(float);
-	printf("DP in bytes %zu \n", elements);
-	auto *h_dp_flat = static_cast<float *>(malloc(elements));
-	if (!h_dp_flat) {
-		perror("malloc dp_flat failed");
+	for (int d = 0; d < D; ++d) {
+		initial_layer[idx3d_host(d, start_y, start_x, H, W)] =
+				1.0f / static_cast<float>(D);
 	}
-	// Initialize t=0 on host array and copy first layer to gpu
-	for (int d = 0; d < D; d++) {
-		h_dp_flat[INDEX_3D(d, start_y, start_x)] = 1.0f / static_cast<float>(D);
-	}
-	cudaMemcpy(d_dp_prev, h_dp_flat, dp_layer_size, cudaMemcpyHostToDevice);
 
 	if (serialize) {
 		char fpath[1024];
-		snprintf(fpath, 1024, "%s/t%04lu.dat", serialization_path, 0UL);
+		snprintf(fpath, sizeof(fpath), "%s/t%04d.dat", serialization_path, 0);
 		ensure_dir_exists_for(fpath);
+
 		FILE *fp = fopen(fpath, "wb");
 		if (!fp) {
 			perror("fopen failed");
-			exit(EXIT_FAILURE);
+			std::abort();
 		}
-		serialize_array(fp, h_dp_flat, D * H * W);
+
+		serialize_array(fp, initial_layer, layer_elements);
 		fclose(fp);
-		free(h_dp_flat);
 	}
 
-	// Kernel-configuration
+	float *d_kernel = nullptr;
+	float *d_mask = nullptr;
+	int2 *d_offsets = nullptr;
+	int *d_sizes = nullptr;
+	float *d_dp_prev = nullptr;
+	float *d_dp_current = nullptr;
+
+	CUDA_CHECK(cudaMalloc(&d_kernel, kernel_bytes));
+	CUDA_CHECK(cudaMalloc(&d_mask, kernel_bytes));
+	CUDA_CHECK(cudaMalloc(&d_offsets, offset_bytes));
+	CUDA_CHECK(cudaMalloc(&d_sizes, static_cast<size_t>(D) * sizeof(int)));
+
+	CUDA_CHECK(cudaMemcpy(d_kernel, h_kernel, kernel_bytes, cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_mask, h_mask, kernel_bytes, cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_offsets, h_offsets_expanded, offset_bytes, cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_sizes, h_sizes, static_cast<size_t>(D) * sizeof(int), cudaMemcpyHostToDevice));
+
+	CUDA_CHECK(cudaMalloc(&d_dp_prev, layer_bytes));
+	CUDA_CHECK(cudaMalloc(&d_dp_current, layer_bytes));
+
+	CUDA_CHECK(cudaMemcpy(
+		d_dp_prev,
+		initial_layer,
+		layer_bytes,
+		cudaMemcpyHostToDevice
+	));
+
 	dim3 block(8, 8, 4);
-	dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (D + block.z - 1) / block.z);
+	dim3 grid(
+		(W + block.x - 1) / block.x,
+		(H + block.y - 1) / block.y,
+		(D + block.z - 1) / block.z
+	);
 
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, nullptr);
+	for (int t = 1; t < T; ++t) {
+		dp_step_kernel<<<grid, block>>>(
+			d_dp_prev,
+			d_dp_current,
+			d_kernel,
+			d_mask,
+			d_offsets,
+			d_sizes,
+			D,
+			H,
+			W,
+			S
+		);
 
-	// Run kernel for each time step
-	for (int t = 1; t < T; t++) {
-		//printf("<< %d / %d >>\n", t, T);
-		dp_step_kernel<<<grid, block>>>(d_dp_prev, d_dp_current, d_kernel, d_mask,
-		                                d_offsets, d_sizes, D, H, W, S);
-		// error handling
-		cudaError_t err = cudaGetLastError();
-		if (err != cudaSuccess) {
-			fprintf(stderr, "Kernel error at t=%d: %s\n", t, cudaGetErrorString(err));
-			exit(EXIT_FAILURE);
-		}
+		CUDA_CHECK(cudaGetLastError());
+
 		if (serialize) {
-			auto *temp_host_layer = static_cast<float *>(malloc(dp_layer_size));
+			auto *temp_host_layer = static_cast<float *>(malloc(layer_bytes));
 			if (!temp_host_layer) {
-				perror("malloc temp_host_layer failed");
+				std::fprintf(stderr, "malloc temp_host_layer failed\n");
+				std::abort();
 			}
-			cudaMemcpy(temp_host_layer, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
+
+			CUDA_CHECK(cudaMemcpy(
+				temp_host_layer,
+				d_dp_current,
+				layer_bytes,
+				cudaMemcpyDeviceToHost
+			));
 
 			char fpath[1024];
-			snprintf(fpath, 1024, "%s/t%04d.dat", serialization_path, t);
+			snprintf(fpath, sizeof(fpath), "%s/t%04d.dat", serialization_path, t);
 			ensure_dir_exists_for(fpath);
+
 			FILE *fp = fopen(fpath, "wb");
-			serialize_array(fp, temp_host_layer, dp_layer_size);
+			if (!fp) {
+				perror("fopen failed");
+				std::abort();
+			}
+
+			// Important: serialize_array expects number of floats, not number of bytes.
+			serialize_array(fp, temp_host_layer, layer_elements);
 			fclose(fp);
+
 			free(temp_host_layer);
-		} else
-			cudaMemcpy(h_dp_flat + t * D * H * W, d_dp_current, dp_layer_size, cudaMemcpyDeviceToHost);
-		// swap buffers
+		} else {
+			CUDA_CHECK(cudaMemcpy(
+				h_dp_flat + static_cast<size_t>(t) * layer_elements,
+				d_dp_current,
+				layer_bytes,
+				cudaMemcpyDeviceToHost
+			));
+		}
+
 		std::swap(d_dp_prev, d_dp_current);
 	}
 
-	cudaEventRecord(stop, nullptr);
-	cudaEventSynchronize(stop);
+	CUDA_CHECK(cudaDeviceSynchronize());
 
-	float milliseconds = 0.0f;
-	cudaEventElapsedTime(&milliseconds, start, stop);
+	CUDA_CHECK(cudaFree(d_dp_prev));
+	CUDA_CHECK(cudaFree(d_dp_current));
+	CUDA_CHECK(cudaFree(d_kernel));
+	CUDA_CHECK(cudaFree(d_mask));
+	CUDA_CHECK(cudaFree(d_offsets));
+	CUDA_CHECK(cudaFree(d_sizes));
 
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
+	free(h_initial_layer);
+}
 
-	printf("start backtracking \n");
-	const auto start_time = std::chrono::high_resolution_clock::now();
-	Point2DArray *path_gpu = backtrace_correlated_gpu(h_dp_flat, h_mask, h_offsets_expanded, h_sizes, T, S, W, H,
-	                                                  h_kernel, end_x, end_y, 0, static_cast<int32_t>(D),
-	                                                  serialization_path,
-	                                                  serialize);
-	const auto end_time = std::chrono::high_resolution_clock::now();
-	const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-	printf("DP calculation took %.3f ms\n", milliseconds);
-	printf("Backtracking took %3f ms\n", static_cast<float>(duration.count()) / 1000.0f);
-	// Cleanup
-	if (!serialize) free(h_dp_flat);
-	free(h_offsets);
-	free(h_sizes);
-	free(h_kernel);
-	free(h_mask);
-	free(h_offsets_expanded);
-	cudaFree(d_dp_prev);
-	cudaFree(d_dp_current);
-	cudaFree(d_kernel);
-	cudaFree(d_mask);
-	cudaFree(d_offsets);
-	cudaFree(d_sizes);
+Point2DArray *gpu_correlated_walk(
+	const int T,
+	const int W,
+	const int H,
+	const int start_x,
+	const int start_y,
+	const int end_x,
+	const int end_y,
+	const Tensor *kernel_tensor,
+	const Tensor *angle_mask_tensor,
+	const Vector2D *dir_kernel_data,
+	const bool serialize,
+	const char *serialization_path
+) {
+	CorrelatedGpuPrepared prepared =
+			correlated_gpu_prepare(kernel_tensor, angle_mask_tensor, dir_kernel_data);
 
-	cudaDeviceReset();
+	const size_t layer_elements =
+			static_cast<size_t>(prepared.D) * H * W;
 
-	return path_gpu;
+	const size_t total_elements =
+			static_cast<size_t>(T) * layer_elements;
+
+	float *h_dp_flat = nullptr;
+
+	if (!serialize) {
+		h_dp_flat = static_cast<float *>(malloc(total_elements * sizeof(float)));
+		if (!h_dp_flat) {
+			std::fprintf(stderr, "malloc h_dp_flat failed\n");
+			std::abort();
+		}
+	}
+
+	gpu_correlated_walk_flat(
+		h_dp_flat,
+		prepared.kernel,
+		prepared.angle_mask,
+		prepared.offsets_expanded,
+		prepared.sizes,
+		T,
+		W,
+		H,
+		prepared.D,
+		prepared.S,
+		start_x,
+		start_y,
+		serialize,
+		serialization_path
+	);
+
+	// Backtrace currently disabled for DP-only benchmark.
+	// Point2DArray *path = backtrace_correlated_gpu(
+	//     h_dp_flat,
+	//     prepared.angle_mask,
+	//     prepared.offsets_expanded,
+	//     prepared.sizes,
+	//     T,
+	//     prepared.S,
+	//     W,
+	//     H,
+	//     prepared.kernel,
+	//     end_x,
+	//     end_y,
+	//     0,
+	//     prepared.D,
+	//     serialization_path,
+	//     serialize
+	// );
+
+	free(h_dp_flat);
+	correlated_gpu_prepared_free(&prepared);
+
+	return nullptr;
 }
