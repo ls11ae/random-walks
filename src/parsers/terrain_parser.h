@@ -16,7 +16,8 @@ KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2D
                                         KernelParametersMapping *mapping);
 
 
-KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping);
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping,
+                                 bool soft_reachability);
 
 KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, KernelParametersMapping *mapping,
                                  bool soft_reachability);

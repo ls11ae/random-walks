@@ -112,6 +112,8 @@ static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_ma
 Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersMapping *mapping,
                 const KernelsMap3D *kernels_map, const ssize_t T, const ssize_t start_x,
                 const ssize_t start_y, bool use_serialized, bool recompute, const char *serialize_dir) {
+	assert(!is_forbidden_landmark(terrain_at(start_x, start_y, terrain_map), mapping));
+
 	if (use_serialized) {
 		struct stat st;
 		if (!recompute || stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
@@ -467,11 +469,7 @@ Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, Ter
 
 		tensor4D_free(c_dp, T);
 		point2d_array_free(points);
-		printf("one iteration successfull\n");
-		fflush(stdout); // Force output to appear
 	}
-	printf("success\n");
-	fflush(stdout); // Force output to appear
 
 	return result;
 }

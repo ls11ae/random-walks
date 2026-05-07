@@ -14,7 +14,7 @@ Tensor *brownian_init(const Matrix *kernel, const ssize_t W, const ssize_t H, co
 	Tensor *tensor = tensor_new(W, H, T);
 	matrix_set(tensor->data[0], start_x, start_y, 1.0);
 	for (int t = 1; t < T; t++) {
-		printf("t = %d\n", t);
+		//printf("t = %d\n", t);
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
 			for (int x = 0; x < W; ++x) {

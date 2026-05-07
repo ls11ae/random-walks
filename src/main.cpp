@@ -20,6 +20,7 @@
 #include "parsers/walk_json.h"
 #include <sys/time.h>
 
+#include "BenchmarkSetup.h"
 #include "misc/utils.h"
 #include "math/path_finding.h"
 #include "math/kernel_slicing.h"
@@ -70,15 +71,14 @@ void test_mixed_gpu() {
     steps[4] = steps[0];
     auto kernel = generate_correlated_kernels(8, 15, 0, 0);
     Point2DArray *step_arr = point_2d_array_new(steps, 5);
-    auto t_map = tensor_map_terrain(terrain, mapping);
+    auto t_map = tensor_map_terrain(terrain, mapping, false);
     KernelPoolC *pool = build_kernel_pool_c(t_map, terrain);
     // 390 131 432 163
 
     auto start = std::chrono::high_resolution_clock::now();
     // auto dp = m_walk(W, H, terrain, mapping, kmap, T, points[0].x, points[0].y, 0, 1, 0);
     // tensor4D_free(dp, T);
-    auto walk = gpu_mixed_walk(350, W, H, steps[1].x, steps[1].y, steps[2].x, steps[2].y, t_map, mapping, terrain,
-                               false, "", pool);
+    auto walk = gpu_mixed_walk(350, W, H, steps[1].x, steps[1].y, t_map, false, pool);
     auto path = "timewalk_mixed.json";
     auto end = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -169,7 +169,7 @@ void test_mixed() {
     steps[2] = (Point2D){110, 110};
 
     Point2DArray *step_arr = point_2d_array_new(steps, 3);
-    auto t_map = tensor_map_terrain(terrain, mapping);
+    auto t_map = tensor_map_terrain(terrain, mapping, false);
     //tensor_map_terrain_serialize(terrain, mapping, "../../resources/kmap");
     auto start_time = std::chrono::high_resolution_clock::now();
     auto walk = m_walk_backtrace_multiple(30, t_map, terrain, mapping, step_arr, false, "", "");
@@ -588,8 +588,9 @@ static TerrainMap init_terrain_map() {
     return terrain;
 }
 
-int main() {
-    test_mixed_gpu();
+int main(int argc, char **argv) {
+    run_benchmarks(argc, argv);
+    //test_mixed_gpu();
     return 0;
     correlated_cuda();
     return 0;

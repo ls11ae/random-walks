@@ -11,7 +11,7 @@
 #include "parsers/terrain_parser.h"
 
 
-KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping) {
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping, bool soft_reachability) {
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     KernelParametersTerrain *tensor_set = NULL;
     if (mapping->kind == KPM_KIND_PARAMETERS) {
@@ -57,8 +57,11 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                     const uint64_t hash = tensor_hash(arr);
                     cache_insert(cache, hash, arr, true, arr->len);
                 } else {
+                    const ssize_t M = 2 * tensor_set->data[y][x]->S + 1;
                     soft_reach_mat =
-                            get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);
+                            soft_reachability
+                                ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
+                                : get_reachability_kernel(x, y, M, terrain, mapping);
                     uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
                     uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
                     uint64_t combined = hash_combine(h_params, h_reach);
