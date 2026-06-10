@@ -11,6 +11,7 @@
 
 #ifdef __cplusplus
 extern "C" {
+
 #endif
 #include "parsers/types.h"
 
@@ -26,14 +27,14 @@ extern "C" {
  * @param m Pointer to the matrix instance.
  * @return 64-bit hash value; implementation is stable across process runs.
  */
-uint64_t compute_matrix_hash(const Matrix* m);
+uint64_t compute_matrix_hash(const Matrix *m);
 
 /**
  * @brief Compute a 64-bit hash for kernel parameters.
  * @param params Pointer to the parameters instance.
  * @return 64-bit hash value derived from the parameter fields.
  */
-uint64_t compute_parameters_hash(const KernelParameters* params);
+uint64_t compute_parameters_hash(const KernelParameters *params);
 
 /**
  * @brief Hash an arbitrary sequence of bytes.
@@ -41,21 +42,15 @@ uint64_t compute_parameters_hash(const KernelParameters* params);
  * @param length Number of bytes to hash.
  * @return 32-bit hash of the provided data.
  */
-uint32_t hash_bytes(const void* key, size_t length);
+uint32_t hash_bytes(const void *key, size_t length);
 
-/**
- * @brief Compute a 32-bit hash for a WeatherEntry.
- * @param entry Pointer to the entry to hash.
- * @return 32-bit hash value.
- */
-uint32_t weather_entry_hash(const WeatherEntry* entry);
 
 /**
  * @brief Create a hash-based cache.
  * @param num_buckets Number of buckets for the internal hash table.
  * @return Newly allocated cache instance, or NULL on failure.
  */
-Cache* cache_create(size_t num_buckets);
+Cache *cache_create(size_t num_buckets);
 
 /**
  * @brief Look up an entry by its hash.
@@ -63,7 +58,7 @@ Cache* cache_create(size_t num_buckets);
  * @param hash Hash key to search for.
  * @return Pointer to the cache entry if found, or NULL otherwise.
  */
-CacheEntry* cache_lookup_entry(Cache* cache, uint64_t hash);
+CacheEntry *cache_lookup_entry(Cache *cache, uint64_t hash);
 
 /**
  * @brief Insert a new entry into the cache.
@@ -73,13 +68,13 @@ CacheEntry* cache_lookup_entry(Cache* cache, uint64_t hash);
  * @param is_array Whether data points to an array allocation.
  * @param array_size Number of elements in the array when @p is_array is true; otherwise ignored.
  */
-void cache_insert(Cache* cache, uint64_t hash, void* data, bool is_array, ssize_t array_size);
+void cache_insert(Cache *cache, uint64_t hash, void *data, bool is_array, ssize_t array_size);
 
 /**
  * @brief Destroy a cache and release its resources.
  * @param cache Cache instance to free. It is safe to pass NULL.
  */
-void cache_free(Cache* cache);
+void cache_free(Cache *cache);
 
 /**
  * @brief Combine two 64-bit hashes into one.
@@ -104,7 +99,7 @@ size_t hash_to_bucket(uint64_t hash);
  * @param new_path Path to associate if no entry exists.
  * @return Existing path if found, otherwise @p new_path after insertion.
  */
-const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t hash, const char* new_path);
+const char *hash_cache_lookup_or_insert(HashCache *cache, Tensor *t, uint64_t hash, const char *new_path);
 
 /**
  * @brief Look up a path by hash or insert a new one.
@@ -113,7 +108,7 @@ const char* hash_cache_lookup_or_insert(HashCache* cache, Tensor* t, uint64_t ha
  * @param new_path Path to associate if absent.
  * @return Existing path if found, otherwise @p new_path after insertion.
  */
-const char* hash_cache_lookup_or_insert2(HashCache* cache, uint64_t hash, const char* new_path);
+const char *hash_cache_lookup_or_insert2(HashCache *cache, uint64_t hash, const char *new_path);
 
 
 /**
@@ -136,19 +131,19 @@ uint64_t hash_double(double x);
  * @param t Tensor to hash.
  * @return Hash value representing the tensor's shape and/or contents.
  */
-size_t tensor_hash(const Tensor* t);
+size_t tensor_hash(const Tensor *t);
 
 /**
  * @brief Create a HashCache instance.
  * @return Newly allocated cache, or NULL on failure.
  */
-HashCache* hash_cache_create();
+HashCache *hash_cache_create();
 
 /**
  * @brief Free a HashCache instance.
  * @param cache Instance to destroy. It is safe to pass NULL.
  */
-void hash_cache_free(HashCache* cache);
+void hash_cache_free(HashCache *cache);
 
 #ifdef __cplusplus
 }

@@ -42,8 +42,6 @@ size_t serialize_vector2d(FILE *fp, const DirOffsets *v);
 
 size_t serialize_tensor(FILE *fp, const Tensor *t);
 
-size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km);
-
 size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
 uint64_t serialize_array(FILE *fp, const float *values, uint64_t size);
@@ -55,8 +53,6 @@ Matrix *deserialize_matrix(FILE *fp);
 
 Tensor *deserialize_tensor(FILE *fp);
 
-KernelsMap4D *deserialize_kernels_map_4d(FILE *fp);
-
 KernelsMap3D *deserialize_kernels_map_3d(const char *filename);
 
 EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename);
@@ -67,8 +63,6 @@ void free_matrix(Matrix *m);
 void free_vector2d(DirOffsets *v);
 
 void free_tensor(Tensor *t);
-
-void free_kernels_map_4d(KernelsMap4D *km);
 
 float *deserialize_array(FILE *fp);
 

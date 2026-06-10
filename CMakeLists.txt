@@ -105,15 +105,15 @@ target_link_libraries(${PROJECT_NAME}
         ${R_LIBRARIES}
 )
 
-add_executable(mixed_walk2_snapshot tools/mixed_walk2_snapshot.cpp)
-target_link_libraries(mixed_walk2_snapshot PRIVATE ${PROJECT_NAME})
+#add_executable(mixed_walk2_snapshot tools/mixed_walk2_snapshot.cpp)
+#target_link_libraries(mixed_walk2_snapshot PRIVATE ${PROJECT_NAME})
 
 # Executable
-add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
-if (ENABLE_CUDA)
-    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
-endif ()
+#add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
+#target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
+#if (ENABLE_CUDA)
+#    target_compile_definitions(${PROJECT_NAME}_main PUBLIC USE_CUDA)
+#endif ()
 
 # Tests
 enable_testing()

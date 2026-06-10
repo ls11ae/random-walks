@@ -40,26 +40,6 @@ uint32_t hash_bytes(const void *key, size_t length) {
     return hash;
 }
 
-uint32_t weather_entry_hash(const WeatherEntry *entry) {
-    uint32_t hash = 0;
-    // Hash each field individually and combine them
-    hash = hash_bytes(&entry->temperature, sizeof(entry->temperature));
-    hash ^= hash_bytes(&entry->humidity, sizeof(entry->humidity));
-    hash ^= hash_bytes(&entry->precipitation, sizeof(entry->precipitation));
-    hash ^= hash_bytes(&entry->wind_speed, sizeof(entry->wind_speed));
-    hash ^= hash_bytes(&entry->wind_direction, sizeof(entry->wind_direction));
-    hash ^= hash_bytes(&entry->snow_fall, sizeof(entry->snow_fall));
-    hash ^= hash_bytes(&entry->weather_code, sizeof(entry->weather_code));
-    hash ^= hash_bytes(&entry->cloud_cover, sizeof(entry->cloud_cover));
-
-    // Final mixing
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-
-    return hash;
-}
-
 
 Cache *cache_create(size_t num_buckets) {
     Cache *cache = (Cache *) malloc(sizeof(Cache));

@@ -280,14 +280,6 @@ typedef struct {
     DirKernelsMap *dir_kernels;
 } KernelsMap3D;
 
-
-typedef struct {
-    Tensor ****kernels; // 4D array [y][x][t][d]
-    ssize_t width, height, timesteps, max_D;
-    Cache *cache;
-} KernelsMap4D;
-
-
 typedef struct {
     size_t width;
     size_t height;
@@ -313,29 +305,6 @@ typedef struct {
     TimedLocation *data;
     size_t length;
 } TimedLocationArray;
-
-typedef struct {
-    DateTime timestamp;
-    float temperature;
-    int humidity;
-    float precipitation;
-    float wind_speed;
-    float wind_direction;
-    float snow_fall;
-    int weather_code;
-    int cloud_cover;
-} WeatherEntry;
-
-typedef struct {
-    WeatherEntry *data;
-    size_t length;
-} WeatherTimeline;
-
-typedef struct {
-    size_t height;
-    size_t width;
-    WeatherTimeline **entries; // Timeline at [y][x]
-} WeatherGrid;
 
 typedef struct {
     int **data;

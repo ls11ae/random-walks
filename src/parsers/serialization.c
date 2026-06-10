@@ -132,34 +132,6 @@ size_t serialize_tensor(FILE *fp, const Tensor *t) {
     return bytes_written;
 }
 
-size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km) {
-    size_t bytes_written = 0;
-    bytes_written += fwrite(&km->width, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->height, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->timesteps, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->max_D, sizeof(ssize_t), 1, fp);
-
-    // Serialize Tensor**** kernels
-    if (km->kernels != NULL) {
-        for (ssize_t y = 0; y < km->height; ++y) {
-            for (ssize_t x = 0; x < km->width; ++x) {
-                for (ssize_t t = 0; t < km->timesteps; ++t) {
-                    for (ssize_t d = 0; d < km->max_D; ++d) {
-                        // Write a flag indicating if the Tensor* is NULL
-                        int is_null = (!km->kernels[y][x][t] || km->kernels[y][x][t]->data[d] == NULL);
-                        bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
-                        if (!is_null) {
-                            bytes_written += serialize_tensor(fp, km->kernels[y][x][t]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    rewind(fp);
-
-    return bytes_written;
-}
 
 size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
     size_t bytes_written = 0;
@@ -283,89 +255,6 @@ Tensor *deserialize_tensor(FILE *fp) {
 
     return t;
 }
-
-KernelsMap4D *deserialize_kernels_map_4d(FILE *fp) {
-    KernelsMap4D *km = (KernelsMap4D *) malloc(sizeof(KernelsMap4D));
-    if (!km) {
-        handle_error("Failed to allocate KernelsMap4D");
-        return NULL;
-    }
-
-    if (fread(&km->width, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D width");
-    }
-    if (fread(&km->height, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D height");
-    }
-    if (fread(&km->timesteps, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D timesteps");
-    }
-    if (fread(&km->max_D, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D max_D");
-    }
-
-    // Deserialize Tensor**** kernels
-    km->kernels = NULL;
-    if (km->width > 0 && km->height > 0 && km->timesteps > 0 && km->max_D > 0) {
-        km->kernels = (Tensor ****) malloc(km->height * sizeof(Tensor ***));
-        if (!km->kernels) {
-            free(km);
-            handle_error("Failed to allocate kernels 1st dim");
-        }
-        for (ssize_t y = 0; y < km->height; ++y) {
-            km->kernels[y] = (Tensor ***) malloc(km->width * sizeof(Tensor **));
-            if (!km->kernels[y]) {
-                // Cleanup previously allocated dimensions
-                for (ssize_t prev_y = 0; prev_y < y; ++prev_y) free(km->kernels[prev_y]);
-                free(km->kernels);
-                free(km);
-                handle_error("Failed to allocate kernels 2nd dim");
-            }
-            for (ssize_t x = 0; x < km->width; ++x) {
-                km->kernels[y][x] = (Tensor **) malloc(km->timesteps * sizeof(Tensor *));
-                if (!km->kernels[y][x]) {
-                    // Cleanup
-                    for (ssize_t prev_x = 0; prev_x < x; ++prev_x) free(km->kernels[y][prev_x]);
-                    for (ssize_t prev_y = 0; prev_y <= y; ++prev_y) free(km->kernels[prev_y]);
-                    free(km->kernels);
-                    free(km);
-                    handle_error("Failed to allocate kernels 3rd dim");
-                }
-                for (ssize_t t = 0; t < km->timesteps; ++t) {
-                    km->kernels[y][x][t] = (Tensor *) malloc(km->max_D * sizeof(Tensor));
-                    // This is actually storing Tensor*
-                    if (!km->kernels[y][x][t]) {
-                        // Cleanup
-                        for (ssize_t prev_t = 0; prev_t < t; ++prev_t) free(km->kernels[y][x][prev_t]);
-                        for (ssize_t prev_x = 0; prev_x <= x; ++prev_x) free(km->kernels[y][prev_x]);
-                        for (ssize_t prev_y = 0; prev_y <= y; ++prev_y) free(km->kernels[prev_y]);
-                        free(km->kernels);
-                        free(km);
-                        handle_error("Failed to allocate kernels 4th dim");
-                    }
-                    for (ssize_t d = 0; d < km->max_D; ++d) {
-                        int is_null;
-                        if (fread(&is_null, sizeof(int), 1, fp) != 1) {
-                            free_kernels_map_4d(km);
-                            handle_error("Failed to read Tensor* null flag in KernelsMap4D");
-                        }
-                        if (!is_null) {
-                            km->kernels[y][x][t] = deserialize_tensor(fp);
-                        } else {
-                            km->kernels[y][x][t] = NULL;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return km;
-}
-
 
 KernelsMap3D *deserialize_kernels_map_3d(const char *filename) {
     FILE *fp = fopen(filename, "rb");
@@ -560,31 +449,6 @@ void free_tensor(Tensor *t) {
         free(t->data);
     }
     free(t);
-}
-
-void free_kernels_map_4d(KernelsMap4D *km) {
-    if (km == NULL) return;
-    assert(km);
-    if (km->kernels != NULL) {
-        for (ssize_t y = 0; y < km->height; ++y) {
-            if (km->kernels[y] != NULL) {
-                for (ssize_t x = 0; x < km->width; ++x) {
-                    if (km->kernels[y][x] != NULL) {
-                        for (ssize_t t = 0; t < km->timesteps; ++t) {
-                            if (km->kernels[y][x][t] != NULL) {
-                                free_tensor(km->kernels[y][x][t]);
-                                free(km->kernels[y][x][t]);
-                            }
-                        }
-                        free(km->kernels[y][x]);
-                    }
-                }
-                free(km->kernels[y]);
-            }
-        }
-        free(km->kernels);
-    }
-    free(km);
 }
 
 void write_kernel_map_meta(const char *path, KernelMapMeta *meta) {

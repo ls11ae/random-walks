@@ -9,7 +9,7 @@
 
 #include "kernel_terrain_mapping.h"
 #include "misc/utils.h"
-#include "weather_parser.h"
+#include "timed_params.h"
 #include "parsers/constants.h"
 
 KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t D, float len_diffusivity,
@@ -91,8 +91,3 @@ void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain) {
     free(kernel_parameters_terrain);
 }
 
-
-void weather_entry_free(WeatherEntry *entry) {
-    if (entry == NULL) return;
-    free(entry);
-}
