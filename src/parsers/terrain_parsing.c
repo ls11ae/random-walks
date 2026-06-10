@@ -7,17 +7,6 @@
 #include <tgmath.h>
 
 #include "parsers/terrain_parser.h"
-
-TerrainMap *create_terrain_map(const char *filename, char delimiter) {
-    TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
-    if (terrain_map == NULL) {
-        free(terrain_map);
-        printf("terrain map failed\n");
-    }
-    parse_terrain_map(filename, terrain_map, delimiter);
-    return terrain_map;
-}
-
 #ifndef MAX_LINE_LENGTH
 #define MAX_LINE_LENGTH 8192
 #endif
@@ -225,6 +214,17 @@ int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter) {
     return 0; // Success!
 }
 
+TerrainMap *create_terrain_map(const char *filename, char delimiter) {
+    TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
+    if (terrain_map == NULL) {
+        free(terrain_map);
+        printf("terrain map failed\n");
+    }
+    parse_terrain_map(filename, terrain_map, delimiter);
+    return terrain_map;
+}
+
+
 TerrainMap *terrain_map_new(const ssize_t width, const ssize_t height) {
     TerrainMap *map = malloc(sizeof(TerrainMap));
     if (!map) return NULL;
@@ -260,14 +260,6 @@ void terrain_map_free(TerrainMap *terrain_map) {
     free(terrain_map);
 }
 
-TerrainMap *get_terrain_map(const char *file, const char delimiter) {
-    TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
-    if (parse_terrain_map(file, terrain_map, delimiter) != 0) {
-        fprintf(stderr, "Failed to parse terrain map file: %s\n", file);
-        exit(EXIT_FAILURE);
-    }
-    return terrain_map;
-}
 
 __attribute__((hot)) int terrain_at(const ssize_t x, const ssize_t y, const TerrainMap *terrain_map) {
     assert(x >= 0 && y >= 0 && x < terrain_map->width && y < terrain_map->height);

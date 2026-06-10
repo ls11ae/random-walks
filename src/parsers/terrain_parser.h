@@ -26,8 +26,6 @@ KernelMapMeta load_meta_info(const char *serialization_dir);
 
 void kernels_map3d_free(KernelsMap3D *kernels_map);
 
-TerrainMap *get_terrain_map(const char *file, char delimiter);
-
 int terrain_at(ssize_t x, ssize_t y, const TerrainMap *terrain_map);
 
 void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value);
@@ -35,8 +33,6 @@ void terrain_set(const TerrainMap *terrain_map, ssize_t x, ssize_t y, int value)
 TerrainMap *terrain_map_new(ssize_t width, ssize_t height);
 
 void terrain_map_free(TerrainMap *terrain_map);
-
-int parse_terrain_map(const char *filename, TerrainMap *map, char delimiter);
 
 TerrainMap *create_terrain_map(const char *filename, char delimiter);
 
