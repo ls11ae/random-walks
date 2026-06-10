@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <time.h>
 
+typedef struct {
+    int x;
+    int y;
+} Point;
+
 ssize_t weighted_random_index(const double *array, size_t len) {
     // Seed the random number generator with the current time
     static int seeded = 0;
@@ -152,4 +157,3 @@ double euclid_sqr(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t 
 double euclid_origin(const int i, const int j) {
     return sqrt(i * i + j * j);
 }
-

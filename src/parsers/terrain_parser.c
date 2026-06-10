@@ -4,16 +4,16 @@
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "matrix/tensor.h"
 
 DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D) {
     DirKernelsMap *dir_kernels_map = malloc(sizeof(DirKernelsMap));
     dir_kernels_map->max_D = max_D;
     dir_kernels_map->max_kernel_size = max_M;
-    dir_kernels_map->data = malloc(sizeof(Vector2D *) * (max_D + 1));
+    dir_kernels_map->data = malloc(sizeof(DirOffsets **) * (max_D + 1));
     for (int d = 1; d <= max_D; d++) {
-        dir_kernels_map->data[d] = malloc(sizeof(Vector2D) * (max_M + 1));
+        dir_kernels_map->data[d] = malloc(sizeof(DirOffsets *) * (max_M + 1));
         for (int m = 1; m <= max_M; m++) {
             dir_kernels_map->data[d][m] = get_dir_kernel(d, m);
         }

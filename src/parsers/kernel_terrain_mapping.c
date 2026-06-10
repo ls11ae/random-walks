@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "move_bank_parser.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "matrix/matrix.h"
 
 // Helper: wrap a single Matrix into a Tensor (len = 1)
@@ -84,6 +84,11 @@ int landmark_to_index(enum landmarkType terrain_value) {
             return 10;
         default: return -1; // should not happen
     }
+}
+
+int index_to_landmark(const int index) {
+    if (index < 0 || index >= LAND_MARKS_COUNT) return -1;
+    return landmarks[index];
 }
 
 enum kernel_mode {

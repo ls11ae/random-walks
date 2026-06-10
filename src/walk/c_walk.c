@@ -17,7 +17,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "math/kernel_slicing.h"
+#include "kernels/kernel_slicing.h"
 
 
 Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
@@ -29,7 +29,7 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 	assert(D >= 1);
 
 	const ssize_t kernel_width = (ssize_t) kernel->data[0]->width;
-	Vector2D *dir_cell_set = get_dir_kernel((ssize_t) D, kernel_width);
+	DirOffsets *dir_cell_set = get_dir_kernel((ssize_t) D, kernel_width);
 
 	// If using serialization, create output folder and initialize
 	if (use_serialization) {
@@ -76,7 +76,7 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 	}
 
 	Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
-	compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+	compute_overlap_percentages(angles_mask);
 
 	for (ssize_t t = 1; t < T; t++) {
 		Tensor *current = NULL;
@@ -93,8 +93,8 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 				for (ssize_t x = 0; x < W; ++x) {
 					double sum = 0.0;
 					for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-						ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-						ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
+						ssize_t prev_kernel_x = dir_cell_set->offsets[d][i].x;
+						ssize_t prev_kernel_y = dir_cell_set->offsets[d][i].y;
 
 						const ssize_t xx = x - prev_kernel_x;
 						const ssize_t yy = y - prev_kernel_y;
@@ -166,7 +166,7 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t kernel_width = (ssize_t) kernel->data[0]->width;
 	const ssize_t S = kernel_width / 2;
-	Vector2D *dir_cell_set = get_dir_kernel(D, kernel_width);
+	DirOffsets *dir_cell_set = get_dir_kernel(D, kernel_width);
 
 	ssize_t x = end_x;
 	ssize_t y = end_y;
@@ -197,7 +197,7 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 
 	Tensor *angles_mask = NULL;
 	angles_mask = tensor_new(kernel_width, kernel_width, D);
-	compute_overlap_percentages((int) kernel_width, (int) D, angles_mask);
+	compute_overlap_percentages(angles_mask);
 
 
 	size_t index = T - 1;
@@ -235,8 +235,8 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-				const ssize_t dx = dir_cell_set->data[direction][i].x;
-				const ssize_t dy = dir_cell_set->data[direction][i].y;
+				const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+				const ssize_t dy = dir_cell_set->offsets[direction][i].y;
 
 				// Neighbor indices
 				const ssize_t prev_x = x - dx;
@@ -320,6 +320,210 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 	path->points[0].x = x;
 	path->points[0].y = y;
 	return path;
+}
+
+Point2DArray *correlated_backtrace_precomputed(bool use_serialization, Tensor **DP_Matrix, const char *dp_folder,
+                                               const ssize_t T, const Tensor *kernel,
+                                               const DirOffsets *dir_cell_set,
+                                               const Tensor *angle_mask, const ssize_t end_x,
+                                               const ssize_t end_y, const ssize_t dir) {
+	(void) dir_cell_set;
+	(void) angle_mask;
+	return correlated_backtrace(use_serialization, DP_Matrix, dp_folder, T, kernel, end_x, end_y, dir);
+}
+
+Tensor **correlated_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
+                                             const Tensor *kernel, const ssize_t end_x, const ssize_t end_y) {
+	if (!DP_Matrix || !kernel || T <= 0) return NULL;
+
+	const ssize_t W = DP_Matrix[0]->data[0]->width;
+	const ssize_t H = DP_Matrix[0]->data[0]->height;
+	const ssize_t D = (ssize_t) kernel->len;
+	const ssize_t kernel_width = kernel->data[0]->width;
+	const ssize_t S = kernel_width / 2;
+	if (end_x < 0 || end_x >= W || end_y < 0 || end_y >= H) return NULL;
+
+	DirOffsets *dir_cell_set = get_dir_kernel(D, kernel_width);
+	Tensor *angle_mask = tensor_new(kernel_width, kernel_width, D);
+	compute_overlap_percentages(angle_mask);
+
+	Tensor **utilization = malloc((size_t) T * sizeof(Tensor *));
+	if (!utilization) {
+		free_Vector2D(dir_cell_set);
+		tensor_free(angle_mask);
+		return NULL;
+	}
+	for (ssize_t t = 0; t < T; ++t) {
+		utilization[t] = tensor_new(W, H, D);
+		if (!utilization[t]) {
+			tensor4D_free(utilization, t);
+			free_Vector2D(dir_cell_set);
+			tensor_free(angle_mask);
+			return NULL;
+		}
+	}
+
+	for (ssize_t d = 0; d < D; ++d) {
+		matrix_set(utilization[T - 1]->data[d], end_x, end_y, 1.0 / (double) D);
+	}
+
+	for (ssize_t t = T - 1; t >= 1; --t) {
+		for (ssize_t y = 0; y < H; ++y) {
+			for (ssize_t x = 0; x < W; ++x) {
+				for (ssize_t direction = 0; direction < D; ++direction) {
+					const double current_util = matrix_get(utilization[t]->data[direction], x, y);
+					if (current_util <= 0.0) continue;
+
+					double total = 0.0;
+					for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+						const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+						const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+						const ssize_t prev_x = x - dx;
+						const ssize_t prev_y = y - dy;
+						if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
+
+						const ssize_t kernel_x = dx + S;
+						const ssize_t kernel_y = dy + S;
+						for (ssize_t d = 0; d < D; ++d) {
+							const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
+							const double transition = matrix_get(kernel->data[d], kernel_x, kernel_y) *
+							                          matrix_get(angle_mask->data[direction], kernel_x, kernel_y);
+							total += previous_probability * transition;
+						}
+					}
+
+					if (total <= 0.0) continue;
+
+					for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+						const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+						const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+						const ssize_t prev_x = x - dx;
+						const ssize_t prev_y = y - dy;
+						if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
+
+						const ssize_t kernel_x = dx + S;
+						const ssize_t kernel_y = dy + S;
+						for (ssize_t d = 0; d < D; ++d) {
+							const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
+							const double transition = matrix_get(kernel->data[d], kernel_x, kernel_y) *
+							                          matrix_get(angle_mask->data[direction], kernel_x, kernel_y);
+							const double contribution = current_util * previous_probability * transition / total;
+							const double old_util = matrix_get(utilization[t - 1]->data[d], prev_x, prev_y);
+							matrix_set(utilization[t - 1]->data[d], prev_x, prev_y, old_util + contribution);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	free_Vector2D(dir_cell_set);
+	tensor_free(angle_mask);
+	return utilization;
+}
+
+Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel, const ssize_t T,
+                          const ssize_t start_x, const ssize_t start_y, const bool *target_area) {
+	if (!kernel || !target_area || T <= 0) return NULL;
+
+	const ssize_t D = (ssize_t) kernel->len;
+	const ssize_t kernel_width = kernel->data[0]->width;
+	const ssize_t S = kernel_width / 2;
+	if (start_x < 0 || start_x >= W || start_y < 0 || start_y >= H) return NULL;
+
+	DirOffsets *dir_cell_set = get_dir_kernel(D, kernel_width);
+	Tensor *angle_mask = tensor_new(kernel_width, kernel_width, D);
+	compute_overlap_percentages(angle_mask);
+
+	Tensor **dp = malloc((size_t) T * sizeof(Tensor *));
+	Tensor **visit = malloc((size_t) T * sizeof(Tensor *));
+	if (!dp || !visit) {
+		free(dp);
+		free(visit);
+		free_Vector2D(dir_cell_set);
+		tensor_free(angle_mask);
+		return NULL;
+	}
+	for (ssize_t t = 0; t < T; ++t) {
+		dp[t] = tensor_new(W, H, D);
+		visit[t] = tensor_new(W, H, D);
+		if (!dp[t] || !visit[t]) {
+			tensor4D_free(dp, t + 1);
+			tensor4D_free(visit, t + 1);
+			free_Vector2D(dir_cell_set);
+			tensor_free(angle_mask);
+			return NULL;
+		}
+	}
+
+	const double initial_visit = bool_get(target_area, start_x, start_y, W) ? 1.0 : 0.0;
+	for (ssize_t d = 0; d < D; ++d) {
+		matrix_set(dp[0]->data[d], start_x, start_y, 1.0 / (double) D);
+		matrix_set(visit[0]->data[d], start_x, start_y, initial_visit);
+	}
+
+	for (ssize_t t = 1; t < T; ++t) {
+		for (ssize_t y = 0; y < H; ++y) {
+			for (ssize_t x = 0; x < W; ++x) {
+				for (ssize_t direction = 0; direction < D; ++direction) {
+					double probability_sum = 0.0;
+					double visit_sum = 0.0;
+					for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+						const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+						const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+						const ssize_t prev_x = x - dx;
+						const ssize_t prev_y = y - dy;
+						if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
+
+						const ssize_t kernel_x = dx + S;
+						const ssize_t kernel_y = dy + S;
+						for (ssize_t d = 0; d < D; ++d) {
+							const double previous_probability = matrix_get(dp[t - 1]->data[d], prev_x, prev_y);
+							const double transition = matrix_get(kernel->data[d], kernel_x, kernel_y) *
+							                          matrix_get(angle_mask->data[direction], kernel_x, kernel_y);
+							const double contribution = previous_probability * transition;
+							probability_sum += contribution;
+							visit_sum += contribution * matrix_get(visit[t - 1]->data[d], prev_x, prev_y);
+						}
+					}
+
+					const double visit_probability = bool_get(target_area, x, y, W)
+						                                 ? 1.0
+						                                 : (probability_sum > 0.0 ? visit_sum / probability_sum : 0.0);
+					matrix_set(dp[t]->data[direction], x, y, probability_sum);
+					matrix_set(visit[t]->data[direction], x, y, visit_probability);
+				}
+			}
+		}
+	}
+
+	tensor4D_free(dp, T);
+	free_Vector2D(dir_cell_set);
+	tensor_free(angle_mask);
+	return visit;
+}
+
+double visit_probability(Tensor **DP_Matrix, const ssize_t T,
+                         const Tensor *kernel, const ssize_t start_x, const ssize_t start_y,
+                         const ssize_t end_x, const ssize_t end_y,
+                         const bool *target_area) {
+	if (!DP_Matrix || !kernel || T <= 0) return 0.0;
+
+	const ssize_t W = DP_Matrix[0]->data[0]->width;
+	const ssize_t H = DP_Matrix[0]->data[0]->height;
+	Tensor **visit = correlated_visit(W, H, kernel, T, start_x, start_y, target_area);
+	if (!visit) return 0.0;
+
+	double weighted_visit = 0.0;
+	double total = 0.0;
+	for (size_t d = 0; d < kernel->len; ++d) {
+		const double p = matrix_get(DP_Matrix[T - 1]->data[d], end_x, end_y);
+		total += p;
+		weighted_visit += p * matrix_get(visit[T - 1]->data[d], end_x, end_y);
+	}
+
+	tensor4D_free(visit, T);
+	return total > 0.0 ? weighted_visit / total : 0.0;
 }
 
 Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder, ssize_t T,

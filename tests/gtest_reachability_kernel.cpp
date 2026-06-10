@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/kernel_terrain_mapping.h"
 
 static TerrainMap init_terrain_map() {
@@ -171,4 +171,3 @@ TEST_F(ReachabilityTest, ZeroReachability) {
     matrix_free(reachability_kernel1);
     free(mapping);
 }
-

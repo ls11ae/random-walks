@@ -35,7 +35,7 @@ void tensor_flat(const Tensor *t, float *values);
 
 Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_width, int32_t mat_height);
 
-void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D);
+void dir_kernel_to_cuda(const DirOffsets *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D);
 
 Tensor **convert_dp_host_to_tensor(const float *dp_host, ssize_t T, ssize_t D, ssize_t H, ssize_t W);
 #ifdef __cplusplus

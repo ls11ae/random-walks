@@ -1,4 +1,5 @@
 #pragma once
+#include "kernels/kernel_context.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,18 +12,19 @@ extern "C" {
 #include <stdlib.h>
 
 
-Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersMapping *mapping,
-                const KernelsMap3D *kernels_map, ssize_t T, ssize_t start_x, ssize_t start_y, bool use_serialized,
-                bool recompute, const char *serialize_dir);
+Tensor **m_walk(const KernelContext *kernels_context, ssize_t T, ssize_t start_x,
+                ssize_t start_y);
 
 Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, ssize_t T,
-                               KernelsMap3D *tensor_map, TerrainMap *terrain, KernelParametersMapping *mapping,
-                               ssize_t end_x, ssize_t end_y,
-                               ssize_t dir, bool use_serialized, const char *serialize_dir, const char *dp_folder);
+                               const KernelContext *kernels_context,
+                               ssize_t end_x, ssize_t end_y);
 
-Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, TerrainMap *terrain,
-                                        KernelParametersMapping *mapping, Point2DArray *steps,bool use_serialized,
-                                        const char *serialize_dir, const char *dp_folder);
+Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
+                                        const KernelContext *kernels_context, ssize_t end_x, ssize_t end_y);
+
+Tensor **mixed_visit(KernelContext *kernel_context, ssize_t T,
+                     ssize_t start_x,
+                     ssize_t start_y, const bool *target_area);
 
 
 //************************************** TIME WALKS **************************************
@@ -58,8 +60,9 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const T
                                           KernelParametersMapping *mapping,
                                           ssize_t end_x, ssize_t end_y);
 
-Point2DArray *single_state_walk(ssize_t T, KernelsMap3D *kmap,
-                                TerrainMap *terrain, ssize_t start_x, ssize_t start_y,
+Point2DArray *single_state_walk(ssize_t T, KernelContext *kernel_context,
+                                ssize_t start_x,
+                                ssize_t start_y,
                                 ssize_t end_x,
                                 ssize_t end_y);
 

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "matrix/matrix.h"
 #include "matrix/tensor.h"
 #include "walk/c_walk.h"
@@ -13,7 +13,7 @@ TEST(GaussianKernel, RunsAndReturnsValidData) {
 }
 
 TEST(CorrelatedKernel, RunsAndReturnsValidData) {
-    Tensor *kernels = generate_correlated_kernels(16, 15);
+    Tensor *kernels = generate_correlated_kernels(16, 15, 0.0, 0.0);
     ASSERT_EQ(kernels->len, 16);
     ASSERT_EQ(kernels->data[0]->width, 15);
     ASSERT_EQ(kernels->data[0]->height, 15);
@@ -22,5 +22,3 @@ TEST(CorrelatedKernel, RunsAndReturnsValidData) {
     }
     tensor_free(kernels);
 }
-
-

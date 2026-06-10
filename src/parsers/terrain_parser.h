@@ -7,21 +7,22 @@ extern "C" {
 
 #endif
 
+#include "serialization.h"
 #include "types.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
 
-KernelsMap4D *tensor_map_terrain_biased(const TerrainMap *terrain, const Point2DArray *biases,
-                                        KernelParametersMapping *mapping);
-
-
-KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping);
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping,
+                                 enum ReachabilityMode mode);
 
 KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, KernelParametersMapping *mapping,
-                                 bool soft_reachability);
+                                 enum ReachabilityMode mode);
 
-void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping, const char *output_path);
+void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping,
+                                  const char *output_path, enum ReachabilityMode mode);
+
+KernelMapMeta load_meta_info(const char *serialization_dir);
 
 void kernels_map3d_free(KernelsMap3D *kernels_map);
 

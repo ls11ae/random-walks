@@ -1,477 +1,308 @@
-#include "m_walk.h"
+#include "walk/m_walk.h"
 
 #include <assert.h>
-#include <math.h>
-#include <string.h>
-#include <time.h>
-#include <sys/stat.h>
+#include <stdlib.h>
 
-#include "math/math_utils.h"
+#include "matrix/matrix.h"
+#include "matrix/tensor.h"
+#include "parsers/constants.h"
 #include "parsers/kernel_terrain_mapping.h"
-#include "parsers/serialization.h"
-#include "parsers/walk_json.h"
+#include "parsers/terrain_parser.h"
+#include "walk/c_walk.h"
+#include "walk/m_walk2.h"
 
-static void m_walk_serialized(ssize_t W, ssize_t H, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
-                              const ssize_t T, const ssize_t start_x, const ssize_t start_y,
-                              const char *serialize_dir) {
-	char tensor_dir[FILENAME_MAX];
-	snprintf(tensor_dir, sizeof(tensor_dir), "%s/DP_T%ld_X%ld_Y%ld", serialize_dir, T, start_x, start_y);
-
-	struct stat st;
-	if (stat(tensor_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
-		printf("skip dp calculation, using serialized data from %s\n", tensor_dir);
-	}
-
-	printf("Start DP calculation for T=%ld, X=%ld, Y=%ld\n", T, start_x, start_y);
-
-	// Lade Meta-Infos und überprüfe Konsistenz
-	char meta_path[FILENAME_MAX];
-	snprintf(meta_path, sizeof(meta_path), "%s/meta.info", serialize_dir);
-	KernelMapMeta meta = read_kernel_map_meta(meta_path);
-	assert(terrain_map->width == meta.width && terrain_map->height == meta.height);
-	W = terrain_map->width, H = terrain_map->height;
-	size_t max_D = meta.max_D;
-
-	// Initialisierung
-	Tensor *start_kernel = tensor_at(serialize_dir, start_x, start_y);
-	const double init_value = 1.0f / (double) start_kernel->len;
-
-	// Allocate only current and previous
-	Tensor *prev = tensor_new(W, H, max_D);
-	Tensor *current = tensor_new(W, H, max_D);
-	for (int d = 0; d < max_D; d++) {
-		matrix_set(prev->data[d], start_x, start_y, init_value);
-	}
-	tensor_free(start_kernel); // Nicht mehr benötigt
-
-	printf("Start DP calculation for T=%ld, X=%ld, Y=%ld\n", T, start_x, start_y);
-
-	for (ssize_t t = 1; t < T; t++) {
-#pragma omp parallel for collapse(2) schedule(dynamic)
-		for (ssize_t y = 0; y < H; ++y) {
-			for (ssize_t x = 0; x < W; ++x) {
-				if (is_forbidden_landmark(terrain_map->data[y][x], mapping)) continue;
-
-				Tensor *kernel_tensor = tensor_at(serialize_dir, x, y);
-				const size_t D = kernel_tensor->len;
-				Vector2D *dir_cell_set = get_dir_kernel(D, kernel_tensor->data[0]->width);
-
-				for (ssize_t d = 0; d < D; ++d) {
-					double sum = 0.0;
-					for (int di = 0; di < D; di++) {
-						const Matrix *current_kernel = kernel_tensor->data[di];
-						const ssize_t kernel_width = current_kernel->width;
-						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t px = dir_cell_set->data[d][i].x;
-							const ssize_t py = dir_cell_set->data[d][i].y;
-							const ssize_t xx = x - px;
-							const ssize_t yy = y - py;
-
-							if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
-
-							const ssize_t kx = px + kernel_width / 2;
-							const ssize_t ky = py + kernel_width / 2;
-							const double a = matrix_get(prev->data[di], xx, yy);
-							const double b = matrix_get(current_kernel, kx, ky);
-							sum += a * b;
-						}
-					}
-					matrix_set(current->data[d], x, y, sum);
-				}
-				free_Vector2D(dir_cell_set);
-				tensor_free(kernel_tensor);
-			}
-		}
-
-		// Speichere current als Schritt t
-		char step_path[FILENAME_MAX];
-		snprintf(step_path, sizeof(step_path), "%s/step_%ld", tensor_dir, t - 1);
-		ensure_dir_exists_for(step_path);
-		FILE *file = fopen(step_path, "wb");
-		serialize_tensor(file, prev);
-
-		// Ergebnisreferenz laden (Pointer mit Metadaten, keine Matrixdaten im RAM)
-		Tensor *tmp = prev;
-		prev = current;
-		current = tmp;
-
-		if ((t * 10) / T > ((t - 1) * 10) / T) {
-			printf("(%ld/%ld)\n", t, T);
-		}
-	}
-	char final_step_folder[FILENAME_MAX];
-	snprintf(final_step_folder, sizeof(final_step_folder), "%s/step_%ld", tensor_dir, T - 1);
-	ensure_dir_exists_for(final_step_folder);
-	FILE *file = fopen(final_step_folder, "wb");
-	serialize_tensor(file, prev);
-	tensor_free(prev);
-	tensor_free(current);
+static int context_forbids_point(const KernelContext *context, const ssize_t x, const ssize_t y) {
+    return context->reachability_mode == REACHABILITY_HARD &&
+           is_forbidden_landmark((enum landmarkType) terrain_at(x, y, context->terrain), context->mapping);
 }
 
+static const KernelsMap3D *context_kernels_map(const KernelContext *context, int *owned) {
+    *owned = 0;
+    if (!context) return NULL;
+    if (context->mode == KERNEL_POOL) {
+        return context->kernels_map;
+    }
 
-Tensor **m_walk(ssize_t W, ssize_t H, TerrainMap *terrain_map, KernelParametersMapping *mapping,
-                const KernelsMap3D *kernels_map, const ssize_t T, const ssize_t start_x,
-                const ssize_t start_y, bool use_serialized, bool recompute, const char *serialize_dir) {
-	if (use_serialized) {
-		struct stat st;
-		if (!recompute || stat(serialize_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
-			printf("Using serialized data from %s\n", serialize_dir);
-			m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
-			return NULL;
-		}
-		tensor_map_terrain_serialize(terrain_map, mapping, serialize_dir);
-		m_walk_serialized(W, H, terrain_map, mapping, T, start_x, start_y, serialize_dir);
-	}
-	size_t max_D;
-	KernelMapMeta meta;
-	max_D = kernels_map->max_D;
-
-	Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
-	const double init_value = 1.0f / (double) start_kernel->len;
-	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
-	for (int i = 0; i < T; i++) {
-		Tensor *current = tensor_new(W, H, max_D);
-		DP_mat[i] = current;
-	}
-	for (int d = 0; d < max_D; d++) {
-		matrix_set(DP_mat[0]->data[d], start_x, start_y, init_value);
-	}
-
-	DirKernelsMap *dir_kernels_map = kernels_map->dir_kernels;
-
-	for (ssize_t t = 1; t < T; t++) {
-#pragma omp parallel for collapse(2) schedule(dynamic)
-		for (ssize_t y = 0; y < H; ++y) {
-			for (ssize_t x = 0; x < W; ++x) {
-				if (terrain_at(x, y, terrain_map) == 0) continue;
-
-				const Tensor *current_tensor = kernels_map->kernels[y][x];
-				const size_t D = current_tensor->len;
-				const Vector2D *dir_cell_set = dir_kernels_map->data[D][current_tensor->data[0]->width];
-				for (ssize_t d = 0; d < D; ++d) {
-					double sum = 0.0;
-					for (int di = 0; di < D; di++) {
-						const Matrix *current_kernel = current_tensor->data[di];
-						const ssize_t kernel_width = current_kernel->width;
-						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
-							const ssize_t xx = x - prev_kernel_x;
-							const ssize_t yy = y - prev_kernel_y;
-
-							if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
-
-							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
-							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
-							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
-							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
-							sum += a * b;
-						}
-					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
-				}
-			}
-		}
-		// if ((t * 10) / T > ((t - 1) * 10) / T) {
-		// 	printf("(%ld/%ld)\n", t, T);
-		// }
-	}
-	//printf("DP calculation finished\n");
-	return DP_mat;
+    KernelsMap3D *map = tensor_map_terrain(context->terrain, context->mapping, context->reachability_mode);
+    *owned = 1;
+    return map;
 }
 
-static Point2DArray *backtrace_serialized(const char *dp_folder, const ssize_t T,
-                                          TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t end_x,
-                                          ssize_t end_y, ssize_t dir, const char *serialize_dir) {
-	Point2DArray *path = malloc(sizeof(Point2DArray));
-	Point2D *points = malloc(sizeof(Point2D) * T);
-	path->points = points;
-	path->length = T;
+static ssize_t best_end_direction(Tensor **dp, const ssize_t t, const Point2D end) {
+    ssize_t best_direction = 0;
+    double best_probability = -1.0;
 
-	ssize_t x = end_x;
-	ssize_t y = end_y;
-	size_t W = terrain->width;
-	size_t H = terrain->height;
-	size_t direction = dir;
-	size_t index = T - 1;
+    for (size_t d = 0; d < dp[t]->len; ++d) {
+        const double probability = matrix_get(dp[t]->data[d], end.x, end.y);
+        if (probability > best_probability) {
+            best_probability = probability;
+            best_direction = (ssize_t) d;
+        }
+    }
 
-	for (size_t t = T - 1; t >= 1; --t) {
-		Tensor *current_tensor = tensor_at(serialize_dir, x, y);
-		const ssize_t D = (ssize_t) current_tensor->len;
-		const ssize_t kernel_width = (ssize_t) current_tensor->data[0]->width;
-		const ssize_t S = kernel_width / 2;
-		const ssize_t max_neighbors = (2 * S + 1) * (2 * S + 1) * D;
-
-		ssize_t *movements_x = malloc(max_neighbors * sizeof(ssize_t));
-		ssize_t *movements_y = malloc(max_neighbors * sizeof(ssize_t));
-		double *prev_probs = malloc(max_neighbors * sizeof(double));
-		int *directions = malloc(max_neighbors * sizeof(int));
-
-		path->points[index].x = x;
-		path->points[index].y = y;
-		index--;
-
-		char dp_filename[FILENAME_MAX];
-		snprintf(dp_filename, sizeof(dp_filename), "%s/step_%u", dp_folder, t - 1);
-		FILE *file = fopen(dp_filename, "rb");
-		Tensor *DP_t_minus_1 = deserialize_tensor(file);
-
-		Vector2D *dir_kernel = get_dir_kernel(D, current_tensor->data[0]->width);
-		size_t count = 0;
-
-		for (int d = 0; d < D; ++d) {
-			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
-				const ssize_t prev_x = x - dx;
-				const ssize_t prev_y = y - dy;
-
-				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
-				if (is_forbidden_landmark(terrain_at(prev_x, prev_y, terrain), mapping)) continue;
-
-				Tensor *prev_tensor = tensor_at(serialize_dir, prev_x, prev_y);
-				if (d >= prev_tensor->len) {
-					tensor_free(prev_tensor);
-					continue;
-				}
-
-				const double p_b = matrix_get(DP_t_minus_1->data[d], prev_x, prev_y);
-				const ssize_t kernel_x = dx + S;
-				const ssize_t kernel_y = dy + S;
-				const Matrix *kernel = prev_tensor->data[d];
-
-				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= kernel->width || kernel_y >= kernel->height) {
-					tensor_free(prev_tensor);
-					continue;
-				}
-
-				const double p_b_a = matrix_get(kernel, kernel_x, kernel_y);
-				tensor_free(prev_tensor);
-
-				movements_x[count] = dx;
-				movements_y[count] = dy;
-				prev_probs[count] = p_b_a * p_b;
-				directions[count] = d;
-				count++;
-			}
-		}
-		free_Vector2D(dir_kernel);
-
-		if (count == 0) {
-			free(movements_x);
-			free(movements_y);
-			free(prev_probs);
-			free(directions);
-			free(path->points);
-			free(path);
-			tensor_free(current_tensor);
-			tensor_free(DP_t_minus_1);
-			return NULL;
-		}
-
-		ssize_t selected = weighted_random_index(prev_probs, count);
-		x -= movements_x[selected];
-		y -= movements_y[selected];
-		direction = directions[selected];
-
-		free(movements_x);
-		free(movements_y);
-		free(prev_probs);
-		free(directions);
-		tensor_free(current_tensor);
-		tensor_free(DP_t_minus_1);
-	}
-
-	path->points[0].x = x;
-	path->points[0].y = y;
-	return path;
+    return best_direction;
 }
 
+static int in_bounds(const ssize_t x, const ssize_t y, const ssize_t W, const ssize_t H) {
+    return x >= 0 && x < W && y >= 0 && y < H;
+}
+
+static double predecessor_kernel_value(const Tensor *tensor, const ssize_t direction,
+                                       const ssize_t dx, const ssize_t dy) {
+    if (!tensor || direction < 0 || (size_t) direction >= tensor->len) return 0.0;
+
+    const Matrix *kernel = tensor->data[direction];
+    if (!kernel) return 0.0;
+
+    const ssize_t kernel_x = dx + kernel->width / 2;
+    const ssize_t kernel_y = dy + kernel->height / 2;
+    if (kernel_x < 0 || kernel_x >= kernel->width || kernel_y < 0 || kernel_y >= kernel->height) {
+        return 0.0;
+    }
+
+    return matrix_get(kernel, kernel_x, kernel_y);
+}
+
+static Tensor **tensor_series_new(const ssize_t T, const ssize_t W, const ssize_t H, const ssize_t max_D) {
+    Tensor **series = malloc((size_t) T * sizeof(Tensor *));
+    if (!series) return NULL;
+
+    for (ssize_t t = 0; t < T; ++t) {
+        series[t] = tensor_new((size_t) W, (size_t) H, (size_t) max_D);
+        if (!series[t]) {
+            tensor4D_free(series, t);
+            return NULL;
+        }
+    }
+
+    return series;
+}
+
+Tensor **m_walk(const KernelContext *kernels_context, const ssize_t T, const ssize_t start_x,
+                const ssize_t start_y) {
+    if (!kernels_context || !kernels_context->terrain || !kernels_context->mapping || T <= 0) return NULL;
+    if (context_forbids_point(kernels_context, start_x, start_y)) return NULL;
+
+    int owned = 0;
+    const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
+    if (!kernels_map) return NULL;
+
+    Tensor **dp = m_walk2(kernels_context->terrain->width, kernels_context->terrain->height,
+                          kernels_context->terrain, kernels_map, T, start_x, start_y);
+
+    if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+    return dp;
+}
 
 Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
-                               KernelsMap3D *tensor_map, TerrainMap *terrain, KernelParametersMapping *mapping,
-                               const ssize_t end_x, const ssize_t end_y,
-                               const ssize_t dir, bool use_serialized, const char *serialize_dir,
-                               const char *dp_folder) {
-	if (use_serialized) {
-		return backtrace_serialized(dp_folder, T, terrain, mapping, end_x, end_y, dir, serialize_dir);
-	}
-	//printf("backtrace\n");
-	fflush(stdout);
-	Point2DArray *path = malloc(sizeof(Point2DArray));
-	Point2D *points = malloc(sizeof(Point2D) * T);
-	path->points = points;
-	path->length = T;
+                               const KernelContext *kernels_context,
+                               const ssize_t end_x, const ssize_t end_y) {
+    if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0) return NULL;
+    if (context_forbids_point(kernels_context, end_x, end_y)) return NULL;
 
-	ssize_t x = end_x;
-	ssize_t y = end_y;
+    int owned = 0;
+    const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
+    if (!kernels_map) return NULL;
 
-	size_t W = terrain->width;
-	size_t H = terrain->height;
+    const Point2D end = {.x = end_x, .y = end_y};
+    const ssize_t direction = best_end_direction(DP_Matrix, T - 1, end);
+    Point2DArray *walk = m_walk2_backtrace(DP_Matrix, T, kernels_map, kernels_context->terrain,
+                                           end_x, end_y, direction);
 
-	size_t direction = dir;
-
-	size_t index = T - 1;
-	for (size_t t = T - 1; t >= 1; --t) {
-		const Tensor *current_tensor = tensor_map->kernels[y][x];
-		const ssize_t D = (ssize_t) current_tensor->len;
-		const ssize_t kernel_width = (ssize_t) current_tensor->data[0]->width;
-		const ssize_t S = kernel_width / 2;
-		const ssize_t max_neighbors = (2 * S + 1) * (2 * S + 1) * D;
-		ssize_t *movements_x = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
-		ssize_t *movements_y = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
-		double *prev_probs = (double *) malloc(max_neighbors * sizeof(double));
-		int *directions = (int *) malloc(max_neighbors * sizeof(int));
-		path->points[index].x = x;
-		path->points[index].y = y;
-		index--;
-		size_t count = 0;
-		Vector2D *dir_kernel = get_dir_kernel(D, current_tensor->data[0]->width);
-		for (int d = 0; d < D; ++d) {
-			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
-
-				// Neighbor indices
-				const ssize_t prev_x = x - dx;
-				const ssize_t prev_y = y - dy;
-				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) {
-					continue;
-				}
-				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
-				Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
-
-				if (d >= previous_tensor->len)
-					continue;
-
-				const double p_b = matrix_get(DP_Matrix[t - 1]->data[d], prev_x, prev_y);
-
-				// Kernel indices
-				const ssize_t kernel_x = dx + S;
-				const ssize_t kernel_y = dy + S;
-
-
-				const Matrix *current_kernel = previous_tensor->data[d];
-
-				// Validate kernel indices
-				if (kernel_x < 0 || kernel_y < 0 || kernel_x >= current_kernel->width ||
-				    kernel_y >= current_kernel->height) {
-					continue;
-				}
-				const double p_b_a = matrix_get(current_kernel, kernel_x, kernel_y);
-
-				movements_x[count] = dx;
-				movements_y[count] = dy;
-				prev_probs[count] = p_b_a * p_b;
-				directions[count] = d;
-				count++;
-			}
-		}
-		free_Vector2D(dir_kernel);
-
-		if (count == 0) {
-			free(movements_x);
-			free(movements_y);
-			free(directions);
-			free(prev_probs);
-			free(path->points);
-			free(path);
-			return NULL;
-		}
-
-		const ssize_t selected = weighted_random_index(prev_probs, count);
-		ssize_t pre_x = movements_x[selected];
-		ssize_t pre_y = movements_y[selected];
-
-		direction = directions[selected];
-
-		x -= pre_x;
-		y -= pre_y;
-
-		free(movements_x);
-		free(movements_y);
-		free(prev_probs);
-		free(directions);
-	}
-
-	path->points[0].x = x;
-	path->points[0].y = y;
-	return path;
+    if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+    return walk;
 }
 
-Point2DArray *m_walk_backtrace_multiple(ssize_t T, KernelsMap3D *tensor_map, TerrainMap *terrain,
-                                        KernelParametersMapping *mapping, Point2DArray *steps,
-                                        bool use_serialized, const char *serialize_dir, const char *dp_folder) {
-	if (!steps || steps->length < 2) {
-		// Add kernel->data check
-		// Example in c_walk.c
-		printf("Debug: \n");
-		fflush(stdout); // Force output to appear
-		return NULL;
-	}
-	printf("Debug: \n");
-	fflush(stdout); // Force output to appear
-	const ssize_t num_steps = (ssize_t) steps->length;
-	const ssize_t total_points = T * (num_steps - 1);
+Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
+                                        const KernelContext *kernels_context, const ssize_t end_x,
+                                        const ssize_t end_y) {
+    if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0) return NULL;
 
-	Point2DArray *result = malloc(sizeof(Point2DArray));
-	if (!result) return NULL;
+    int owned = 0;
+    const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
+    if (!kernels_map) return NULL;
 
-	result->points = malloc(total_points * sizeof(Point2D));
-	if (!result->points) {
-		free(result);
-		return NULL;
-	}
-	result->length = total_points;
-	size_t index = 0;
+    const ssize_t W = kernels_context->terrain->width;
+    const ssize_t H = kernels_context->terrain->height;
+    const ssize_t max_D = kernels_map->max_D;
+    const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
+    const ssize_t max_M = dir_kernels ? dir_kernels->max_kernel_size : 0;
+    if (max_D <= 0 || max_M <= 0 || !dir_kernels || !in_bounds(end_x, end_y, W, H)) {
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
 
-	for (size_t step = 0; step < num_steps - 1; step++) {
-		Tensor **c_dp = m_walk(terrain->width, terrain->height, terrain, mapping, tensor_map, T, steps->points[step].x,
-		                       steps->points[step].y, use_serialized, true, serialize_dir);
-		if (!c_dp) {
-			printf("dp calculation failed");
-			fflush(stdout); // Force output to appear
+    Tensor **utilization = tensor_series_new(T, W, H, max_D);
+    if (!utilization) {
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
 
-			free(result->points);
-			free(result);
-			return NULL;
-		}
+    const Tensor *end_kernel = kernels_map->kernels[end_y][end_x];
+    if (!end_kernel || end_kernel->len == 0) {
+        tensor4D_free(utilization, T);
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
 
-		Point2DArray *points = m_walk_backtrace(c_dp, T, tensor_map, terrain, mapping, steps->points[step + 1].x,
-		                                        steps->points[step + 1].y, 0, use_serialized, serialize_dir, dp_folder);
+    for (size_t d = 0; d < end_kernel->len; ++d) {
+        matrix_set(utilization[T - 1]->data[d], end_x, end_y, 1.0 / (double) end_kernel->len);
+    }
 
-		if (!points) {
-			// Check immediately after calling backtrace
-			printf("points returned invalid\n");
-			printf("points returned invalid\n");
-			fflush(stdout); // Force output to appear
+    for (ssize_t t = T - 1; t >= 1; --t) {
+        for (ssize_t y = 0; y < H; ++y) {
+            for (ssize_t x = 0; x < W; ++x) {
+                const Tensor *destination_tensor = kernels_map->kernels[y][x];
+                if (!destination_tensor || destination_tensor->len == 0) continue;
 
-			tensor4D_free(c_dp, T);
-			point2d_array_free(result);
-			point2d_array_free(points);
-			return NULL;
-		}
+                const size_t D = destination_tensor->len;
+                const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
+                if (!dir_cell_set) continue;
 
-		// Ensure we don't exceed the allocated memory
-		if (index + points->length > total_points) {
-			printf("%zu , %zu", index, points->length);
-			point2d_array_free(points);
-			free(result->points);
-			free(result);
-			tensor4D_free(c_dp, T);
-			return NULL;
-		}
+                for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
+                    const double current_util = matrix_get(utilization[t]->data[direction], x, y);
+                    if (current_util <= 0.0) continue;
 
-		memcpy(&result->points[index], points->points, points->length * sizeof(Point2D));
-		index += points->length;
+                    double total = 0.0;
+                    for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+                        const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+                        const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+                        const ssize_t prev_x = x - dx;
+                        const ssize_t prev_y = y - dy;
 
-		tensor4D_free(c_dp, T);
-		point2d_array_free(points);
-		printf("one iteration successfull\n");
-		fflush(stdout); // Force output to appear
-	}
-	printf("success\n");
-	fflush(stdout); // Force output to appear
+                        if (!in_bounds(prev_x, prev_y, W, H)) continue;
 
-	return result;
+                        const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
+                        if (!prev_tensor) continue;
+
+                        for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
+                            const double previous_probability =
+                                    matrix_get(DP_Matrix[t - 1]->data[prev_d], prev_x, prev_y);
+                            const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
+                            total += previous_probability * transition;
+                        }
+                    }
+
+                    if (total <= 0.0) continue;
+
+                    for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+                        const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+                        const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+                        const ssize_t prev_x = x - dx;
+                        const ssize_t prev_y = y - dy;
+
+                        if (!in_bounds(prev_x, prev_y, W, H)) continue;
+
+                        const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
+                        if (!prev_tensor) continue;
+
+                        for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
+                            const double previous_probability =
+                                    matrix_get(DP_Matrix[t - 1]->data[prev_d], prev_x, prev_y);
+                            const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
+                            const double contribution = current_util * previous_probability * transition / total;
+                            const double old_util = matrix_get(utilization[t - 1]->data[prev_d], prev_x, prev_y);
+                            matrix_set(utilization[t - 1]->data[prev_d], prev_x, prev_y, old_util + contribution);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+    return utilization;
+}
+
+Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
+                     const ssize_t start_x,
+                     const ssize_t start_y, const bool *target_area) {
+    if (!kernel_context || !kernel_context->terrain || !target_area || T <= 0) return NULL;
+
+    int owned = 0;
+    const KernelsMap3D *kernels_map = context_kernels_map(kernel_context, &owned);
+    if (!kernels_map) return NULL;
+
+    const ssize_t W = kernel_context->terrain->width;
+    const ssize_t H = kernel_context->terrain->height;
+    const ssize_t max_D = kernels_map->max_D;
+    const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
+    const ssize_t max_M = dir_kernels ? dir_kernels->max_kernel_size : 0;
+    if (max_D <= 0 || max_M <= 0 || !dir_kernels || !in_bounds(start_x, start_y, W, H)) {
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
+
+    const Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
+    if (!start_kernel || start_kernel->len == 0) {
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
+
+    Tensor **dp = tensor_series_new(T, W, H, max_D);
+    Tensor **visit = tensor_series_new(T, W, H, max_D);
+    if (!dp || !visit) {
+        tensor4D_free(dp, T);
+        tensor4D_free(visit, T);
+        if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+        return NULL;
+    }
+
+    const double initial_visit = bool_get(target_area, start_x, start_y, W) ? 1.0 : 0.0;
+    for (size_t d = 0; d < start_kernel->len; ++d) {
+        matrix_set(dp[0]->data[d], start_x, start_y, 1.0 / (double) start_kernel->len);
+        matrix_set(visit[0]->data[d], start_x, start_y, initial_visit);
+    }
+
+    for (ssize_t t = 1; t < T; ++t) {
+        for (ssize_t y = 0; y < H; ++y) {
+            for (ssize_t x = 0; x < W; ++x) {
+                const Tensor *destination_tensor = kernels_map->kernels[y][x];
+                if (!destination_tensor || destination_tensor->len == 0) continue;
+
+                const size_t D = destination_tensor->len;
+                const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
+                if (!dir_cell_set) continue;
+
+                for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
+                    double probability_sum = 0.0;
+                    double visit_sum = 0.0;
+
+                    for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
+                        const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+                        const ssize_t dy = dir_cell_set->offsets[direction][i].y;
+                        const ssize_t prev_x = x - dx;
+                        const ssize_t prev_y = y - dy;
+
+                        if (!in_bounds(prev_x, prev_y, W, H)) continue;
+
+                        const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
+                        if (!prev_tensor) continue;
+
+                        for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
+                            const double previous_probability = matrix_get(dp[t - 1]->data[prev_d], prev_x, prev_y);
+                            const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
+                            const double contribution = previous_probability * transition;
+                            probability_sum += contribution;
+                            visit_sum += contribution * matrix_get(visit[t - 1]->data[prev_d], prev_x, prev_y);
+                        }
+                    }
+
+                    double visit_probability = 0.0;
+                    if (bool_get(target_area, x, y, W)) {
+                        visit_probability = 1.0;
+                    } else if (probability_sum > 0.0) {
+                        visit_probability = visit_sum / probability_sum;
+                    }
+
+                    matrix_set(dp[t]->data[direction], x, y, probability_sum);
+                    matrix_set(visit[t]->data[direction], x, y, visit_probability);
+                }
+            }
+        }
+    }
+
+    tensor4D_free(dp, T);
+    if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+    return visit;
 }

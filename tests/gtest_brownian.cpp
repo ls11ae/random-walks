@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "walk/b_walk.h"
 
@@ -30,26 +30,34 @@ TEST(BrownianNormal, RunsAndReturnsValidData) {
     matrix_free(kernel);
 }
 
-TEST(BrownianMultiStep, RunsAndReturnsValidData) {
+TEST(BrownianTwoSegmentBacktrace, RunsAndReturnsValidData) {
     auto T = 100, W = 201, H = 201;
     auto kernel = matrix_generator_gaussian_pdf(9, 9, 4, 0, 0);
     Point2D steps[3];
     steps[0] = (Point2D){.x = 100, .y = 100};
     steps[1] = (Point2D){.x = 180, .y = 180};
     steps[2] = (Point2D){.x = 80, .y = 180};
-    Point2DArray *steps_arr = point_2d_array_new(steps, 3);
-    auto walk = brownian_multi_step(W, H, T, kernel, steps_arr);
+    Tensor *first_dp = brownian_init(kernel, W, H, T, steps[0].x, steps[0].y);
+    Tensor *second_dp = brownian_init(kernel, W, H, T, steps[1].x, steps[1].y);
+    auto first_walk = brownian_backtrace(first_dp, kernel, steps[1].x, steps[1].y);
+    auto second_walk = brownian_backtrace(second_dp, kernel, steps[2].x, steps[2].y);
 
-    ASSERT_NE(walk, nullptr);
-    ASSERT_EQ(walk->length, 200);
-    ASSERT_EQ(walk->points[0].x, steps[0].x);
-    ASSERT_EQ(walk->points[0].y, steps[0].y);
-    ASSERT_EQ(walk->points[T].x, steps[1].x);
-    ASSERT_EQ(walk->points[T].y, steps[1].y);
-    ASSERT_EQ(walk->points[walk->length - 1].x, steps[2].x);
-    ASSERT_EQ(walk->points[walk->length - 1].y, steps[2].y);
+    ASSERT_NE(first_walk, nullptr);
+    ASSERT_NE(second_walk, nullptr);
+    ASSERT_EQ(first_walk->length, T);
+    ASSERT_EQ(second_walk->length, T);
+    ASSERT_EQ(first_walk->points[0].x, steps[0].x);
+    ASSERT_EQ(first_walk->points[0].y, steps[0].y);
+    ASSERT_EQ(first_walk->points[first_walk->length - 1].x, steps[1].x);
+    ASSERT_EQ(first_walk->points[first_walk->length - 1].y, steps[1].y);
+    ASSERT_EQ(second_walk->points[0].x, steps[1].x);
+    ASSERT_EQ(second_walk->points[0].y, steps[1].y);
+    ASSERT_EQ(second_walk->points[second_walk->length - 1].x, steps[2].x);
+    ASSERT_EQ(second_walk->points[second_walk->length - 1].y, steps[2].y);
 
     matrix_free(kernel);
-    point2d_array_free(steps_arr);
+    tensor_free(first_dp);
+    tensor_free(second_dp);
+    point2d_array_free(first_walk);
+    point2d_array_free(second_walk);
 }
-

@@ -11,22 +11,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Struct representing a 2D point with integer coordinates.
- */
-typedef struct {
-    int x; /**< X coordinate */
-    int y; /**< Y coordinate */
-} Point;
-
-/**
- * @brief Rotates a point around the origin by a given angle.
- * @param p The point to rotate.
- * @param theta The rotation angle in radians.
- * @return The rotated point.
- */
-Point rotate_point(Point p, double theta);
-
-/**
  * @brief Returns a random index from a float array, weighted by the array's values.
  * @param array The array of weights.
  * @param len The length of the array.

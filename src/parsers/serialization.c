@@ -54,6 +54,18 @@ void ensure_dir_exists_for(const char *filepath) {
     ensure_dir_exists(path_copy);
 }
 
+char *join_path(const char *base, const char *child) {
+    if (!base || !child) return NULL;
+    const size_t base_len = strlen(base);
+    const size_t child_len = strlen(child);
+    const bool needs_slash = base_len > 0 && base[base_len - 1] != '/';
+    const size_t result_len = base_len + child_len + (needs_slash ? 2 : 1);
+    char *result = malloc(result_len);
+    if (!result) return NULL;
+    snprintf(result, result_len, needs_slash ? "%s/%s" : "%s%s", base, child);
+    return result;
+}
+
 size_t serialize_point2d(FILE *fp, const Point2D *p) {
     assert(p != NULL);
     size_t bytes_written = 0;
@@ -67,13 +79,13 @@ size_t serialize_matrix(FILE *fp, const Matrix *m) {
     bytes_written += fwrite(&m->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->height, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->len, sizeof(ssize_t), 1, fp);
-    if (m->len > 0 && m->data.points != NULL) {
-        bytes_written += fwrite(m->data.points, sizeof(double), m->len, fp);
+    if (m->len > 0 && m->points != NULL) {
+        bytes_written += fwrite(m->points, sizeof(double), m->len, fp);
     }
     return bytes_written * (sizeof(ssize_t) + (m->len > 0 ? sizeof(double) : 0)); // Approximate total bytes
 }
 
-size_t serialize_vector2d(FILE *fp, const Vector2D *v) {
+size_t serialize_vector2d(FILE *fp, const DirOffsets *v) {
     size_t bytes_written = 0;
 
     // 1. Anzahl der Richtungen
@@ -88,11 +100,11 @@ size_t serialize_vector2d(FILE *fp, const Vector2D *v) {
 
     // 3. Daten: für jede Richtung (v->count)
     for (size_t i = 0; i < v->count; ++i) {
-        int is_null = (v->data[i] == NULL);
+        int is_null = (v->offsets[i] == NULL);
         bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
         if (!is_null) {
             size_t len = v->sizes[i];
-            bytes_written += fwrite(v->data[i], sizeof(Point2D), len, fp);
+            bytes_written += fwrite(v->offsets[i], sizeof(Point2D), len, fp);
         }
     }
 
@@ -173,7 +185,7 @@ size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
     return bytes_written;
 }
 
-uint64_t serialize_array(FILE *fp, float *values, const uint64_t size) {
+uint64_t serialize_array(FILE *fp, const float *values, const uint64_t size) {
     uint64_t bytes_written = 0;
     bytes_written += fwrite(&size, sizeof(uint64_t), 1, fp);
     bytes_written += fwrite(values, sizeof(float), size, fp);
@@ -221,15 +233,15 @@ Matrix *deserialize_matrix(FILE *fp) {
         handle_error("Failed to read Matrix len");
     }
 
-    m->data.points = NULL;
+    m->points = NULL;
     if (m->len > 0) {
-        m->data.points = (double *) malloc(m->len * sizeof(double));
-        if (!m->data.points) {
+        m->points = (double *) malloc(m->len * sizeof(double));
+        if (!m->points) {
             free(m);
             handle_error("Failed to allocate Matrix data");
         }
-        if (fread(m->data.points, sizeof(double), m->len, fp) != m->len) {
-            free(m->data.points);
+        if (fread(m->points, sizeof(double), m->len, fp) != m->len) {
+            free(m->points);
             free(m);
             handle_error("Failed to read Matrix data");
         }
@@ -523,17 +535,17 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
 
 void free_matrix(Matrix *m) {
     if (m == NULL) return;
-    free(m->data.points);
+    free(m->points);
     free(m);
 }
 
-void free_vector2d(Vector2D *v) {
+void free_vector2d(DirOffsets *v) {
     if (v == NULL) return;
-    if (v->data != NULL) {
+    if (v->offsets != NULL) {
         for (size_t i = 0; i < v->count; ++i) {
-            free(v->data[i]); // Free individual Point2D*
+            free(v->offsets[i]); // Free individual Point2D*
         }
-        free(v->data);
+        free(v->offsets);
     }
     free(v->sizes);
     free(v);

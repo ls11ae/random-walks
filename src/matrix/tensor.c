@@ -63,7 +63,7 @@ TensorSet *tensor_set_new(const size_t count, Tensor **tensors) {
     }
 
     set->data = (Tensor **) malloc(count * sizeof(Tensor *));
-    set->grid_cells = (Vector2D **) malloc(count * sizeof(Vector2D *));
+    set->grid_cells = (DirOffsets **) malloc(count * sizeof(DirOffsets *));
     if (!set->data || !set->grid_cells) {
         free(set->data);
         free(set->grid_cells);
@@ -73,6 +73,7 @@ TensorSet *tensor_set_new(const size_t count, Tensor **tensors) {
 
     set->len = count;
     set->max_D = 1;
+    set->max_M = 1;
 
     for (size_t i = 0; i < count; i++) {
         if (!tensors[i]) {
@@ -90,6 +91,9 @@ TensorSet *tensor_set_new(const size_t count, Tensor **tensors) {
 
         if (tensors[i]->len > set->max_D) {
             set->max_D = tensors[i]->len;
+        }
+        if ((size_t) tensors[i]->data[0]->width > set->max_M) {
+            set->max_M = (size_t) tensors[i]->data[0]->width;
         }
     }
     return set;
@@ -122,10 +126,10 @@ void tensor_set_free(TensorSet *set) {
     }
 }
 
-Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
-    Vector2D *result = (Vector2D *) malloc(sizeof(Vector2D));
+DirOffsets *get_dir_kernel(const ssize_t D, const ssize_t size) {
+    DirOffsets *result = (DirOffsets *) malloc(sizeof(DirOffsets));
     result->count = D;
-    result->data = (Point2D **) malloc(D * sizeof(Point2D *));
+    result->offsets = (Point2D **) malloc(D * sizeof(Point2D *));
     result->sizes = (size_t *) calloc(D, sizeof(size_t));
 
     // First pass to count points in each direction
@@ -145,7 +149,7 @@ Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
 
     // Allocate memory for each direction
     for (size_t dir = 0; dir < D; dir++) {
-        result->data[dir] = (Point2D *) malloc(counts[dir] * sizeof(Point2D));
+        result->offsets[dir] = (Point2D *) malloc(counts[dir] * sizeof(Point2D));
         result->sizes[dir] = 0; // Reset counter for second pass
     }
 
@@ -157,8 +161,8 @@ Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
             size_t dir = ((closest == 360.0) ? 0 : angle_to_direction(closest, angle_step_size)) % D;
 
             size_t idx = result->sizes[dir]++;
-            result->data[dir][idx].x = j;
-            result->data[dir][idx].y = i;
+            result->offsets[dir][idx].x = j;
+            result->offsets[dir][idx].y = i;
         }
     }
 
@@ -166,9 +170,9 @@ Vector2D *get_dir_kernel(const ssize_t D, const ssize_t size) {
     return result;
 }
 
-Vector2D *vector2d_clone(const Vector2D *src, size_t len) {
+DirOffsets *vector2d_clone(const DirOffsets *src, size_t len) {
     if (!src) return NULL;
-    Vector2D *clone = malloc(sizeof(Vector2D));
+    DirOffsets *clone = malloc(sizeof(DirOffsets));
     if (!clone) return NULL;
 
     clone->count = src->count;
@@ -180,8 +184,8 @@ Vector2D *vector2d_clone(const Vector2D *src, size_t len) {
     }
     memcpy(clone->sizes, src->sizes, sizeof(size_t) * len);
 
-    clone->data = malloc(sizeof(Point2D *) * len);
-    if (!clone->data) {
+    clone->offsets = malloc(sizeof(Point2D *) * len);
+    if (!clone->offsets) {
         free(clone->sizes);
         free(clone);
         return NULL;
@@ -189,33 +193,33 @@ Vector2D *vector2d_clone(const Vector2D *src, size_t len) {
 
     for (size_t i = 0; i < len; i++) {
         size_t count = clone->sizes[i];
-        clone->data[i] = malloc(sizeof(Point2D) * count);
-        if (!clone->data[i]) {
+        clone->offsets[i] = malloc(sizeof(Point2D) * count);
+        if (!clone->offsets[i]) {
             // Clean up
             for (size_t j = 0; j < i; j++) {
-                free(clone->data[j]);
+                free(clone->offsets[j]);
             }
-            free(clone->data);
+            free(clone->offsets);
             free(clone->sizes);
             free(clone);
             return NULL;
         }
-        memcpy(clone->data[i], src->data[i], sizeof(Point2D) * count);
+        memcpy(clone->offsets[i], src->offsets[i], sizeof(Point2D) * count);
     }
 
     return clone;
 }
 
 
-// Helper function to free the Vector2D when done
-void free_Vector2D(Vector2D *v) {
+// Helper function to free the DirOffsets when done
+void free_Vector2D(DirOffsets *v) {
     if (v == NULL) return;
-    if (v->data != NULL) {
+    if (v->offsets != NULL) {
         for (size_t i = 0; i < v->count; ++i) {
-            if (v->data[i] != NULL)
-                free(v->data[i]); // Free individual Point2D*
+            if (v->offsets[i] != NULL)
+                free(v->offsets[i]); // Free individual Point2D*
         }
-        free(v->data);
+        free(v->offsets);
     }
     free(v->sizes);
     free(v);
@@ -250,7 +254,7 @@ Tensor *tensor_copy(const Tensor *original) {
 
     // Matrixdaten kopieren
     for (size_t i = 0; i < original->len; i++) {
-        memcpy(copy->data[i]->data.points, original->data[i]->data.points, sizeof(Matrix *) * original->data[i]->len);
+        memcpy(copy->data[i]->points, original->data[i]->points, sizeof(Matrix *) * original->data[i]->len);
     }
 
     return copy;
@@ -381,6 +385,46 @@ void tensor4D_free(Tensor **tensor, ssize_t T) {
     for (ssize_t i = 0; i < T; ++i)
         tensor_free(tensor[i]);
     free(tensor);
+}
+
+void tensor_normalize(Tensor *tensor) {
+    if (!tensor || !tensor->data) return;
+
+    double sum = 0.0;
+    for (size_t d = 0; d < tensor->len; ++d) {
+        const Matrix *matrix = tensor->data[d];
+        if (!matrix || !matrix->points) continue;
+
+        for (ssize_t i = 0; i < matrix->len; ++i) {
+            sum += matrix->points[i];
+        }
+    }
+
+    if (sum == 0.0) return;
+
+    for (size_t d = 0; d < tensor->len; ++d) {
+        Matrix *matrix = tensor->data[d];
+        if (!matrix || !matrix->points) continue;
+
+        for (ssize_t i = 0; i < matrix->len; ++i) {
+            matrix->points[i] /= sum;
+        }
+    }
+}
+
+double tensor_sum(const Tensor *tensor) {
+    if (!tensor || !tensor->data) return -1.0;
+
+    double sum = 0.0;
+    for (size_t d = 0; d < tensor->len; ++d) {
+        const Matrix *matrix = tensor->data[d];
+        if (!matrix || !matrix->points) continue;
+
+        for (ssize_t i = 0; i < matrix->len; ++i) {
+            sum += matrix->points[i];
+        }
+    }
+    return sum;
 }
 
 void tensor4D_fill(Tensor *tensor, float value);

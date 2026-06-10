@@ -15,44 +15,6 @@ static int in_bounds(const ssize_t x, const ssize_t y, const ssize_t W, const ss
 }
 
 
-static ssize_t max_direction_count(const KernelsMap3D *kernels_map) {
-	ssize_t max_D = kernels_map ? kernels_map->max_D : 0;
-	if (!kernels_map || !kernels_map->kernels) return max_D;
-
-	for (ssize_t y = 0; y < kernels_map->height; ++y) {
-		for (ssize_t x = 0; x < kernels_map->width; ++x) {
-			const Tensor *tensor = kernels_map->kernels[y][x];
-			if (tensor && (ssize_t) tensor->len > max_D) {
-				max_D = (ssize_t) tensor->len;
-			}
-		}
-	}
-	return max_D;
-}
-
-static ssize_t max_kernel_width(const KernelsMap3D *kernels_map) {
-	ssize_t max_width = 0;
-	if (!kernels_map || !kernels_map->kernels) return max_width;
-
-	for (ssize_t y = 0; y < kernels_map->height; ++y) {
-		for (ssize_t x = 0; x < kernels_map->width; ++x) {
-			const Tensor *tensor = kernels_map->kernels[y][x];
-			if (!tensor || tensor->len == 0 || !tensor->data) continue;
-
-			for (size_t d = 0; d < tensor->len; ++d) {
-				if (!tensor->data[d]) continue;
-				if (tensor->data[d]->width > max_width) {
-					max_width = tensor->data[d]->width;
-				}
-				if (tensor->data[d]->height > max_width) {
-					max_width = tensor->data[d]->height;
-				}
-			}
-		}
-	}
-	return max_width;
-}
-
 static double predecessor_kernel_value(const Tensor *tensor, const ssize_t direction,
                                        const ssize_t dx, const ssize_t dy) {
 	if (!tensor || direction < 0 || (size_t) direction >= tensor->len) return 0.0;
@@ -81,21 +43,20 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 	if (W <= 0 || H <= 0 || T <= 0 || !kernels_map || !kernels_map->kernels) return NULL;
 	if (W > kernels_map->width || H > kernels_map->height) return NULL;
 	if (terrain_map && (W > terrain_map->width || H > terrain_map->height)) return NULL;
-	if (!in_bounds(start_x, start_y, W, H) || terrain_at(start_x, start_y, terrain_map) == UNMAPPED_TERRAIN) return NULL;
+	if (!in_bounds(start_x, start_y, W, H) || terrain_at(start_x, start_y, terrain_map) == UNMAPPED_TERRAIN)
+		return
+				NULL;
 
 	const Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
 	if (!start_kernel || start_kernel->len == 0) return NULL;
 
-	const ssize_t max_D = max_direction_count(kernels_map);
-	const ssize_t max_M = max_kernel_width(kernels_map);
-	if (max_D <= 0 || max_M <= 0) return NULL;
-
-	DirKernelsMap *dir_kernels = get_dir_kernels(max_M, max_D);
-	if (!dir_kernels) return NULL;
+	const ssize_t max_D = kernels_map->max_D;
+	const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
+	const ssize_t max_M = dir_kernels ? dir_kernels->max_kernel_size : 0;
+	if (max_D <= 0 || max_M <= 0 || !dir_kernels) return NULL;
 
 	Tensor **DP_mat = malloc((size_t) T * sizeof(Tensor *));
 	if (!DP_mat) {
-		dir_kernels_free(dir_kernels);
 		return NULL;
 	}
 
@@ -103,7 +64,6 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 		DP_mat[t] = tensor_new((size_t) W, (size_t) H, (size_t) max_D);
 		if (!DP_mat[t]) {
 			tensor4D_free(DP_mat, t);
-			dir_kernels_free(dir_kernels);
 			return NULL;
 		}
 	}
@@ -123,18 +83,19 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 				if (!destination_tensor || destination_tensor->len == 0) continue;
 
 				const size_t D = destination_tensor->len;
-				const Vector2D *dir_cell_set = dir_kernels->data[D][max_M];
+				const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
 				if (!dir_cell_set) continue;
 
 				for (ssize_t d = 0; d < (ssize_t) D; ++d) {
 					double sum = 0.0;
 					for (size_t i = 0; i < dir_cell_set->sizes[d]; ++i) {
-						const ssize_t dx = dir_cell_set->data[d][i].x;
-						const ssize_t dy = dir_cell_set->data[d][i].y;
+						const ssize_t dx = dir_cell_set->offsets[d][i].x;
+						const ssize_t dy = dir_cell_set->offsets[d][i].y;
 						const ssize_t prev_x = x - dx;
 						const ssize_t prev_y = y - dy;
 
-						if (!in_bounds(prev_x, prev_y, W, H) || terrain_at(prev_x, prev_y, terrain_map) == UNMAPPED_TERRAIN) {
+						if (!in_bounds(prev_x, prev_y, W, H) || terrain_at(prev_x, prev_y, terrain_map) ==
+						    UNMAPPED_TERRAIN) {
 							continue;
 						}
 
@@ -145,17 +106,16 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 							const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
 							if (transition <= 0.0) continue;
 
-							const double previous_probability = matrix_get(DP_mat[t - 1]->data[prev_d],prev_x, prev_y);
+							const double previous_probability = matrix_get(DP_mat[t - 1]->data[prev_d], prev_x, prev_y);
 							sum += previous_probability * transition;
 						}
 					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
+					DP_mat[t]->data[d]->points[y * W + x] = sum;
 				}
 			}
 		}
 	}
 
-	dir_kernels_free(dir_kernels);
 	return DP_mat;
 }
 
@@ -171,23 +131,19 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 	if (terrain && (W > terrain->width || H > terrain->height)) return NULL;
 	if (!in_bounds(end_x, end_y, W, H) || terrain_at(end_x, end_y, terrain) == UNMAPPED_TERRAIN) return NULL;
 
-	const ssize_t max_D = max_direction_count(kernels_map);
-	const ssize_t max_M = max_kernel_width(kernels_map);
-	if (max_D <= 0 || max_M <= 0 || dir < 0 || dir >= max_D) return NULL;
-
-	DirKernelsMap *dir_kernels = get_dir_kernels(max_M, max_D);
-	if (!dir_kernels) return NULL;
+	const ssize_t max_D = kernels_map->max_D;
+	const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
+	const ssize_t max_M = dir_kernels ? dir_kernels->max_kernel_size : 0;
+	if (max_D <= 0 || max_M <= 0 || !dir_kernels || dir < 0 || dir >= max_D) return NULL;
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	if (!path) {
-		dir_kernels_free(dir_kernels);
 		return NULL;
 	}
 
 	path->points = malloc((size_t) T * sizeof(Point2D));
 	if (!path->points) {
 		free(path);
-		dir_kernels_free(dir_kernels);
 		return NULL;
 	}
 	path->length = (size_t) T;
@@ -200,14 +156,12 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 		const Tensor *destination_tensor = kernels_map->kernels[y][x];
 		if (!destination_tensor || direction >= (ssize_t) destination_tensor->len) {
 			free_path(path);
-			dir_kernels_free(dir_kernels);
 			return NULL;
 		}
 
-		const Vector2D *dir_cell_set = dir_kernels->data[destination_tensor->len][max_M];
+		const DirOffsets *dir_cell_set = dir_kernels->data[destination_tensor->len][max_M];
 		if (!dir_cell_set) {
 			free_path(path);
-			dir_kernels_free(dir_kernels);
 			return NULL;
 		}
 
@@ -222,7 +176,6 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 			free(directions);
 			free(prev_probs);
 			free_path(path);
-			dir_kernels_free(dir_kernels);
 			return NULL;
 		}
 
@@ -231,8 +184,8 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 
 		size_t count = 0;
 		for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-			const ssize_t dx = dir_cell_set->data[direction][i].x;
-			const ssize_t dy = dir_cell_set->data[direction][i].y;
+			const ssize_t dx = dir_cell_set->offsets[direction][i].x;
+			const ssize_t dy = dir_cell_set->offsets[direction][i].y;
 			const ssize_t prev_x = x - dx;
 			const ssize_t prev_y = y - dy;
 
@@ -265,7 +218,6 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 			free(directions);
 			free(prev_probs);
 			free_path(path);
-			dir_kernels_free(dir_kernels);
 			return NULL;
 		}
 
@@ -282,6 +234,5 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 
 	path->points[0].x = x;
 	path->points[0].y = y;
-	dir_kernels_free(dir_kernels);
 	return path;
 }

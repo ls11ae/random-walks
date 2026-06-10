@@ -6,7 +6,7 @@
 #include "b_walk.h"
 #include "math/math_utils.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 
 Tensor *brownian_init(const Matrix *kernel, const ssize_t W, const ssize_t H, const ssize_t T, const ssize_t start_x,
                       const ssize_t start_y) {
@@ -174,6 +174,4 @@ Point2DArray *brownian_multi_step(ssize_t W, ssize_t H, ssize_t T,
 	}
 	return result;
 }
-
-
 

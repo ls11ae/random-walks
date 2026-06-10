@@ -58,10 +58,7 @@ typedef struct {
     ssize_t width; /**< The number of columns in the matrix. */
     ssize_t height; /**< The number of rows in the matrix. */
     ssize_t len; /**< The total number of elements (width * height). */
-    union {
-        double *points; /**< Pointer to the array of floating point elements. */
-        Pair *pair; /**< Pointer to the array of Pair (double, double) elements. */
-    } data;
+    double *points; /**< Pointer to the array of floating point elements. */
 } Matrix;
 
 typedef struct {
@@ -86,10 +83,10 @@ typedef struct {
 } Biases;
 
 typedef struct {
-    Point2D **data; // offsets per direction
+    Point2D **offsets; // offsets per direction
     size_t *sizes; // No. offsets per direction
     size_t count; // D
-} Vector2D;
+} DirOffsets;
 
 typedef struct {
     //size_t dim_len;
@@ -136,8 +133,9 @@ typedef struct {
     //size_t *dim;
     size_t len;
     size_t max_D;
+    size_t max_M;
     Tensor **data;
-    Vector2D **grid_cells;
+    DirOffsets **grid_cells;
 } TensorSet;
 
 typedef struct {
@@ -151,6 +149,12 @@ typedef struct {
     float directions_mod;
     float diffusity_mod;
 } KernelModifier;
+
+enum ReachabilityMode {
+    REACHABILITY_SOFT,
+    REACHABILITY_HARD,
+    REACHABILITY_FULL
+};
 
 typedef struct {
     double x; // longitude
@@ -199,6 +203,10 @@ typedef struct {
 typedef struct {
     size_t y, x, t;
 } Dimensions3D;
+
+typedef struct {
+    size_t T, D, W, H;
+} GridDimensions;
 
 typedef struct {
     TimedKernelParameters ****params;
@@ -261,10 +269,11 @@ typedef struct {
 typedef struct {
     ssize_t max_D;
     ssize_t max_kernel_size;
-    Vector2D ***data; // [D][M]
+    DirOffsets ***data; // [D][M]
 } DirKernelsMap;
 
 typedef struct {
+    enum ReachabilityMode soft_reachability;
     Tensor ***kernels; // 3D [y][x][d]
     ssize_t width, height, max_D;
     Cache *cache;

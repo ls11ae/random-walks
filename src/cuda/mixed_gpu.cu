@@ -20,7 +20,7 @@
 #define INDEX3D(d, y, x, H, W) ( (d) * (H) * (W) + (y) * (W) + (x) )
 #define CUDA_CALL(call) do { cudaError_t _e = (call); if (_e != cudaSuccess) { fprintf(stderr, "CUDA error %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(_e)); exit(EXIT_FAILURE); } } while(0)
 
-inline Vector2D *get_dir_cell_set_for_tensor(const Tensor *t, const DirKernelsMap *dir_kernels_map) {
+inline DirOffsets *get_dir_cell_set_for_tensor(const Tensor *t, const DirKernelsMap *dir_kernels_map) {
 	return dir_kernels_map->data[t->len][t->data[0]->width];
 }
 
@@ -155,12 +155,12 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			const Matrix *m = t->data[di];
 			const int total = static_cast<int>(m->width * m->width);
 			for (int i = 0; i < total; ++i) {
-				out.kernel_pool.push_back(static_cast<double>(m->data.points[i]));
+				out.kernel_pool.push_back(static_cast<double>(m->points[i]));
 			}
 		}
 
 		// Process directional offsets
-		if (Vector2D *dir_cell_set = get_dir_cell_set_for_tensor(t, km->dir_kernels)) {
+		if (DirOffsets *dir_cell_set = get_dir_cell_set_for_tensor(t, km->dir_kernels)) {
 			int D_dir = static_cast<int>(dir_cell_set->count);
 			if (D_dir != D) {
 				printf("WARNING: Tensor len=%d but dir_cell_set->count=%d\n", D, D_dir);
@@ -174,8 +174,8 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 
 				for (size_t i = 0; i < dir_cell_set->sizes[di]; ++i) {
 					int2 v;
-					v.x = static_cast<int>(dir_cell_set->data[di][i].x);
-					v.y = static_cast<int>(dir_cell_set->data[di][i].y);
+					v.x = static_cast<int>(dir_cell_set->offsets[di][i].x);
+					v.y = static_cast<int>(dir_cell_set->offsets[di][i].y);
 					out.offsets_pool.push_back(v);
 				}
 			}
@@ -345,7 +345,7 @@ static Point2DArray *backtrace_mixed_gpu(
 		--index;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = get_dir_kernel(D_local, kernel_width);
+		DirOffsets *dir_kernel = get_dir_kernel(D_local, kernel_width);
 		if (!dir_kernel) {
 			fprintf(stderr, "Error: Failed to get dir kernel\n");
 			free(movements_x);
@@ -360,8 +360,8 @@ static Point2DArray *backtrace_mixed_gpu(
 		for (int d = 0; d < D_local; ++d) {
 			size_t offs_count = dir_kernel->sizes[direction];
 			for (size_t i = 0; i < offs_count; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
@@ -484,8 +484,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 		));
 
 	CUDA_CALL(cudaMalloc(&d_kernel_offsets, n_kernels * sizeof(int)));
-	CUDA_CALL(cudaMemcpy(d_kernel_offsets, pool->kernel_offsets, n_kernels * sizeof(int), cudaMemcpyHostToDevice))
-	;
+	CUDA_CALL(cudaMemcpy(d_kernel_offsets, pool->kernel_offsets, n_kernels * sizeof(int), cudaMemcpyHostToDevice));
 
 	CUDA_CALL(cudaMalloc(&d_kernel_widths, n_kernels * sizeof(int)));
 	CUDA_CALL(cudaMemcpy(d_kernel_widths, pool->kernel_widths, n_kernels * sizeof(int), cudaMemcpyHostToDevice));

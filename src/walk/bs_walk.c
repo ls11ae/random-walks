@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "math/math_utils.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "walk/b_walk.h"
 
 Tensor *biased_brownian_init(const Biases *biases, const Matrix *base_kernel, const ssize_t W, const ssize_t H,

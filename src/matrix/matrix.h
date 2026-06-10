@@ -48,6 +48,7 @@ extern "C" {
  * 
  * @param width The number of columns in the matrix.
  * @param height The number of rows in the matrix.
+ * @param use_pairs Whether to allocate Pair cells instead of scalar cells.
  * @return A pointer to the newly created Matrix, or NULL if allocation fails.
  * @note The caller owns the returned Matrix and must free it with matrix_free().
  */
@@ -133,7 +134,7 @@ RW_API int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
  * @param y The y-coordinate (row index).
  * @return The value at the specified coordinates.
  */
-#define matrix_get(matrix, x, y) ((matrix)->data.points[(y) * matrix->width + (x)])
+#define matrix_get(matrix, x, y) ((matrix)->points[(y) * (matrix)->width + (x)])
 
 /**
  * @brief Set the value at the specified (x, y) coordinates in the matrix.
@@ -143,7 +144,23 @@ RW_API int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
  * @param y The y-coordinate (row index).
  * @param val The value to set at the specified coordinates.
  */
-#define matrix_set(matrix, x, y, value) ((matrix)->data.points[(y) * (matrix)->width + (x)] = (value))
+#define matrix_set(matrix, x, y, value) ((matrix)->points[(y) * (matrix)->width + (x)] = (value))
+
+/**
+ * @brief Set the pair values at the specified (x, y) coordinates in the matrix.
+ *
+ * @param matrix A pointer to the Matrix. Must not be NULL.
+ * @param x The x-coordinate (column index).
+ * @param y The y-coordinate (row index).
+ * @param first_value The first value to set.
+ * @param second_value The second value to set.
+ */
+#define matrix_set_pair(matrix, x, y, first_value, second_value) \
+    do { \
+        Pair *_pair = (matrix)->data.pairs[(y) * (matrix)->width + (x)]; \
+        _pair->first = (first_value); \
+        _pair->second = (second_value); \
+    } while (0)
 
 /**
  * @brief Fill the entire matrix with a specified value.

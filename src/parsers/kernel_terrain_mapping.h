@@ -121,6 +121,13 @@ void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkT
 int landmark_to_index(enum landmarkType terrain_value);
 
 /**
+ * @brief Map a stable index to a terrain/category value.
+ * @param index Zero-based terrain/category index.
+ * @return Terrain/category value, or -1 on error.
+ */
+int index_to_landmark(int index);
+
+/**
  * @brief Mark a terrain/category as forbidden for movement.
  * @param kernel_mapping Target mapping to modify.
  * @param terrain_value Terrain/category to forbid.

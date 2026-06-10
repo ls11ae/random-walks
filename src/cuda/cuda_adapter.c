@@ -19,7 +19,7 @@ void tensor_flat(const Tensor *t, float *values) {
     size_t index = 0;
     for (size_t i = 0; i < t->len; ++i) {
         for (int j = 0; j < mat_len; ++j) {
-            values[index++] = (float) t->data[i]->data.points[j];
+            values[index++] = (float) t->data[i]->points[j];
         }
     }
 }
@@ -38,14 +38,14 @@ Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_wid
             tensor_free(t); // Hilfsfunktion zum Aufräumen
             return NULL;
         }
-        memcpy(t->data[i]->data.points, flat + i * mat_len, mat_len * sizeof(double));
+        memcpy(t->data[i]->points, flat + i * mat_len, mat_len * sizeof(double));
     }
 
     return t;
 }
 
 
-void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D) {
+void dir_kernel_to_cuda(const DirOffsets *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D) {
     *out_D = input->count;
     int total_points = 0;
     for (size_t d = 0; d < input->count; ++d)
@@ -58,7 +58,7 @@ void dir_kernel_to_cuda(const Vector2D *input, int2 **out_offsets, int **out_siz
     for (size_t d = 0; d < input->count; ++d) {
         (*out_sizes)[d] = (int) input->sizes[d];
         for (size_t i = 0; i < input->sizes[d]; ++i) {
-            (*out_offsets)[index++] = (int2){(int) input->data[d][i].x, (int) input->data[d][i].y};
+            (*out_offsets)[index++] = (int2){(int) input->offsets[d][i].x, (int) input->offsets[d][i].y};
         }
     }
 }
@@ -73,7 +73,7 @@ Tensor **convert_dp_host_to_tensor(const float *dp_host, const ssize_t T, ssize_
             for (ssize_t y = 0; y < H; ++y) {
                 for (ssize_t x = 0; x < W; ++x) {
                     size_t flat_index = ((t * D + d) * H + y) * W + x;
-                    m->data.points[y * W + x] = dp_host[flat_index];
+                    m->points[y * W + x] = dp_host[flat_index];
                 }
             }
             DP_Matrix[t]->data[d] = m;
@@ -82,6 +82,4 @@ Tensor **convert_dp_host_to_tensor(const float *dp_host, const ssize_t T, ssize_
 
     return DP_Matrix;
 }
-
-
 

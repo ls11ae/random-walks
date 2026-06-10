@@ -179,7 +179,7 @@ Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const flo
 Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const int start_x, const int start_y,
                                   const int end_x, const int end_y,
                                   const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
-                                  const Vector2D *dir_kernel_data, const bool serialize,
+                                  const DirOffsets *dir_kernel_data, const bool serialize,
                                   const char *serialization_path) {
 	float *d_kernel, *d_mask;
 	int2 *d_offsets;

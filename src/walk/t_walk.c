@@ -5,7 +5,7 @@
 
 #include "math/math_utils.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/constants.h"
 #include "parsers/environment_params.h"
 #include "parsers/kernel_terrain_mapping.h"
@@ -119,7 +119,7 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 					continue;
 				Tensor *tensor_at_t = set_env_kernel(y, x, t, mapping, tensor_set, terrain_map, strict_reachability);
 				const size_t D = tensor_at_t->len;
-				const Vector2D *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
+				const DirOffsets *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 				for (ssize_t d = 0; d < D; ++d) {
 					double sum = 0.0;
 
@@ -128,8 +128,8 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 						const ssize_t kernel_width = current_kernel->width;
 
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
+							const ssize_t prev_kernel_x = dir_cell_set->offsets[d][i].x;
+							const ssize_t prev_kernel_y = dir_cell_set->offsets[d][i].y;
 							const ssize_t xx = x - prev_kernel_x;
 							const ssize_t yy = y - prev_kernel_y;
 
@@ -138,13 +138,13 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
 
-							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
-							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
+							const double a = DP_mat[t - 1]->data[di]->points[yy * W + xx];
+							const double b = current_kernel->points[kernel_y * current_kernel->width + kernel_x];
 
 							sum += a * b;
 						}
 					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
+					DP_mat[t]->data[d]->points[y * W + x] = sum;
 				}
 				tensor_free(tensor_at_t);
 			}
@@ -202,12 +202,12 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 		index--;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = dir_kernels_map->data[D][current_tensor->data[0]->width];
+		DirOffsets *dir_kernel = dir_kernels_map->data[D][current_tensor->data[0]->width];
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
@@ -318,13 +318,13 @@ Point2DArray *time_walk_env_binary(const size_t T, KernelParametersMapping *mapp
 	return walk;
 }
 
-Point2DArray *single_state_walk(const ssize_t T, KernelsMap3D *kmap,
-                                TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
+Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,
+                                const ssize_t start_x,
+                                const ssize_t start_y,
                                 const ssize_t end_x,
                                 const ssize_t end_y) {
-	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, NULL, kmap, T, start_x, start_y, false,
-	                     true, "");
-	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, NULL, end_x, end_y, 0, false, "", "");
+	Tensor **dp = m_walk(kernel_context, T, start_x, start_y);
+	Point2DArray *walk = m_walk_backtrace(dp, T, kernel_context, end_x, end_y);
 	tensor4D_free(dp, T);
 	return walk;
 }
@@ -354,7 +354,7 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 
 	for (ssize_t t = 1; t < T; ++t) {
 		const int state = timeline[t];
-		const Vector2D *dir_cell_set = tensor_set->grid_cells[state];
+		const DirOffsets *dir_cell_set = tensor_set->grid_cells[state];
 #pragma omp for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
@@ -386,8 +386,8 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 						const ssize_t kernel_width = current_kernel->width;
 
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
+							const ssize_t prev_kernel_x = dir_cell_set->offsets[d][i].x;
+							const ssize_t prev_kernel_y = dir_cell_set->offsets[d][i].y;
 							const ssize_t xx = x - prev_kernel_x;
 							const ssize_t yy = y - prev_kernel_y;
 
@@ -396,14 +396,14 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
 
-							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
-							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
+							const double a = DP_mat[t - 1]->data[di]->points[yy * W + xx];
+							const double b = current_kernel->points[kernel_y * current_kernel->width + kernel_x];
 
 							assert(!isnan(a));
 							sum += a * b;
 						}
 					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
+					DP_mat[t]->data[d]->points[y * W + x] = sum;
 				}
 				tensor_free(tensor_at_t);
 			}
@@ -454,12 +454,12 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 		index--;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = tensor_set->grid_cells[state];
+		DirOffsets *dir_kernel = tensor_set->grid_cells[state];
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
