@@ -8,6 +8,7 @@
 
 #include "kernels/kernels.h"
 #include "matrix/tensor.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
 #include "parsers/terrain_parser.h"
 
@@ -128,4 +129,9 @@ void kernel_context_free(KernelContext *context) {
     }
 
     free(context);
+}
+
+int context_forbids_point(const KernelContext *context, const ssize_t x, const ssize_t y) {
+    return context->reachability_mode == REACHABILITY_HARD &&
+           is_forbidden_landmark((enum landmarkType) terrain_at(x, y, context->terrain), context->mapping);
 }

@@ -1,5 +1,6 @@
 #include "walk/m_walk2.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -10,17 +11,16 @@
 #include "parsers/constants.h"
 #include "parsers/terrain_parser.h"
 
-static int in_bounds(const ssize_t x, const ssize_t y, const ssize_t W, const ssize_t H) {
-	return x >= 0 && x < W && y >= 0 && y < H;
-}
+#define  in_bounds(x, y, W, H) (x >= 0 && x < W && y >= 0 && y < H)
 
 
-static double predecessor_kernel_value(const Tensor *tensor, const ssize_t direction,
-                                       const ssize_t dx, const ssize_t dy) {
-	if (!tensor || direction < 0 || (size_t) direction >= tensor->len) return 0.0;
+__attribute__((hot)) static double predecessor_kernel_value(const Tensor *tensor, const ssize_t direction,
+                                                            const ssize_t dx, const ssize_t dy) {
+	assert(tensor && direction >= 0);
+	if ((size_t) direction >= tensor->len) return 0.0;
 
 	const Matrix *kernel = tensor->data[direction];
-	if (!kernel) return 0.0;
+	assert(kernel);
 
 	const ssize_t kernel_x = dx + kernel->width / 2;
 	const ssize_t kernel_y = dy + kernel->height / 2;
@@ -32,7 +32,6 @@ static double predecessor_kernel_value(const Tensor *tensor, const ssize_t direc
 }
 
 static void free_path(Point2DArray *path) {
-	if (!path) return;
 	free(path->points);
 	free(path);
 }
@@ -44,8 +43,7 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 	if (W > kernels_map->width || H > kernels_map->height) return NULL;
 	if (terrain_map && (W > terrain_map->width || H > terrain_map->height)) return NULL;
 	if (!in_bounds(start_x, start_y, W, H) || terrain_at(start_x, start_y, terrain_map) == UNMAPPED_TERRAIN)
-		return
-				NULL;
+		return NULL;
 
 	const Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
 	if (!start_kernel || start_kernel->len == 0) return NULL;
@@ -80,11 +78,11 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 				if (terrain_at(x, y, terrain_map) == UNMAPPED_TERRAIN) continue;
 
 				const Tensor *destination_tensor = kernels_map->kernels[y][x];
-				if (!destination_tensor || destination_tensor->len == 0) continue;
+				assert(destination_tensor && destination_tensor->len >= 0);
 
 				const size_t D = destination_tensor->len;
 				const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
-				if (!dir_cell_set) continue;
+				assert(dir_cell_set);
 
 				for (ssize_t d = 0; d < (ssize_t) D; ++d) {
 					double sum = 0.0;
@@ -104,7 +102,6 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 
 						for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
 							const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
-							if (transition <= 0.0) continue;
 
 							const double previous_probability = matrix_get(DP_mat[t - 1]->data[prev_d], prev_x, prev_y);
 							sum += previous_probability * transition;

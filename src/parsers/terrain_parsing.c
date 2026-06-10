@@ -269,7 +269,7 @@ TerrainMap *get_terrain_map(const char *file, const char delimiter) {
     return terrain_map;
 }
 
-int terrain_at(const ssize_t x, const ssize_t y, const TerrainMap *terrain_map) {
+__attribute__((hot)) int terrain_at(const ssize_t x, const ssize_t y, const TerrainMap *terrain_map) {
     assert(x >= 0 && y >= 0 && x < terrain_map->width && y < terrain_map->height);
     return terrain_map->data[y][x];
 }

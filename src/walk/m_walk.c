@@ -11,10 +11,6 @@
 #include "walk/c_walk.h"
 #include "walk/m_walk2.h"
 
-static int context_forbids_point(const KernelContext *context, const ssize_t x, const ssize_t y) {
-    return context->reachability_mode == REACHABILITY_HARD &&
-           is_forbidden_landmark((enum landmarkType) terrain_at(x, y, context->terrain), context->mapping);
-}
 
 static const KernelsMap3D *context_kernels_map(const KernelContext *context, int *owned) {
     *owned = 0;
