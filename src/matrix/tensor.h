@@ -10,8 +10,6 @@
  * All functions are C-compatible and can be consumed from C and C++ code.
  */
 
-#include "math/Point2D.h"
-#include "matrix/matrix.h"
 #include "parsers/types.h"
 
 #ifdef __cplusplus

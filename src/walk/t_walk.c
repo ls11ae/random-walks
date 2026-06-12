@@ -19,19 +19,20 @@ Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, Kernel
                        const TerrainMap *terrain_map,
                        const bool strict_reachability) {
 	const int terrain_val = terrain_at(x, y, terrain_map);
-	if (terrain_val == UNMAPPED_TERRAIN) return NULL;
-	if (strict_reachability && is_forbidden_landmark(terrain_val, mapping)) {
+	if (is_unmapped_terrain(terrain_val, mapping)) return NULL;
+	if (strict_reachability && is_barrier_terrain(terrain_val, mapping)) {
 		return NULL;
 	}
 	const KernelParameters *params = tensor_set->data[y][x][t];
-	const bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+	if (!params) return NULL;
+	const bool on_barrier = is_barrier_terrain(terrain_val, mapping);
 	Matrix *soft_reach_mat = NULL;
 	Tensor *tensor_at_t = NULL;
 
 	if (mapping->kind == KPM_KIND_PARAMETERS) {
 		tensor_at_t = generate_kernel(params);
 		const size_t D = tensor_at_t->len;
-		if (on_forbidden_terrain) {
+		if (on_barrier) {
 			apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 		} else {
 			const ssize_t M = 2 * params->S + 1;
@@ -44,9 +45,10 @@ Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, Kernel
 			}
 		}
 	} else {
-		const int index = landmark_to_index(terrain_val);
+		const int index = terrain_to_mapping_index(mapping, terrain_val);
+		if (index < 0) return NULL;
 		tensor_at_t = tensor_clone(mapping->data.kernels[index]);
-		if (on_forbidden_terrain) {
+		if (on_barrier) {
 			apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 		} else {
 			const ssize_t M = tensor_at_t->data[0]->width;
@@ -79,14 +81,8 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 
 	const size_t max_D = tensor_set->max_D;
 
-	bool strict_reachability = false;
-	if (mapping->animal == MARINE) {
-		strict_reachability = true;
-	}
-	if (is_forbidden_landmark(start_terrain, mapping))
-		printf("WARNING: START ON FORBIDDEN LANDMARK %i \n", start_terrain);
-	if (is_forbidden_landmark(start_terrain, mapping))
-		strict_reachability = false;
+	if (is_barrier_terrain(start_terrain, mapping))
+		printf("WARNING: START ON BARRIER TERRAIN %i \n", start_terrain);
 
 	W = terrain_map->width;
 	H = terrain_map->height;
@@ -109,15 +105,17 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 	}
 	tensor_free(start_kernel);
 
+	const bool strict_reachability = false;
 	for (ssize_t t = 1; t < T; t++) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
 				int terrain_val = terrain_at(x, y, terrain_map);
-				if (terrain_val == UNMAPPED_TERRAIN || strict_reachability && is_forbidden_landmark(
+				if (is_unmapped_terrain(terrain_val, mapping) || strict_reachability && is_barrier_terrain(
 					    terrain_val, mapping))
 					continue;
 				Tensor *tensor_at_t = set_env_kernel(y, x, t, mapping, tensor_set, terrain_map, strict_reachability);
+				if (!tensor_at_t) continue;
 				const size_t D = tensor_at_t->len;
 				const DirOffsets *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 				for (ssize_t d = 0; d < D; ++d) {
@@ -161,7 +159,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 	TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
 	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
 
-	const bool strict_reachability = mapping->animal == MARINE;
+	const bool strict_reachability = false;
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	Point2D *points = malloc(sizeof(Point2D) * T);
@@ -169,8 +167,8 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 	path->length = T;
 
 	int start_terrain = terrain_at(end_x, end_y, terrain);
-	if (is_forbidden_landmark(start_terrain, mapping))
-		printf("WARNING: END ON FORBIDDEN LANDMARK %i \n", start_terrain);
+	if (is_barrier_terrain(start_terrain, mapping))
+		printf("WARNING: END ON BARRIER TERRAIN %i \n", start_terrain);
 
 	ssize_t x = end_x;
 	ssize_t y = end_y;
@@ -183,8 +181,8 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 
 	for (ssize_t t = T - 1; t >= 1; --t) {
 		int terrain_val = terrain_at(x, y, terrain);
-		if (is_forbidden_landmark(terrain_val, mapping))
-			printf("WARNING: WALK THROUGH FORBIDDEN LANDMARK %i \n", terrain_val);
+		if (is_barrier_terrain(terrain_val, mapping))
+			printf("WARNING: WALK THROUGH BARRIER TERRAIN %i \n", terrain_val);
 		Tensor *current_tensor = set_env_kernel(y, x, t, mapping, tensor_set, terrain, strict_reachability);
 		if (current_tensor == NULL) continue;
 		const size_t D = current_tensor->len;
@@ -214,7 +212,7 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
 
-				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
+				if (is_unmapped_terrain(terrain_at(prev_x, prev_y, terrain), mapping)) continue;
 
 				if (d >= current_tensor->len) continue;
 
@@ -360,11 +358,15 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 			for (ssize_t x = 0; x < W; ++x) {
 				Tensor *tensor_at_t = tensor_clone(tensor_set->data[state]);
 				const int terrain_val = terrain_at(x, y, terrain_map);
+				if (is_unmapped_terrain(terrain_val, mapping)) {
+					tensor_free(tensor_at_t);
+					continue;
+				}
 
-				bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+				bool on_barrier = is_barrier_terrain(terrain_val, mapping);
 				Matrix *soft_reach_mat = NULL;
 				const size_t D = tensor_at_t->len;
-				if (on_forbidden_terrain) {
+				if (on_barrier) {
 					apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 				} else {
 					soft_reach_mat = get_reachability_kernel_soft(x, y, tensor_at_t->data[0]->width,

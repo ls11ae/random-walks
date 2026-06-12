@@ -10,7 +10,7 @@
 #include "matrix/tensor.h"
 
 
-#include "math/Point2D.h"
+#include "matrix/point2D.h"
 #include "c_walk.h"
 
 #include <errno.h>
@@ -133,7 +133,6 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 		} else {
 			prev = current;
 		}
-
 	}
 
 	// Cleanup for serialization mode

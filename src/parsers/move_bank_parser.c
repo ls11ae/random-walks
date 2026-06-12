@@ -26,8 +26,8 @@ KernelParameters *kernel_parameters_create(bool is_brownian, ssize_t S, ssize_t 
     return kernel_parameters;
 }
 
-KernelParameters *kernel_parameters_of_landmark(const int terrain_value, KernelParametersMapping *kernels_mapping) {
-    KernelParameters *params = get_parameters_of_terrain(kernels_mapping, terrain_value);
+KernelParameters *kernel_parameters_of_terrain(const int terrain_value, KernelParametersMapping *kernels_mapping) {
+    KernelParameters *params = terrain_params(kernels_mapping, terrain_value);
     if (!params) {
         perror("Failed to allocate memory for KernelParameters");
         return NULL;
@@ -50,7 +50,11 @@ KernelParametersTerrain *get_kernels_terrain(const TerrainMap *terrain, KernelPa
     for (size_t y = 0; y < height; y++) {
         for (size_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
-            KernelParameters *parameters = get_parameters_of_terrain(kernels_mapping, terrain_value);
+            if (is_unmapped_terrain(terrain_value, kernels_mapping)) {
+                kernel_parameters_per_cell[y][x] = NULL;
+                continue;
+            }
+            KernelParameters *parameters = terrain_params(kernels_mapping, terrain_value);
             kernel_parameters_per_cell[y][x] = parameters;
         }
     }
@@ -90,4 +94,3 @@ void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain) {
     }
     free(kernel_parameters_terrain);
 }
-

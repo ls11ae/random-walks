@@ -8,7 +8,6 @@
 #include "math/math_utils.h"
 #include "matrix/matrix.h"
 #include "matrix/tensor.h"
-#include "parsers/constants.h"
 #include "parsers/terrain_parser.h"
 
 #define  in_bounds(x, y, W, H) (x >= 0 && x < W && y >= 0 && y < H)
@@ -42,8 +41,7 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 	if (W <= 0 || H <= 0 || T <= 0 || !kernels_map || !kernels_map->kernels) return NULL;
 	if (W > kernels_map->width || H > kernels_map->height) return NULL;
 	if (terrain_map && (W > terrain_map->width || H > terrain_map->height)) return NULL;
-	if (!in_bounds(start_x, start_y, W, H) || terrain_at(start_x, start_y, terrain_map) == UNMAPPED_TERRAIN)
-		return NULL;
+	if (!in_bounds(start_x, start_y, W, H)) return NULL;
 
 	const Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
 	if (!start_kernel || start_kernel->len == 0) return NULL;
@@ -75,10 +73,8 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
-				if (terrain_at(x, y, terrain_map) == UNMAPPED_TERRAIN) continue;
-
 				const Tensor *destination_tensor = kernels_map->kernels[y][x];
-				assert(destination_tensor && destination_tensor->len >= 0);
+				if (!destination_tensor) continue;
 
 				const size_t D = destination_tensor->len;
 				const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
@@ -92,10 +88,7 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 						const ssize_t prev_x = x - dx;
 						const ssize_t prev_y = y - dy;
 
-						if (!in_bounds(prev_x, prev_y, W, H) || terrain_at(prev_x, prev_y, terrain_map) ==
-						    UNMAPPED_TERRAIN) {
-							continue;
-						}
+						if (!in_bounds(prev_x, prev_y, W, H)) continue;
 
 						const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
 						if (!prev_tensor) continue;
@@ -126,7 +119,8 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 	const ssize_t H = DP_Matrix[0]->data[0]->height;
 	if (W > kernels_map->width || H > kernels_map->height) return NULL;
 	if (terrain && (W > terrain->width || H > terrain->height)) return NULL;
-	if (!in_bounds(end_x, end_y, W, H) || terrain_at(end_x, end_y, terrain) == UNMAPPED_TERRAIN) return NULL;
+	if (!in_bounds(end_x, end_y, W, H)) return NULL;
+	if (!kernels_map->kernels[end_y][end_x]) return NULL;
 
 	const ssize_t max_D = kernels_map->max_D;
 	const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
@@ -186,9 +180,7 @@ Point2DArray *m_walk2_backtrace(Tensor **DP_Matrix, const ssize_t T,
 			const ssize_t prev_x = x - dx;
 			const ssize_t prev_y = y - dy;
 
-			if (!in_bounds(prev_x, prev_y, W, H) || terrain_at(prev_x, prev_y, terrain) == UNMAPPED_TERRAIN) {
-				continue;
-			}
+			if (!in_bounds(prev_x, prev_y, W, H)) continue;
 
 			const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
 			if (!prev_tensor) continue;

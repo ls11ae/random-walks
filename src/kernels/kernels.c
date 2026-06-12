@@ -6,12 +6,13 @@
 #include "math/math_utils.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "matrix/scalar_mapping.h"
 #include "matrix/tensor.h"
 #include "math/distribution.h"
 #include "kernels/kernel_slicing.h"
 #include "parsers/constants.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "parsers/move_bank_parser.h"
 #include "walk/c_walk.h"
 
@@ -313,19 +314,20 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 }
 
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
-	const int terrain_count = LAND_MARKS_COUNT;
+	if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || mapping->terrain_count == 0) return NULL;
+	const size_t terrain_count = mapping->terrain_count;
 	Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
 	if (!tensors) return NULL;
 
 	size_t max_D = 0;
 	int success = 1;
 
-	for (int i = 0; i < terrain_count && success; i++) {
-		KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
-		if (!parameters) {
+	for (size_t i = 0; i < terrain_count && success; i++) {
+		if (!mapping->set[i]) {
 			success = 0;
 			continue;
 		}
+		KernelParameters *parameters = &mapping->data.parameters[i];
 		ssize_t t_D = parameters->D;
 		ssize_t M = parameters->S * 2 + 1;
 		tensors[i] = generate_correlated_kernels(t_D, M, parameters->sigma_angle, parameters->sigma_length);
@@ -341,6 +343,15 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 		correlated_kernels = tensor_set_new(terrain_count, tensors);
 		if (correlated_kernels) {
 			correlated_kernels->max_D = max_D;
+			correlated_kernels->terrain_values = malloc(terrain_count * sizeof(int));
+			if (!correlated_kernels->terrain_values) {
+				tensor_set_free(correlated_kernels);
+				correlated_kernels = NULL;
+			} else {
+				memcpy(correlated_kernels->terrain_values,
+				       mapping->terrain_values,
+				       terrain_count * sizeof(int));
+			}
 		}
 	}
 
@@ -350,11 +361,13 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 	return correlated_kernels;
 }
 
-static inline int landmark_to_index_from_value(int terrain_value) {
-	if (terrain_value == MANGROVES) return 9;
-	if (terrain_value == MOSS_AND_LICHEN) return 10;
-	if (terrain_value >= 10 && terrain_value <= 90 && terrain_value % 10 == 0)
-		return terrain_value / 10 - 1;
+static inline int terrain_set_index_from_value(const TensorSet *correlated_tensors, int terrain_value) {
+	if (!correlated_tensors) return -1;
+	if (correlated_tensors->terrain_values) {
+		for (size_t i = 0; i < correlated_tensors->len; ++i) {
+			if (correlated_tensors->terrain_values[i] == terrain_value) return (int) i;
+		}
+	}
 	return -1; // invalid
 }
 
@@ -374,8 +387,8 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value,
 		result->data[0] = kernel;
 		return result;
 	}
-	int index = landmark_to_index_from_value(terrain_value);
-	assert(index >= 0 && index < LAND_MARKS_COUNT);
+	int index = terrain_set_index_from_value(correlated_tensors, terrain_value);
+	assert(index >= 0 && index < (int) correlated_tensors->len);
 
 	result = correlated_tensors->data[index];
 	// Should only happen if called from time walker as weather can influense S and D

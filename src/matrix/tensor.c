@@ -74,6 +74,7 @@ TensorSet *tensor_set_new(const size_t count, Tensor **tensors) {
     set->len = count;
     set->max_D = 1;
     set->max_M = 1;
+    set->terrain_values = NULL;
 
     for (size_t i = 0; i < count; i++) {
         if (!tensors[i]) {
@@ -120,6 +121,7 @@ void tensor_set_free(TensorSet *set) {
             tensor_free(set->data[i]);
             free_Vector2D(set->grid_cells[i]);
         }
+        free(set->terrain_values);
         free(set->data);
         free(set->grid_cells);
         free(set);

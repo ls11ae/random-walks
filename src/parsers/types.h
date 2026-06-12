@@ -134,6 +134,7 @@ typedef struct {
     size_t len;
     size_t max_D;
     size_t max_M;
+    int *terrain_values;
     Tensor **data;
     DirOffsets **grid_cells;
 } TensorSet;
@@ -196,7 +197,7 @@ typedef struct {
 typedef struct {
     DateTime *date_time;
     KernelParameters *params;
-    int landmark;
+    int terrain;
 } TimedKernelParameters;
 
 
@@ -217,52 +218,27 @@ typedef struct {
     DateTime start, end;
 } DateTimeInterval;
 
-#define LAND_MARKS_COUNT  11
-
-enum landmarkType {
-    TREE_COVER = 10,
-    SHRUBLAND = 20,
-    GRASSLAND = 30,
-    CROPLAND = 40,
-    BUILT_UP = 50,
-    SPARSE_VEGETATION = 60,
-    SNOW_AND_ICE = 70,
-    WATER = 80,
-    HERBACEOUS_WETLAND = 90,
-    MANGROVES = 95,
-    MOSS_AND_LICHEN = 100,
-};
-
-static enum landmarkType landmarks[LAND_MARKS_COUNT] = {
-    TREE_COVER, SHRUBLAND, GRASSLAND, CROPLAND, BUILT_UP, SPARSE_VEGETATION,
-    SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN
-};
-
 typedef enum {
     KPM_KIND_PARAMETERS,
     KPM_KIND_KERNELS
 } KernelMapKind;
 
-enum animal_type {
-    AIRBORNE,
-    TERRESTRIAL,
-    MARINE
-};
-
 typedef struct {
-    enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
-    bool has_forbidden_landmarks;
-    int forbidden_landmarks_count;
+    int *terrain_values;
+    size_t terrain_count;
 
-    double stay_probabilities[LAND_MARKS_COUNT];
-    double transition_matrix[LAND_MARKS_COUNT][LAND_MARKS_COUNT];
+    bool *set;
+    bool *barrier;
+    bool *unmapped;
+    bool has_barrier;
+
+    double *transition_weights;
 
     KernelMapKind kind;
-    enum animal_type animal;
 
     union {
-        KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
-        Tensor *kernels[LAND_MARKS_COUNT]; // when kind == KPM_KIND_KERNELS
+        KernelParameters *parameters; // when kind == KPM_KIND_PARAMETERS
+        Tensor **kernels; // when kind == KPM_KIND_KERNELS
     } data;
 } KernelParametersMapping;
 

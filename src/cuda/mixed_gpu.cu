@@ -369,8 +369,6 @@ static Point2DArray *backtrace_mixed_gpu(
 				// Grenzen überprüfen
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H)
 					continue;
-				if (terrain_at(prev_x, prev_y, terrain) == UNMAPPED_TERRAIN)
-					continue;
 
 				const Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
 				if (!previous_tensor)

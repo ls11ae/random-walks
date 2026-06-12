@@ -138,7 +138,7 @@ EnvironmentInfluenceGrid *parse_kernel_params(const char *csv_path, const DateTi
                     break;
                 }
                 case 3: {
-                    entry->landmark = (int) safe_strtol(token);
+                    entry->terrain = (int) safe_strtol(token);
                     break;
                 }
                 case 4: {
@@ -253,7 +253,7 @@ get_kernels_environment_grid(size_t T, const TerrainMap *terrain, const Environm
             if (gy >= bias_grid_height) gy = bias_grid_height - 1;
 
             const int terrain_value = terrain->data[y][x];
-            if (terrain_value == UNMAPPED_TERRAIN) {
+            if (is_unmapped_terrain(terrain_value, kernels_mapping)) {
                 for (size_t t = 0; t < T; t++)
                     kernel_parameters_per_cell[y][x][t] = NULL;
                 continue;
@@ -266,9 +266,14 @@ get_kernels_environment_grid(size_t T, const TerrainMap *terrain, const Environm
                                                            : sample_timeline(source, source_len, dest_len);
             for (size_t t = 0; t < T; t++) {
                 // mix and copy to cell
-                KernelParameters landmark_param = kernels_mapping->data.parameters[landmark_to_index(terrain_value)];
+                const KernelParameters *terrain_param = terrain_params_const(kernels_mapping, terrain_value);
+                if (!terrain_param) {
+                    kernel_parameters->data[y][x][t] = NULL;
+                    continue;
+                }
+                KernelParameters base_terrain_param = *terrain_param;
                 const KernelParameters *environment_p = current_timeline[t]->params;
-                KernelParameters *current = mix_all_params(&landmark_param, environment_p, weights);
+                KernelParameters *current = mix_all_params(&base_terrain_param, environment_p, weights);
                 kernel_parameters->data[y][x][t] = current;
             }
             free_timeline(current_timeline, dest_len);
@@ -277,10 +282,11 @@ get_kernels_environment_grid(size_t T, const TerrainMap *terrain, const Environm
     for (size_t y = 0; y < height; y++) {
         for (size_t x = 0; x < width; x++) {
             const int terrain_value = terrain->data[y][x];
-            if (terrain_value == UNMAPPED_TERRAIN) {
+            if (is_unmapped_terrain(terrain_value, kernels_mapping)) {
                 continue;
             }
             for (size_t t = 0; t < T; t++) {
+                if (!kernel_parameters->data[y][x][t]) continue;
                 // mix and copy to cell
                 ssize_t D = kernel_parameters->data[y][x][t]->D;
                 ssize_t S = kernel_parameters->data[y][x][t]->S;

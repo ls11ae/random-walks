@@ -107,16 +107,6 @@ RW_API bool matrix_equals(const Matrix *matrix1, const Matrix *matrix2);
 RW_API void matrix_pooling_avg(Matrix *dst, const Matrix *src);
 
 /**
- * @brief Copy the contents of one matrix to another.
- * 
- * Both matrices must have the same dimensions.
- * 
- * @param dest A pointer to the destination Matrix where data will be copied. Must not be NULL.
- * @param src A pointer to the source Matrix from which data will be copied. Must not be NULL.
- */
-RW_API void matrix_copy_to(Matrix *dest, const Matrix *src);
-
-/**
  * @brief Check if the given (x, y) coordinates are within the bounds of the matrix.
  * 
  * @param m A pointer to the Matrix. Must not be NULL.
@@ -147,85 +137,12 @@ RW_API int matrix_in_bounds(const Matrix *m, size_t x, size_t y);
 #define matrix_set(matrix, x, y, value) ((matrix)->points[(y) * (matrix)->width + (x)] = (value))
 
 /**
- * @brief Set the pair values at the specified (x, y) coordinates in the matrix.
- *
- * @param matrix A pointer to the Matrix. Must not be NULL.
- * @param x The x-coordinate (column index).
- * @param y The y-coordinate (row index).
- * @param first_value The first value to set.
- * @param second_value The second value to set.
- */
-#define matrix_set_pair(matrix, x, y, first_value, second_value) \
-    do { \
-        Pair *_pair = (matrix)->data.pairs[(y) * (matrix)->width + (x)]; \
-        _pair->first = (first_value); \
-        _pair->second = (second_value); \
-    } while (0)
-
-/**
  * @brief Fill the entire matrix with a specified value.
  * 
  * @param matrix A pointer to the Matrix to be filled. Must not be NULL.
  * @param value The value to fill the matrix with.
  */
 RW_API void matrix_fill(Matrix *matrix, double value);
-
-/**
- * @brief Add two matrices element-wise and return the result as a new matrix.
- * 
- * Both matrices must have the same dimensions.
- * 
- * @param a A pointer to the first Matrix. Must not be NULL.
- * @param b A pointer to the second Matrix. Must not be NULL.
- * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
- */
-RW_API Matrix *matrix_add(const Matrix *a, const Matrix *b);
-
-/**
- * @brief Add two matrices element-wise and store the result in the first matrix.
- * 
- * Both matrices must have the same dimensions.
- * 
- * @param a A pointer to the first Matrix. Must not be NULL.
- * @param b A pointer to the second Matrix. Must not be NULL.
- * @return 0 on success, or -1 if dimensions do not match.
- */
-RW_API int matrix_add_inplace(Matrix *a, const Matrix *b);
-
-/**
- * @brief Subtract the second matrix from the first matrix element-wise and return the result as a new matrix.
- * 
- * Both matrices must have the same dimensions.
- * 
- * @param a A pointer to the first Matrix. Must not be NULL.
- * @param b A pointer to the second Matrix. Must not be NULL.
- * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
- */
-RW_API Matrix *matrix_sub(const Matrix *a, const Matrix *b);
-
-/**
- * @brief Multiply two matrices and return the result as a new matrix.
- * 
- * The number of columns in the first matrix must equal the number of rows in the second matrix.
- * 
- * @param a A pointer to the first Matrix. Must not be NULL.
- * @param b A pointer to the second Matrix. Must not be NULL.
- * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
- * @note The caller owns the returned Matrix and must free it with matrix_free().
-*/
-RW_API Matrix *matrix_mul(const Matrix *a, const Matrix *b);
-
-/**
- * @brief Perform element-wise multiplication of two matrices and return the result as a new matrix.
- * 
- * Both matrices must have the same dimensions.
- * 
- * @param a A pointer to the first Matrix. Must not be NULL.
- * @param b A pointer to the second Matrix. Must not be NULL.
- * @return A pointer to the newly created Matrix containing the result, or NULL if dimensions do not match or allocation fails.
- * @note The caller owns the returned Matrix and must free it with matrix_free().
- */
-RW_API Matrix *matrix_elementwise_mul(const Matrix *a, const Matrix *b);
 
 /**
  * @brief Perform element-wise multiplication of two matrices and store the result in the first matrix.
@@ -243,42 +160,6 @@ RW_API void matrix_mul_inplace(Matrix *a, const Matrix *b);
  * @param factor Factor applied to each matrix element
  */
 RW_API void matrix_factor_inplace(Matrix *a, double factor);
-
-/**
- * @brief Calculate the sum of all elements in the matrix.
- * 
- * @param matrix A pointer to the Matrix. Must not be NULL.
- * @return The sum of all elements in the matrix.
- */
-RW_API double matrix_sum(const Matrix *matrix);
-
-/**
- * @brief Transpose the given matrix in place.
- * 
- * @param m A pointer to the Matrix to be transposed. Must not be NULL.
- */
-RW_API void matrix_transpose(Matrix *m);
-
-/**
- * @brief Calculate the determinant of a square matrix.
- * 
- * Currently supports only 2x2 matrices.
- * 
- * @param mat A pointer to the square Matrix. Must not be NULL.
- * @return The determinant of the matrix.
- */
-RW_API double matrix_determinant(const Matrix *mat);
-
-/**
- * @brief Invert a square matrix.
- * 
- * Currently supports only 2x2 matrices.
- * 
- * @param input A pointer to the square Matrix to be inverted. Must not be NULL.
- * @return A pointer to the newly created Matrix containing the inverse, or NULL if the matrix is singular or allocation fails.
- * @note The caller owns the returned Matrix and must free it with matrix_free().
- */
-RW_API Matrix *matrix_invert(const Matrix *input);
 
 /**
 * @brief Print the matrix to the standard output.
@@ -343,15 +224,6 @@ RW_API Matrix *matrix_load(const char *filename);
  */
 RW_API Matrix *matrix_clone(const Matrix *src);
 
-/**
- * @brief Normalize the matrix elements by dividing each element by the given sum.
- * 
- * Elements that are zero are not modified.
- * 
- * @param mat A pointer to the Matrix to be normalized. Must not be NULL.
- * @param sum The sum to normalize by. Must not be zero.
- */
-RW_API void matrix_normalize(const Matrix *mat, double sum);
 
 /**
  * @brief Normalize the matrix elements using L1 normalization.

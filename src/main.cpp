@@ -1,7 +1,8 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "math/Point2D.h"
+#include "../../../../../usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/c++/chrono"
+#include "matrix/point2D.h"
 #include "math/math_utils.h"
 #include "matrix/tensor.h"
 #include "parsers/kernel_terrain_mapping.h"
@@ -15,6 +16,9 @@ namespace {
     constexpr ssize_t kT = 150;
     constexpr int kMaxBacktraceAttempts = 25;
     constexpr const char *kOutputPath = "mixed_walk_main.json";
+    constexpr int kMesaGrassland = 30;
+    constexpr int kMesaCropland = 40;
+    constexpr int kMesaBuiltUp = 50;
 
     const Point2D kSteps[] = {
         {70, 40},
@@ -49,36 +53,57 @@ namespace {
                point.x < terrain->width && point.y < terrain->height;
     }
 
-    bool set_landmark_parameters(KernelParametersMapping *mapping,
-                                 const landmarkType landmark,
-                                 const bool is_brownian,
-                                 const ssize_t S,
-                                 const ssize_t D,
-                                 const float len_diffusivity,
-                                 const float angle_diffusivity,
-                                 const ssize_t bias_x,
-                                 const ssize_t bias_y) {
+    bool set_terrain_parameters(KernelParametersMapping *mapping,
+                                const int terrain_value,
+                                const bool is_brownian,
+                                const ssize_t S,
+                                const ssize_t D,
+                                const float len_diffusivity,
+                                const float angle_diffusivity,
+                                const ssize_t bias_x,
+                                const ssize_t bias_y) {
         KernelParameters *params = kernel_parameters_create(is_brownian, S, D,
                                                             len_diffusivity, angle_diffusivity,
                                                             bias_x, bias_y);
         if (!params) return false;
 
-        set_landmark_mapping(mapping, landmark, params);
+        const bool ok = set_terrain_params(mapping, terrain_value, params);
         std::free(params);
-        return true;
+        return ok;
     }
 
-    KernelParametersMapping *create_requested_mapping() {
-        KernelParametersMapping *mapping = create_default_mixed_mapping(TERRESTRIAL, 7);
+    bool load_mapping_config(KernelParametersMapping *mapping) {
+        const char *paths[] = {
+            "resources/kernel_mappings/mesa_mixed_terrestrial.csv",
+            "../resources/kernel_mappings/mesa_mixed_terrestrial.csv",
+            "../../resources/kernel_mappings/mesa_mixed_terrestrial.csv",
+        };
+
+        for (const char *path: paths) {
+            if (kernel_mapping_load_csv(mapping, path)) {
+                std::printf("Loaded mapping config: %s\n", path);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    KernelParametersMapping *create_requested_mapping(const TerrainMap *terrain) {
+        KernelParametersMapping *mapping = kernel_mapping_new(terrain, KPM_KIND_PARAMETERS);
         if (!mapping) return nullptr;
 
-        if (!set_landmark_parameters(mapping, GRASSLAND, true, 5, 1, 0.9f, 0.9f, 0, 0) ||
-            !set_landmark_parameters(mapping, CROPLAND, false, 7, 12, 0.7f, 0.2f, 0, 0)) {
-            kernel_parameters_mapping_free(mapping);
+        if (!load_mapping_config(mapping)) {
+            kernel_mapping_free(mapping);
             return nullptr;
         }
 
-        set_forbidden_landmark(mapping, BUILT_UP);
+        if (!set_terrain_parameters(mapping, kMesaGrassland, true, 5, 1, 0.9f, 0.9f, 0, 0) ||
+            !set_terrain_parameters(mapping, kMesaCropland, false, 7, 12, 0.7f, 0.2f, 0, 0)) {
+            kernel_mapping_free(mapping);
+            return nullptr;
+        }
+
+        set_terrain_barrier(mapping, kMesaBuiltUp, true);
         return mapping;
     }
 
@@ -152,11 +177,11 @@ int main(int argc, char **argv) {
     const size_t step_count = sizeof(kSteps) / sizeof(kSteps[0]);
 
     TerrainMap *terrain = load_cropped_terrain();
-    KernelParametersMapping *mapping = create_requested_mapping();
+    KernelParametersMapping *mapping = create_requested_mapping(terrain);
     if (!terrain || !mapping) {
         std::fprintf(stderr, "Failed to create terrain or mapping\n");
         terrain_map_free(terrain);
-        kernel_parameters_mapping_free(mapping);
+        kernel_mapping_free(mapping);
         return EXIT_FAILURE;
     }
 
@@ -165,7 +190,7 @@ int main(int argc, char **argv) {
             std::fprintf(stderr, "Step %zu is out of bounds: (%zd, %zd)\n",
                          i, kSteps[i].x, kSteps[i].y);
             terrain_map_free(terrain);
-            kernel_parameters_mapping_free(mapping);
+            kernel_mapping_free(mapping);
             return EXIT_FAILURE;
         }
     }
@@ -174,29 +199,34 @@ int main(int argc, char **argv) {
     if (!context) {
         std::fprintf(stderr, "Failed to create kernel context\n");
         terrain_map_free(terrain);
-        kernel_parameters_mapping_free(mapping);
+        kernel_mapping_free(mapping);
         return EXIT_FAILURE;
     }
 
     Point2DArray *steps = point_2d_array_new(const_cast<Point2D *>(kSteps), step_count);
+    auto start = std::chrono::high_resolution_clock::now();
     Point2DArray *walk = generate_concatenated_walk(context, kSteps, step_count);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (!steps || !walk) {
         std::fprintf(stderr, "Failed to create requested walk\n");
         point2d_array_free(steps);
         point2d_array_free(walk);
         kernel_context_free(context);
         terrain_map_free(terrain);
-        kernel_parameters_mapping_free(mapping);
+        kernel_mapping_free(mapping);
         return EXIT_FAILURE;
     }
 
     save_walk_to_json(steps, walk, terrain, output_path);
+    point2d_array_print(walk);
     std::printf("Walk length: %zu\n", walk->length);
 
     point2d_array_free(steps);
     point2d_array_free(walk);
     kernel_context_free(context);
     terrain_map_free(terrain);
-    kernel_parameters_mapping_free(mapping);
+    kernel_mapping_free(mapping);
+    printf("Duration: %ld ms\n", duration.count());
     return EXIT_SUCCESS;
 }

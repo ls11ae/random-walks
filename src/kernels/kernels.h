@@ -4,7 +4,7 @@
  * 
  * This file includes functions to generate Gaussian PDF matrices, Chi distribution kernels,
  * and tensors containing rotated versions of kernel matrices for correlated random walks.
- * It also provides functionality to generate a set of correlated tensors for all landmark types
+ * It also provides functionality to generate a set of correlated tensors for mapped terrain values
  * based on provided kernel parameters.
  * 
  * These functions are essential for simulating various types of random walks, including
@@ -126,8 +126,8 @@ Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size, double angle_dif
 Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs);
 
 /**
- * @brief Generate a set of correlated Tensors for all landmark types based on the provided KernelParametersMapping
- * @param mapping The KernelParametersMapping containing parameters for each landmark type
+ * @brief Generate a set of correlated Tensors for mapped terrain values based on the provided KernelParametersMapping
+ * @param mapping The KernelParametersMapping containing parameters for each terrain value
  * @return A pointer to the generated TensorSet
  */
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);

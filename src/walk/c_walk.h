@@ -1,6 +1,5 @@
 #pragma once
 
-#include "matrix/scalar_mapping.h"
 #include "parsers/terrain_parser.h"
 
 #ifdef __cplusplus

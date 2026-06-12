@@ -118,7 +118,7 @@ void interpolate_kernel_params(TimedKernelParameters *mixed, const TimedKernelPa
     KernelParameters *b = second->params;
 
     KernelParameters *result = mixed->params;
-    mixed->landmark = 10;
+    mixed->terrain = 10;
     result->is_brownian = a->is_brownian;
     result->S = (ssize_t) ((float) a->S + (float) (b->S - a->S) * factor);
     result->D = (ssize_t) ((float) a->D + (float) (b->D - a->D) * factor);

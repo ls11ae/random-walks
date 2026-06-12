@@ -1,5 +1,7 @@
 #include "caching.h"
 
+#include <stdio.h>
+
 uint64_t compute_matrix_hash(const Matrix *m) {
     uint64_t h = 146527;
     for (size_t i = 0; i < m->len; i++) {

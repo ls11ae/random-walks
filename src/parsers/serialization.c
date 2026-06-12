@@ -401,8 +401,8 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
                     return NULL;
                 }
 
-                int landmark;
-                if (!fread(&landmark, sizeof(int), 1, f)) {
+                int terrain_value;
+                if (!fread(&terrain_value, sizeof(int), 1, f)) {
                     handle_error("Failed to parse terrain");
                     return NULL;
                 }
@@ -410,7 +410,7 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
                 TimedKernelParameters *yxt = malloc(sizeof(TimedKernelParameters));
                 yxt->date_time = dt;
                 yxt->params = kp;
-                yxt->landmark = landmark;
+                yxt->terrain = terrain_value;
 
                 params[y][x][t] = yxt;
             }

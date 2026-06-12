@@ -24,12 +24,23 @@ DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D) {
 DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
     ssize_t max_M = 0;
     ssize_t max_D = 0;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
-        const ssize_t t_D = parameters->D;
-        const ssize_t m = parameters->S * 2 + 1;
-        max_D = max_D > t_D ? max_D : t_D;
-        max_M = max_M > m ? max_M : m;
+    if (!mapping) return NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        for (size_t i = 0; i < mapping->terrain_count; i++) {
+            if (!mapping->set[i]) continue;
+            KernelParameters *parameters = &mapping->data.parameters[i];
+            const ssize_t t_D = parameters->D;
+            const ssize_t m = parameters->S * 2 + 1;
+            max_D = max_D > t_D ? max_D : t_D;
+            max_M = max_M > m ? max_M : m;
+        }
+    } else {
+        for (size_t i = 0; i < mapping->terrain_count; i++) {
+            Tensor *kernel = mapping->data.kernels[i];
+            if (!kernel || kernel->len == 0) continue;
+            max_D = max_D > (ssize_t) kernel->len ? max_D : (ssize_t) kernel->len;
+            max_M = max_M > kernel->data[0]->width ? max_M : kernel->data[0]->width;
+        }
     }
     return get_dir_kernels(max_M, max_D);
 }
