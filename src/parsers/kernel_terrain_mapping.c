@@ -228,14 +228,70 @@ static bool bool_value(const char *s, bool *out) {
     return false;
 }
 
-bool kernel_mapping_load_csv(KernelParametersMapping *mapping, const char *filename) {
-    if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || !filename) return false;
+KernelParametersMapping *kernel_mapping_load_csv(const char *filename) {
+    if (!filename) return NULL;
 
     FILE *fp = fopen(filename, "r");
-    if (!fp) return false;
+    if (!fp) return NULL;
+
+    char line[512];
+    size_t terrain_count = 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *comment = strchr(line, '#');
+        if (comment) *comment = '\0';
+
+        char *p = trim(line);
+        if (*p == '\0') continue;
+        if (strncasecmp(p, "terrain", 7) == 0) continue;
+
+        ++terrain_count;
+    }
+
+    if (terrain_count == 0) {
+        fclose(fp);
+        return NULL;
+    }
+
+    KernelParametersMapping *mapping = calloc(1, sizeof(*mapping));
+    if (!mapping) {
+        fclose(fp);
+        return NULL;
+    }
+
+    mapping->terrain_count = terrain_count;
+    mapping->has_barrier = false;
+    mapping->kind = KPM_KIND_PARAMETERS;
+
+    mapping->terrain_values = calloc(terrain_count, sizeof(*mapping->terrain_values));
+    mapping->set = calloc(terrain_count, sizeof(*mapping->set));
+    mapping->barrier = calloc(terrain_count, sizeof(*mapping->barrier));
+    mapping->unmapped = calloc(terrain_count, sizeof(*mapping->unmapped));
+    mapping->transition_weights = calloc(terrain_count, sizeof(*mapping->transition_weights));
+    mapping->data.parameters = calloc(terrain_count, sizeof(*mapping->data.parameters));
+
+    if (!mapping->terrain_values ||
+        !mapping->set ||
+        !mapping->barrier ||
+        !mapping->unmapped ||
+        !mapping->transition_weights ||
+        !mapping->data.parameters) {
+        free(mapping->terrain_values);
+        free(mapping->set);
+        free(mapping->barrier);
+        free(mapping->unmapped);
+        free(mapping->transition_weights);
+        free(mapping->data.parameters);
+        free(mapping);
+        fclose(fp);
+        return NULL;
+    }
+
+    rewind(fp);
 
     bool ok = true;
-    char line[512];
+    size_t index = 0;
+
     while (ok && fgets(line, sizeof(line), fp)) {
         char *comment = strchr(line, '#');
         if (comment) *comment = '\0';
@@ -247,66 +303,105 @@ bool kernel_mapping_load_csv(KernelParametersMapping *mapping, const char *filen
         char *fields[10];
         size_t n = 0;
         char *save = NULL;
+
         for (char *token = strtok_r(p, ",", &save);
              token && n < 10;
              token = strtok_r(NULL, ",", &save)) {
             fields[n++] = trim(token);
         }
-        if (n != 10) {
+
+        if (n != 10 || strtok_r(NULL, ",", &save) != NULL) {
             ok = false;
             break;
         }
 
         char *end = NULL;
+
         const int terrain = (int) strtol(fields[0], &end, 10);
         if (*end != '\0') {
             ok = false;
             break;
         }
 
-        const int index = terrain_to_mapping_index(mapping, terrain);
-        if (index < 0) continue;
-
         bool barrier = false;
         bool unmapped = false;
-        if (!bool_value(fields[8], &barrier) || !bool_value(fields[9], &unmapped)) {
+
+        if (!bool_value(fields[8], &barrier) ||
+            !bool_value(fields[9], &unmapped)) {
             ok = false;
             break;
         }
 
         KernelParameters params;
+
+        end = NULL;
         params.is_brownian = strtol(fields[1], &end, 10) != 0;
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.S = strtol(fields[2], &end, 10);
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.D = (ssize_t) strtol(fields[3], &end, 10);
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.sigma_length = strtof(fields[4], &end);
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.sigma_angle = strtof(fields[5], &end);
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.bias_x = (ssize_t) strtol(fields[6], &end, 10);
         if (*end != '\0') ok = false;
+
+        end = NULL;
         params.bias_y = (ssize_t) strtol(fields[7], &end, 10);
         if (*end != '\0') ok = false;
+
         if (!ok || !valid_params(&params)) {
             ok = false;
             break;
         }
 
+        mapping->terrain_values[index] = terrain;
         mapping->unmapped[index] = unmapped;
         mapping->barrier[index] = barrier;
         mapping->has_barrier = mapping->has_barrier || barrier;
         mapping->data.parameters[index] = params;
         mapping->set[index] = true;
+        mapping->transition_weights[index] = 1.0;
+
+        ++index;
     }
 
     fclose(fp);
 
-    for (size_t i = 0; ok && i < mapping->terrain_count; ++i) {
-        if (!mapping->unmapped[i] && !mapping->set[i]) ok = false;
+    if (index != terrain_count) {
+        ok = false;
     }
-    return ok;
+
+    for (size_t i = 0; ok && i < mapping->terrain_count; ++i) {
+        if (!mapping->unmapped[i] && !mapping->set[i]) {
+            ok = false;
+        }
+    }
+
+    if (!ok) {
+        free(mapping->terrain_values);
+        free(mapping->set);
+        free(mapping->barrier);
+        free(mapping->unmapped);
+        free(mapping->transition_weights);
+        free(mapping->data.parameters);
+        free(mapping);
+        return NULL;
+    }
+
+    return mapping;
 }
 
 void kernel_mapping_free(KernelParametersMapping *mapping) {

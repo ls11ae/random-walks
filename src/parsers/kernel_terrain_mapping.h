@@ -6,11 +6,13 @@
 #ifdef __cplusplus
 extern "C" {
 
+
+
 #endif
 
 KernelParametersMapping *kernel_mapping_new(const TerrainMap *terrain, KernelMapKind kind);
 
-bool kernel_mapping_load_csv(KernelParametersMapping *mapping, const char *filename);
+KernelParametersMapping *kernel_mapping_load_csv(const char *filename);
 
 bool set_terrain_params(KernelParametersMapping *mapping, int terrain, const KernelParameters *params);
 

@@ -72,7 +72,7 @@ namespace {
         return ok;
     }
 
-    bool load_mapping_config(KernelParametersMapping *mapping) {
+    bool load_mapping_config() {
         const char *paths[] = {
             "resources/kernel_mappings/mesa_mixed_terrestrial.csv",
             "../resources/kernel_mappings/mesa_mixed_terrestrial.csv",
@@ -80,7 +80,7 @@ namespace {
         };
 
         for (const char *path: paths) {
-            if (kernel_mapping_load_csv(mapping, path)) {
+            if (kernel_mapping_load_csv(path)) {
                 std::printf("Loaded mapping config: %s\n", path);
                 return true;
             }
@@ -92,7 +92,7 @@ namespace {
         KernelParametersMapping *mapping = kernel_mapping_new(terrain, KPM_KIND_PARAMETERS);
         if (!mapping) return nullptr;
 
-        if (!load_mapping_config(mapping)) {
+        if (!load_mapping_config()) {
             kernel_mapping_free(mapping);
             return nullptr;
         }
@@ -113,7 +113,7 @@ namespace {
                                              const size_t step_count) {
         if (!context || !steps || step_count < 2) return nullptr;
 
-        const size_t total_length = (size_t) kT + (step_count - 2) * (size_t) (kT - 1);
+        const size_t total_length = static_cast<size_t>(kT) + (step_count - 2) * (size_t) (kT - 1);
         Point2DArray *full_walk = point_2d_array_new_empty(total_length);
         if (!full_walk) return nullptr;
 
@@ -176,8 +176,10 @@ int main(int argc, char **argv) {
     const char *output_path = argc > 1 ? argv[1] : kOutputPath;
     const size_t step_count = sizeof(kSteps) / sizeof(kSteps[0]);
 
+    auto mapping = kernel_mapping_load_csv("../../resources/kernel_mappings/mesa_mixed_terrestrial.csv");
+
+
     TerrainMap *terrain = load_cropped_terrain();
-    KernelParametersMapping *mapping = create_requested_mapping(terrain);
     if (!terrain || !mapping) {
         std::fprintf(stderr, "Failed to create terrain or mapping\n");
         terrain_map_free(terrain);
