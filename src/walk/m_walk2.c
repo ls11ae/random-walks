@@ -104,6 +104,7 @@ Tensor **m_walk2(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map
 				}
 			}
 		}
+		tensor_normalize(DP_mat[t]);
 	}
 
 	return DP_mat;

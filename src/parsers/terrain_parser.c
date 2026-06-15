@@ -61,7 +61,7 @@ TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const
     TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
     terrain_map->height = height;
     terrain_map->width = width;
-    terrain_map->data = malloc(height * sizeof(int));
+    terrain_map->data = malloc(height * sizeof(int *));
     for (int i = 0; i < height; i++) {
         terrain_map->data[i] = malloc(width * sizeof(int));
         for (int j = 0; j < width; j++) {
