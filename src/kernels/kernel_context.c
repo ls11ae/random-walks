@@ -135,3 +135,15 @@ int context_forbids_point(const KernelContext *context, const ssize_t x, const s
     return context->reachability_mode == REACHABILITY_HARD &&
            is_barrier_terrain(terrain_at(x, y, context->terrain), context->mapping);
 }
+
+const KernelsMap3D *context_kernels_map(const KernelContext *context, int *owned) {
+    *owned = 0;
+    if (!context) return NULL;
+    if (context->mode == KERNEL_POOL) {
+        return context->kernels_map;
+    }
+
+    KernelsMap3D *map = tensor_map_terrain(context->terrain, context->mapping, context->reachability_mode);
+    *owned = 1;
+    return map;
+}

@@ -9,7 +9,7 @@
 #include "parsers/move_bank_parser.h"
 #include "parsers/terrain_parser.h"
 #include "parsers/walk_json.h"
-#include "walk/m_walk.h"
+#include "walk/m_walker.h"
 
 namespace {
     constexpr unsigned int kSeed = 42;

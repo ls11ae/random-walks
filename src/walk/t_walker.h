@@ -3,29 +3,10 @@
 
 #ifdef __cplusplus
 extern "C" {
-
-
-
 #endif
 
-#include "b_walk.h"
+#include "b_walker.h"
 #include <stdlib.h>
-
-
-Tensor **m_walk(const KernelContext *kernels_context, ssize_t T, ssize_t start_x,
-                ssize_t start_y);
-
-Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, ssize_t T,
-                               const KernelContext *kernels_context,
-                               ssize_t end_x, ssize_t end_y);
-
-Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
-                                        const KernelContext *kernels_context, ssize_t end_x, ssize_t end_y);
-
-Tensor **mixed_visit(KernelContext *kernel_context, ssize_t T,
-                     ssize_t start_x,
-                     ssize_t start_y, const bool *target_area);
-
 
 //************************************** TIME WALKS **************************************
 
@@ -49,10 +30,6 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  ssize_t start_x,
                                  ssize_t start_y);
 
-Point2DArray *state_dep_walk(ssize_t T, const int *timeline, const TensorSet *tensor_set,
-                             KernelParametersMapping *mapping,
-                             const TerrainMap *terrain, ssize_t start_x, ssize_t start_y, ssize_t end_x, ssize_t end_y);
-
 
 Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const TerrainMap *terrain,
                                           const KernelParamsYXT *tensor_set,
@@ -60,11 +37,11 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, ssize_t T, const T
                                           KernelParametersMapping *mapping,
                                           ssize_t end_x, ssize_t end_y);
 
-Point2DArray *single_state_walk(ssize_t T, KernelContext *kernel_context,
-                                ssize_t start_x,
-                                ssize_t start_y,
-                                ssize_t end_x,
-                                ssize_t end_y);
+
+Point2DArray *state_dep_walk(ssize_t T, const int *timeline, const TensorSet *tensor_set,
+                             KernelParametersMapping *mapping,
+                             const TerrainMap *terrain, ssize_t start_x, ssize_t start_y, ssize_t end_x, ssize_t end_y);
+
 
 #ifdef __cplusplus
 }

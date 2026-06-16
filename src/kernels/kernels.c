@@ -14,7 +14,7 @@
 #include "parsers/constants.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/move_bank_parser.h"
-#include "walk/c_walk.h"
+#include "walk/c_walker.h"
 
 
 Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
@@ -47,27 +47,6 @@ Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigm
 
 	for (int i = 0; i < matrix->len; ++i) {
 		matrix->points[i] /= sum;
-	}
-
-	return matrix;
-}
-
-Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
-                                  ssize_t y_offset) {
-	Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, x_offset, y_offset);
-	if (x_offset != 0 || y_offset != 0) {
-		// Mische Gaußverteilung mit Gleichverteilung
-		const double alpha = 0.001;
-		const double uniform_value = 1.0 / (double) (width * height);
-
-		for (int i = 0; i < matrix->len; ++i) {
-			matrix->points[i] = (1.0 - alpha) * matrix->points[i] + alpha * uniform_value;
-		}
-
-		//  normalisieren
-		double sum = 0.0;
-		for (int i = 0; i < matrix->len; ++i) sum += matrix->points[i];
-		for (int i = 0; i < matrix->len; ++i) matrix->points[i] /= sum;
 	}
 
 	return matrix;
@@ -378,8 +357,7 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value,
 	if (p->is_brownian) {
 		const double sigma_max = p->S / 3.0;
 		const double sigma = sigma_max * sqrt(p->sigma_length);
-		Matrix *kernel;
-		kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) p->bias_x, p->bias_y);
+		Matrix *kernel = matrix_generator_gaussian_pdf(M, M, sigma, p->bias_x, p->bias_y);
 
 		result = malloc(sizeof(Tensor));
 		result->data = malloc(sizeof(Matrix *));

@@ -26,6 +26,7 @@ foreach (test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}
             PRIVATE
             ${PROJECT_NAME}
+            OpenMP::OpenMP_CXX
             GTest::gtest_main
     )
     if (ENABLE_CUDA)

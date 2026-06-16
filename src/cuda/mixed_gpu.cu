@@ -14,7 +14,7 @@
 #include "math/math_utils.h"
 #include "parsers/constants.h"
 #include "parsers/terrain_parser.h"
-#include "walk/m_walk.h"
+#include "walk/m_walker.h"
 
 // INDEX macros (D major)
 #define INDEX3D(d, y, x, H, W) ( (d) * (H) * (W) + (y) * (W) + (x) )

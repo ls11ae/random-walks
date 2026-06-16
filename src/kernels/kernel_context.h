@@ -5,6 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 
+
 #endif
 
 enum ComputationMode {
@@ -39,6 +40,7 @@ KernelContext *kernel_context_serialization(TerrainMap *terrain,
 
 int context_forbids_point(const KernelContext *context, const ssize_t x, const ssize_t y);
 
+const KernelsMap3D *context_kernels_map(const KernelContext *context, int *owned);
 
 void kernel_context_free(KernelContext *context);
 

@@ -20,7 +20,7 @@
 #include <stdarg.h>
 
 #include "math/math_utils.h"
-#include "walk/c_walk.h"
+#include "walk/c_walker.h"
 
 Tensor *tensor_new(size_t width, size_t height, size_t depth) {
     Tensor *t = (Tensor *) malloc(sizeof(Tensor));

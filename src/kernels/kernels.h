@@ -56,25 +56,6 @@ void rotate_kernel(Matrix *kernel, double deg);
 Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
                                       ssize_t y_offset);
 
-/**
- * @brief Generate a Gaussian PDF matrix
- * 
- * Bivariate Normal Distribution used for Brownian motion kernels
- * Center of the distribution is at (x_offset, y_offset)
- * Used for offsets that are not (0,0), this function guarantees non zero values for all matrix entries
- * To this end it mixes the Gaussian PDF with the offsets with a uniform distribution scaled by alpha
- * This ensures that all directions have a non-zero probability of being chosen, making it a more robust kernel for Biased Random Walks
- * 
- * @param width The width of the matrix
- * @param height The height of the matrix
- * @param sigma The standard deviation of the Gaussian
- * @param scale The scale factor for the Gaussian
- * @param x_offset The x-offset for the Gaussian
- * @param y_offset The y-offset for the Gaussian
- * @return A pointer to the generated Matrix
- */
-Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
-                                  ssize_t y_offset);
 
 /**
  * @brief Get Gaussian parameters based on diffusity and terrain value
