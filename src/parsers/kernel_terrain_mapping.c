@@ -401,6 +401,8 @@ KernelParametersMapping *kernel_mapping_load_csv(const char *filename) {
         return NULL;
     }
 
+    for (size_t i = 0; i < mapping->terrain_count * mapping->terrain_count; ++i) mapping->transition_weights[i] = 1.0;
+
     return mapping;
 }
 
