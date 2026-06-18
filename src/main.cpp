@@ -188,7 +188,6 @@ int main(int argc, char **argv) {
         std::printf("Unmapped: %d\n", mapping->unmapped[i]);
         std::printf("----------------------------------------\n");
     }
-    exit(0);
     TerrainMap *terrain = load_cropped_terrain();
     if (!terrain || !mapping) {
         std::fprintf(stderr, "Failed to create terrain or mapping\n");

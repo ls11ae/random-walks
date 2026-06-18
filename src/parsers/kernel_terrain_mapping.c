@@ -267,7 +267,7 @@ KernelParametersMapping *kernel_mapping_load_csv(const char *filename) {
     mapping->set = calloc(terrain_count, sizeof(*mapping->set));
     mapping->barrier = calloc(terrain_count, sizeof(*mapping->barrier));
     mapping->unmapped = calloc(terrain_count, sizeof(*mapping->unmapped));
-    mapping->transition_weights = calloc(terrain_count, sizeof(*mapping->transition_weights));
+    mapping->transition_weights = calloc(terrain_count * terrain_count, sizeof(double));
     mapping->data.parameters = calloc(terrain_count, sizeof(*mapping->data.parameters));
 
     if (!mapping->terrain_values ||
@@ -401,7 +401,8 @@ KernelParametersMapping *kernel_mapping_load_csv(const char *filename) {
         return NULL;
     }
 
-    for (size_t i = 0; i < mapping->terrain_count * mapping->terrain_count; ++i) mapping->transition_weights[i] = 1.0;
+    for (size_t i = 0; i < mapping->terrain_count * mapping->terrain_count; ++i)
+        mapping->transition_weights[i] = 1.0;
 
     return mapping;
 }
