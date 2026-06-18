@@ -177,8 +177,18 @@ int main(int argc, char **argv) {
     const size_t step_count = sizeof(kSteps) / sizeof(kSteps[0]);
 
     auto mapping = kernel_mapping_load_csv("../../resources/kernel_mappings/mesa_mixed_terrestrial.csv");
+    set_terrain_barrier(mapping, 50, true);
 
-
+    size_t ts = mapping->terrain_count;
+    std::printf("Has barrier: %d\n", mapping->has_barrier);
+    for (int i = 0; i < ts; ++i) {
+        std::printf("Terrain %i: \n", mapping->terrain_values[i]);
+        std::printf("Barrier: %d\n", mapping->barrier[i]);
+        std::printf("Set: %d\n", mapping->set[i]);
+        std::printf("Unmapped: %d\n", mapping->unmapped[i]);
+        std::printf("----------------------------------------\n");
+    }
+    exit(0);
     TerrainMap *terrain = load_cropped_terrain();
     if (!terrain || !mapping) {
         std::fprintf(stderr, "Failed to create terrain or mapping\n");

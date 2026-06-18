@@ -100,8 +100,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                 } else {
                     const ssize_t M = 2 * tensor_set->data[y][x]->S + 1;
                     soft_reach_mat = mode == REACHABILITY_SOFT
-                                         ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
-                                         : get_reachability_kernel(x, y, M, terrain, mapping);
+                                         ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                         : get_hard_reachability_mask(x, y, M, terrain, mapping);
                     uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
                     uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
                     uint64_t combined = hash_combine(h_params, h_reach);
@@ -140,8 +140,8 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                     apply_terrain_bias(x, y, terrain, arr, mapping);
                 } else {
                     soft_reach_mat = mode == REACHABILITY_SOFT
-                                         ? get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping)
-                                         : get_reachability_kernel(x, y, arr->data[0]->width, terrain, mapping);
+                                         ? get_relaxed_reachability_mask(x, y, arr->data[0]->width, terrain, mapping)
+                                         : get_hard_reachability_mask(x, y, arr->data[0]->width, terrain, mapping);
                     for (ssize_t d = 0; d < arr->len; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
                         matrix_normalize_L1(arr->data[d]);
@@ -218,8 +218,8 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
                 cache_insert(cache, hash, arr, true, arr->len);
             } else {
                 Matrix *soft_reach_mat = soft_reachability
-                                             ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
-                                             : get_reachability_kernel(x, y, M, terrain, mapping);
+                                             ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                             : get_hard_reachability_mask(x, y, M, terrain, mapping);
                 uint64_t combined = compute_matrix_hash(soft_reach_mat);
 
                 // b) Cache‐Lookup
@@ -311,8 +311,8 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
                 ssize_t D = current_parameters->D;
                 const ssize_t M = 2 * current_parameters->S + 1;
                 reach_mat = mode == REACHABILITY_SOFT
-                                ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
-                                : get_reachability_kernel(x, y, M, terrain, mapping);
+                                ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                : get_hard_reachability_mask(x, y, M, terrain, mapping);
                 arr = generate_kernel_from_set(current_parameters, (int) terrain_val, correlated_kernels, true);
 
                 for (ssize_t d = 0; d < D; d++) {
@@ -325,8 +325,8 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
                 if (index < 0) continue;
                 arr = tensor_clone(mapping->data.kernels[index]); // deep copy!
                 reach_mat = mode == REACHABILITY_SOFT
-                                ? get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping)
-                                : get_reachability_kernel(x, y, arr->data[0]->width, terrain, mapping);
+                                ? get_relaxed_reachability_mask(x, y, arr->data[0]->width, terrain, mapping)
+                                : get_hard_reachability_mask(x, y, arr->data[0]->width, terrain, mapping);
 
                 for (ssize_t d = 0; d < arr->len; d++) {
                     matrix_mul_inplace(arr->data[d], reach_mat);

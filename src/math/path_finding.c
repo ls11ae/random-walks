@@ -7,7 +7,8 @@
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/terrain_parser.h" // Bresenham's line algorithm
 
-static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t x0, ssize_t y0,
+static int is_path_clear(const TerrainMap *terrain, const KernelParametersMapping *mapping, const ssize_t x0,
+                         ssize_t y0,
                          ssize_t x1, ssize_t y1) {
     ssize_t dx = abs(x1 - x0);
     ssize_t sx = x0 < x1 ? 1 : -1;
@@ -40,8 +41,9 @@ static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *map
     return 1;
 }
 
-Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t kernel_size, const TerrainMap *terrain,
-                                KernelParametersMapping *mapping) {
+Matrix *get_hard_reachability_mask(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+                                   const TerrainMap *terrain,
+                                   KernelParametersMapping *mapping) {
     Matrix *result = matrix_new(kernel_size, kernel_size);
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height) { return result; }
     if (is_barrier_terrain(terrain_at(x, y, terrain), mapping)) { return result; }
@@ -77,7 +79,7 @@ Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
             if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height) { continue; }
             if (is_barrier_terrain(terrain_at(new_x, new_y, terrain), mapping)) { continue; }
             if (is_path_clear(terrain, mapping, x, y, new_x, new_y)) {
-                matrix_set(result, (ssize_t) i, (ssize_t) j, 1.0);
+                matrix_set(result, i, j, 1.0);
             }
         }
     }
@@ -104,7 +106,10 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     ssize_t prev_y = y0;
     double factor = 1.0;
     int first = 1;
-
+#define BARRIER_TO_BARRIER_FACTOR 1.0
+#define BARRIER_TO_LAND_FACTOR 1.5
+#define LAND_TO_BARRIER_FACTOR 0.75
+#define LAND_TO_LAND_FACTOR 1.0
     while (1) {
         if (!first) {
             // Check boundaries
@@ -117,7 +122,18 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
             const int prev_terrain = terrain_at(prev_x, prev_y, terrain);
             const int curr_terrain = terrain_at(current_x, current_y, terrain);
 
-            factor *= terrain_weight(mapping, prev_terrain, curr_terrain);
+            const double transition_prob = terrain_weight(mapping, prev_terrain, curr_terrain);
+            const bool is_prev_barrier = is_barrier_terrain(prev_terrain, mapping);
+            const bool is_curr_barrier = is_barrier_terrain(curr_terrain, mapping);
+            if (is_prev_barrier || is_curr_barrier) {
+                if (is_prev_barrier) {
+                    factor *= is_curr_barrier ? BARRIER_TO_BARRIER_FACTOR : BARRIER_TO_LAND_FACTOR;
+                } else {
+                    factor *= is_curr_barrier ? LAND_TO_BARRIER_FACTOR : LAND_TO_LAND_FACTOR;
+                }
+            } else {
+                factor *= transition_prob;
+            }
 
             prev_x = current_x;
             prev_y = current_y;
@@ -127,7 +143,7 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
 
         if (current_x == x1 && current_y == y1) break;
 
-        ssize_t e2 = 2 * error;
+        const ssize_t e2 = 2 * error;
         if (e2 >= dy) {
             if (current_x == x1) break;
             error += dy;
@@ -143,16 +159,18 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     return factor;
 }
 
-Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
-                                     const TerrainMap *terrain, KernelParametersMapping *mapping) {
+Matrix *get_relaxed_reachability_mask(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+                                      const TerrainMap *terrain, KernelParametersMapping *mapping) {
     Matrix *result = matrix_new(kernel_size, kernel_size);
     matrix_fill(result, 0.0);
 
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height)
         return result;
 
+#define REACHABILITY_NERF 0.65
+
     const ssize_t kernel_center = kernel_size / 2;
-    int center_terrain = terrain_at(x, y, terrain);
+    const int center_terrain = terrain_at(x, y, terrain);
 
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
@@ -166,6 +184,10 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
                 continue;
 
             double factor = get_path_factor(terrain, mapping, x, y, new_x, new_y);
+            const int target_terrain = terrain_at(new_x, new_y, terrain);
+            if (is_barrier_terrain(target_terrain, mapping)) {
+                factor *= REACHABILITY_NERF;
+            }
             matrix_set(result, i, j, factor);
         }
     }

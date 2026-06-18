@@ -26,8 +26,8 @@ Tensor *get_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, Kernel
     } else {
         const ssize_t M = 2 * params->S + 1;
         Matrix *reach_mat = strict_reachability
-                                ? get_reachability_kernel(x, y, M, terrain_map, mapping)
-                                : get_reachability_kernel_soft(x, y, M, terrain_map, mapping);
+                                ? get_hard_reachability_mask(x, y, M, terrain_map, mapping)
+                                : get_relaxed_reachability_mask(x, y, M, terrain_map, mapping);
         for (ssize_t d = 0; d < (ssize_t) tensor_at_t->len; d++) {
             matrix_mul_inplace(tensor_at_t->data[d], reach_mat);
             matrix_normalize_L1(tensor_at_t->data[d]);
@@ -75,8 +75,8 @@ Tensor *get_terrain_kernel(const KernelContext *context, const ssize_t x, const 
     } else {
         const ssize_t M = 2 * parameters->S + 1;
         Matrix *reach_mat = context->reachability_mode == REACHABILITY_SOFT
-                                ? get_reachability_kernel_soft(x, y, M, context->terrain, context->mapping)
-                                : get_reachability_kernel(x, y, M, context->terrain, context->mapping);
+                                ? get_relaxed_reachability_mask(x, y, M, context->terrain, context->mapping)
+                                : get_hard_reachability_mask(x, y, M, context->terrain, context->mapping);
         result = generate_kernel_from_set(parameters, terrain_val, kernels, true);
         for (ssize_t d = 0; d < (ssize_t) result->len; d++) {
             matrix_mul_inplace(result->data[d], reach_mat);

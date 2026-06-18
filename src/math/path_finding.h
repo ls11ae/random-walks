@@ -32,7 +32,7 @@ extern "C" {
 * @param terrain The terrain map.
 * @param mapping The kernel parameters mapping, defining the terrain dependant behaviour of the kernel.
  */
-Matrix *get_reachability_kernel(ssize_t x, ssize_t y, ssize_t kernel_size, const TerrainMap *terrain,
+Matrix *get_hard_reachability_mask(ssize_t x, ssize_t y, ssize_t kernel_size, const TerrainMap *terrain,
                                 KernelParametersMapping *mapping);
 
 
@@ -44,7 +44,7 @@ Matrix *get_reachability_kernel(ssize_t x, ssize_t y, ssize_t kernel_size, const
 * @param terrain The terrain map.
 * @param mapping The kernel parameters mapping, defining the terrain dependant behaviour of the kernel.
  */
-Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+Matrix *get_relaxed_reachability_mask(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
                                      const TerrainMap *terrain, KernelParametersMapping *mapping);
 
 /** @brief Modifies a set of directional kernels by applying weights based on the proximity of non-barrier terrain in each direction.

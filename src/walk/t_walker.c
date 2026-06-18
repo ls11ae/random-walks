@@ -37,8 +37,8 @@ static Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t,
 		} else {
 			const ssize_t M = 2 * params->S + 1;
 			soft_reach_mat = strict_reachability
-				                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
-				                 : get_reachability_kernel_soft(x, y, M, terrain_map, mapping);
+				                 ? get_hard_reachability_mask(x, y, M, terrain_map, mapping)
+				                 : get_relaxed_reachability_mask(x, y, M, terrain_map, mapping);
 			for (ssize_t d = 0; d < D; d++) {
 				matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
 				matrix_normalize_L1(tensor_at_t->data[d]);
@@ -53,8 +53,8 @@ static Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t,
 		} else {
 			const ssize_t M = tensor_at_t->data[0]->width;
 			soft_reach_mat = strict_reachability
-				                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
-				                 : get_reachability_kernel_soft(
+				                 ? get_hard_reachability_mask(x, y, M, terrain_map, mapping)
+				                 : get_relaxed_reachability_mask(
 					                 x, y, M, terrain_map, mapping);
 			for (ssize_t d = 0; d < tensor_at_t->len; d++) {
 				matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
@@ -359,8 +359,8 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 				if (on_barrier) {
 					apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 				} else {
-					soft_reach_mat = get_reachability_kernel_soft(x, y, tensor_at_t->data[0]->width,
-					                                              terrain_map, mapping);
+					soft_reach_mat = get_relaxed_reachability_mask(x, y, tensor_at_t->data[0]->width,
+					                                               terrain_map, mapping);
 					assert(soft_reach_mat->len == tensor_at_t->data[0]->len);
 					for (ssize_t d = 0; d < D; d++) {
 						matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
