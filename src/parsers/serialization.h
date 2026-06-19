@@ -46,7 +46,14 @@ size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km);
 
 uint64_t serialize_array(FILE *fp, const float *values, uint64_t size);
 
+uint64_t serialize_kernel_params(FILE *fp, const KernelParameters *params);
+
+uint64_t serialize_kernel_mappings(FILE *fp, const KernelParametersMapping *mapping);
+
 // Deserialization functions
+
+KernelParametersMapping *deserialize_kernel_mappings(FILE *fp);
+
 Point2D *deserialize_point2d(FILE *fp);
 
 Matrix *deserialize_matrix(FILE *fp);

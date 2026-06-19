@@ -127,9 +127,95 @@ size_t serialize_tensor(FILE *fp, const Tensor *t) {
             }
         }
     }
-
-    rewind(fp);
     return bytes_written;
+}
+
+uint64_t serialize_kernel_params(FILE *fp, const KernelParameters *params) {
+    uint64_t bytes_written = 0;
+    bytes_written += fwrite(&params->is_brownian, sizeof(bool), 1, fp);
+    bytes_written += fwrite(&params->S, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->D, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->sigma_length, sizeof(float), 1, fp);
+    bytes_written += fwrite(&params->sigma_angle, sizeof(float), 1, fp);
+    bytes_written += fwrite(&params->bias_x, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->bias_y, sizeof(ssize_t), 1, fp);
+    return bytes_written;
+}
+
+KernelParameters *deserialize_kernel_params(FILE *fp) {
+    KernelParameters *params = malloc(sizeof(KernelParameters));
+    fread(&params->is_brownian, sizeof(bool), 1, fp);
+    fread(&params->S, sizeof(ssize_t), 1, fp);
+    fread(&params->D, sizeof(ssize_t), 1, fp);
+    fread(&params->sigma_length, sizeof(float), 1, fp);
+    fread(&params->sigma_angle, sizeof(float), 1, fp);
+    fread(&params->bias_x, sizeof(ssize_t), 1, fp);
+    fread(&params->bias_y, sizeof(ssize_t), 1, fp);
+
+    return params;
+}
+
+uint64_t serialize_kernel_mappings(FILE *fp, const KernelParametersMapping *mapping) {
+    uint64_t bytes_written = 0;
+    const size_t terrain_count = mapping->terrain_count;
+    bytes_written += fwrite(&mapping->terrain_count, sizeof(size_t), 1, fp);
+    bytes_written += fwrite(mapping->terrain_values, sizeof(int), terrain_count, fp);
+    bytes_written += fwrite(mapping->set, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(mapping->barrier, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(mapping->unmapped, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(&mapping->has_barrier, sizeof(bool), 1, fp);
+    bytes_written += fwrite(mapping->transition_weights, sizeof(double), terrain_count * terrain_count, fp);
+    bytes_written += fwrite(&mapping->kind, sizeof(KernelMapKind), 1, fp);
+    for (int i = 0; i < terrain_count; ++i) {
+        if (mapping->kind == KPM_KIND_PARAMETERS) {
+            bytes_written += serialize_kernel_params(fp, &mapping->data.parameters[i]);
+        } else {
+            bytes_written += serialize_tensor(fp, mapping->data.kernels[i]);
+        }
+    }
+    return bytes_written;
+}
+
+KernelParametersMapping *deserialize_kernel_mappings(FILE *fp) {
+    KernelParametersMapping *mapping = malloc(sizeof(KernelParametersMapping));
+    if (!mapping) handle_error("Failed to allocate KernelParametersMapping");
+
+    size_t terrain_count = 0;
+    if (fread(&terrain_count, sizeof(size_t), 1, fp) != 1) {
+        free(mapping);
+        handle_error("Failed to read terrain_count");
+    }
+
+    mapping->terrain_count = terrain_count;
+    mapping->terrain_values = malloc(terrain_count * sizeof(int));
+    mapping->set = malloc(terrain_count * sizeof(bool));
+    mapping->barrier = malloc(terrain_count * sizeof(bool));
+    mapping->unmapped = malloc(terrain_count * sizeof(bool));
+    mapping->has_barrier = 0;
+    mapping->transition_weights = malloc(terrain_count * terrain_count * sizeof(double));
+
+    fread(mapping->terrain_values, sizeof(int), terrain_count, fp);
+    fread(mapping->set, sizeof(bool), terrain_count, fp);
+    fread(mapping->barrier, sizeof(bool), terrain_count, fp);
+    fread(mapping->unmapped, sizeof(bool), terrain_count, fp);
+    fread(&mapping->has_barrier, sizeof(bool), 1, fp);
+    fread(mapping->transition_weights, sizeof(double), terrain_count * terrain_count, fp);
+    fread(&mapping->kind, sizeof(KernelMapKind), 1, fp);
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        mapping->data.parameters = malloc(terrain_count * sizeof(KernelParameters));
+        for (int i = 0; i < terrain_count; ++i) {
+            KernelParameters *p = deserialize_kernel_params(fp);
+            mapping->data.parameters[i] = *p;
+            free(p);
+        }
+    } else {
+        mapping->data.kernels = malloc(terrain_count * sizeof(Tensor *));
+        for (int i = 0; i < terrain_count; ++i) {
+            mapping->data.kernels[i] = deserialize_tensor(fp);
+        }
+    }
+    rewind(fp);
+    return mapping;
 }
 
 

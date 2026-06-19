@@ -224,8 +224,8 @@ typedef enum {
 } KernelMapKind;
 
 typedef struct {
-    int *terrain_values;
     size_t terrain_count;
+    int *terrain_values;
 
     bool *set;
     bool *barrier;
