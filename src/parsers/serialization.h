@@ -48,11 +48,11 @@ uint64_t serialize_array(FILE *fp, const float *values, uint64_t size);
 
 uint64_t serialize_kernel_params(FILE *fp, const KernelParameters *params);
 
-uint64_t serialize_kernel_mappings(FILE *fp, const KernelParametersMapping *mapping);
+uint64_t serialize_kernel_mappings(const char *path, const KernelParametersMapping *mapping);
 
 // Deserialization functions
 
-KernelParametersMapping *deserialize_kernel_mappings(FILE *fp);
+KernelParametersMapping *deserialize_kernel_mappings(const char *path);
 
 Point2D *deserialize_point2d(FILE *fp);
 

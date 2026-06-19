@@ -155,7 +155,8 @@ KernelParameters *deserialize_kernel_params(FILE *fp) {
     return params;
 }
 
-uint64_t serialize_kernel_mappings(FILE *fp, const KernelParametersMapping *mapping) {
+uint64_t serialize_kernel_mappings(const char *path, const KernelParametersMapping *mapping) {
+    FILE *fp = fopen(path, "wb");
     uint64_t bytes_written = 0;
     const size_t terrain_count = mapping->terrain_count;
     bytes_written += fwrite(&mapping->terrain_count, sizeof(size_t), 1, fp);
@@ -173,10 +174,13 @@ uint64_t serialize_kernel_mappings(FILE *fp, const KernelParametersMapping *mapp
             bytes_written += serialize_tensor(fp, mapping->data.kernels[i]);
         }
     }
+    fclose(fp);
     return bytes_written;
 }
 
-KernelParametersMapping *deserialize_kernel_mappings(FILE *fp) {
+KernelParametersMapping *deserialize_kernel_mappings(const char *path) {
+    FILE *fp = fopen(path, "rb");
+
     KernelParametersMapping *mapping = malloc(sizeof(KernelParametersMapping));
     if (!mapping) handle_error("Failed to allocate KernelParametersMapping");
 
