@@ -178,6 +178,41 @@ uint64_t serialize_kernel_mappings(const char *path, const KernelParametersMappi
     return bytes_written;
 }
 
+uint64_t serialize_terrain(const char *path, const TerrainMap *terrain) {
+    FILE *fp = fopen(path, "wb");
+    uint64_t bytes_written = 0;
+    bytes_written += fwrite(&terrain->width, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&terrain->height, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(terrain->data, sizeof(int), terrain->width * terrain->height, fp);
+    fclose(fp);
+    return bytes_written;
+}
+
+TerrainMap *deserialize_terrain(const char *path) {
+    FILE *fp = fopen(path, "rb");
+    TerrainMap *terrain = malloc(sizeof(TerrainMap));
+    if (!terrain) handle_error("Failed to allocate TerrainMap");
+    if (fread(&terrain->width, sizeof(ssize_t), 1, fp) != 1) {
+        free(terrain);
+        handle_error("Failed to read terrain width");
+    }
+    if (fread(&terrain->height, sizeof(ssize_t), 1, fp) != 1) {
+        free(terrain);
+        handle_error("Failed to read terrain height");
+    }
+
+    terrain->data = malloc(terrain->width * terrain->height * sizeof(int));
+    if (!terrain->data) {
+        free(terrain);
+        handle_error("Failed to allocate terrain data");
+    }
+    if (fread(terrain->data, sizeof(int), terrain->width * terrain->height, fp) != terrain->width * terrain->height) {
+        free(terrain->data);
+    }
+    fclose(fp);
+    return terrain;
+}
+
 KernelParametersMapping *deserialize_kernel_mappings(const char *path) {
     FILE *fp = fopen(path, "rb");
 

@@ -278,13 +278,13 @@ typedef struct {
 
 
 typedef struct {
-    TimedLocation *data;
     size_t length;
+    TimedLocation *data;
 } TimedLocationArray;
 
 typedef struct {
-    int **data;
     ssize_t width, height;
+    int **data;
 } TerrainMap;
 
 

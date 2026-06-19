@@ -50,6 +50,10 @@ uint64_t serialize_kernel_params(FILE *fp, const KernelParameters *params);
 
 uint64_t serialize_kernel_mappings(const char *path, const KernelParametersMapping *mapping);
 
+uint64_t serialize_terrain(const char *path, const TerrainMap *terrain);
+
+TerrainMap *deserialize_terrain(const char *path);
+
 // Deserialization functions
 
 KernelParametersMapping *deserialize_kernel_mappings(const char *path);
