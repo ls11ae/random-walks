@@ -183,7 +183,9 @@ uint64_t serialize_terrain(const char *path, const TerrainMap *terrain) {
     uint64_t bytes_written = 0;
     bytes_written += fwrite(&terrain->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&terrain->height, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(terrain->data, sizeof(int), terrain->width * terrain->height, fp);
+    for (int i = 0; i < terrain->height; ++i) {
+        bytes_written += fwrite(terrain->data[i], sizeof(int), terrain->width, fp);
+    }
     fclose(fp);
     return bytes_written;
 }
@@ -206,9 +208,15 @@ TerrainMap *deserialize_terrain(const char *path) {
         free(terrain);
         handle_error("Failed to allocate terrain data");
     }
-    if (fread(terrain->data, sizeof(int), terrain->width * terrain->height, fp) != terrain->width * terrain->height) {
-        free(terrain->data);
+    for (int i = 0; i < terrain->height; ++i) {
+        terrain->data[i] = malloc(terrain->width * sizeof(int));
+        if (!terrain->data[i]) {
+            free(terrain->data);
+            free(terrain);
+        }
+        fread(terrain->data[i], sizeof(int), terrain->width, fp);
     }
+
     fclose(fp);
     return terrain;
 }
