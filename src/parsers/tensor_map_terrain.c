@@ -169,12 +169,12 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
     if (!terrain || !kernel || !mapping || kernel->len == 0 || !kernel->data || !kernel->data[0]) return NULL;
 
     const bool soft_reachability = mode == REACHABILITY_SOFT;
+    if (mode == REACHABILITY_FULL) return NULL;
+    // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
 
-    bool owned = kernel->len == 1;
-    Tensor* barrier_kernel = (kernel->len == 1)  ? rotational_kernel_from_matrix(kernel->data[0], 6) : kernel;
-
+    // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
     if (!kernels_map) return NULL;
 
@@ -228,7 +228,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
             bool on_barrier = is_barrier_terrain((int) terrain_val, mapping);
             Tensor *arr = NULL;
             if (on_barrier) {
-                Tensor *candidate = tensor_clone(barrier_kernel);
+                Tensor *candidate = tensor_clone(kernel);
                 if (candidate) {
                     apply_terrain_bias(x, y, terrain, candidate, mapping);
                     const uint64_t hash = tensor_hash(candidate);
@@ -295,7 +295,6 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
     }
 
     kernels_map->cache = cache;
-    if (owned) tensor_free(barrier_kernel);
     return kernels_map;
 }
 

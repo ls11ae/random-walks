@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <ostream>
 
 #include "../../../../../usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/c++/chrono"
 #include "matrix/point2D.h"
@@ -172,11 +173,28 @@ namespace {
     }
 } // namespace
 
+#include <iostream>
+
 int main(int argc, char **argv) {
     const char *output_path = argc > 1 ? argv[1] : kOutputPath;
     const size_t step_count = sizeof(kSteps) / sizeof(kSteps[0]);
 
-    auto mapping = kernel_mapping_load_csv("../../resources/kernel_mappings/mesa_mixed_terrestrial.csv");
+    auto mapping = deserialize_kernel_mappings("../../resources/mapping_Azalea_0.bin");
+    TerrainMap *terrain = deserialize_terrain("../../resources/terrain_Azalea_0.bin");
+
+    for (int j = 0; j < terrain->height; ++j) {
+        for (int i = 0; i < terrain->width; ++i) {
+            std::cout << terrain_at(i, j, terrain) << " ";
+        }
+        std::cout << std::endl;
+    }
+    auto ccontext = kernel_context_pool(terrain, mapping, REACHABILITY_SOFT);
+    auto T = 30, S = 4;
+    auto segment_points = single_state_walk(T, ccontext, 66, 270, 58, 314);
+    point2d_array_print(segment_points);
+
+    exit(0);
+
     set_terrain_barrier(mapping, 50, true);
 
     size_t ts = mapping->terrain_count;
@@ -188,7 +206,6 @@ int main(int argc, char **argv) {
         std::printf("Unmapped: %d\n", mapping->unmapped[i]);
         std::printf("----------------------------------------\n");
     }
-    TerrainMap *terrain = load_cropped_terrain();
     if (!terrain || !mapping) {
         std::fprintf(stderr, "Failed to create terrain or mapping\n");
         terrain_map_free(terrain);
