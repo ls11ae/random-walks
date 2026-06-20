@@ -164,13 +164,16 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     return kernels_map;
 }
 
-KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, KernelParametersMapping *mapping,
+KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, KernelParametersMapping *mapping,
                                  const enum ReachabilityMode mode) {
-    if (!terrain || !kern || !mapping || kern->len == 0 || !kern->data || !kern->data[0]) return NULL;
+    if (!terrain || !kernel || !mapping || kernel->len == 0 || !kernel->data || !kernel->data[0]) return NULL;
 
     const bool soft_reachability = mode == REACHABILITY_SOFT;
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
+
+    bool owned = kernel->len == 1;
+    Tensor* barrier_kernel = (kernel->len == 1)  ? rotational_kernel_from_matrix(kernel->data[0], 6) : kernel;
 
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
     if (!kernels_map) return NULL;
@@ -201,10 +204,10 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
     }
 
     int recomputed = 0;
-    const size_t D = kern->len;
-    const ssize_t M = kern->data[0]->width;
+    const size_t D = kernel->len;
+    const ssize_t M = kernel->data[0]->width;
 
-    kernels_map->max_D = (ssize_t) kern->len;
+    kernels_map->max_D = (ssize_t) kernel->len;
     kernels_map->dir_kernels = get_dir_kernels(M, D);
     kernels_map->soft_reachability = mode;
 
@@ -218,14 +221,14 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
             }
 
             if (mode == REACHABILITY_FULL) {
-                kernels_map->kernels[y][x] = kern;
+                kernels_map->kernels[y][x] = kernel;
                 continue;
             }
 
             bool on_barrier = is_barrier_terrain((int) terrain_val, mapping);
             Tensor *arr = NULL;
             if (on_barrier) {
-                Tensor *candidate = tensor_clone(kern);
+                Tensor *candidate = tensor_clone(barrier_kernel);
                 if (candidate) {
                     apply_terrain_bias(x, y, terrain, candidate, mapping);
                     const uint64_t hash = tensor_hash(candidate);
@@ -261,7 +264,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
                     }
 
                     if (!arr) {
-                        Tensor *candidate = tensor_clone(kern);
+                        Tensor *candidate = tensor_clone(kernel);
                         if (candidate) {
                             for (ssize_t d = 0; d < (ssize_t) D; d++) {
                                 matrix_mul_inplace(candidate->data[d], soft_reach_mat);
@@ -292,6 +295,7 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, Kernel
     }
 
     kernels_map->cache = cache;
+    if (owned) tensor_free(barrier_kernel);
     return kernels_map;
 }
 

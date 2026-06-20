@@ -403,6 +403,18 @@ Matrix *kernel_from_array(const double *array, const ssize_t w, const ssize_t h)
 	return m;
 }
 
+Tensor* rotational_kernel_from_matrix(const Matrix *array, ssize_t d) {
+	Tensor *result = malloc(sizeof(Tensor));
+	result->data = malloc(sizeof(Matrix *));
+	result->len = d;
+	for (ssize_t i = 0; i < d; ++i) {
+		Matrix* current = matrix_clone(array);
+		rotate_kernel(current, (double) (i * 360.0 / (double) d));
+		result->data[i] = current;
+	}
+	return result;
+}
+
 Matrix *generate_directed_matrix(const ssize_t S, const float angle_diff, const ssize_t bias_x, const ssize_t bias_y) {
 	const ssize_t size = 2 * S + 1;
 

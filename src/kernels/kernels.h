@@ -138,6 +138,8 @@ Tensor *generate_kernel(const KernelParameters *p);
  * @return Kernel from an array
  */
 Matrix *kernel_from_array(const double *array, ssize_t w, ssize_t h);
+
+Tensor *rotational_kernel_from_matrix(const Matrix *array, ssize_t d);
 #ifdef __cplusplus
 }
 #endif
