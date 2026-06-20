@@ -12,6 +12,40 @@
 #include "parsers/serialization.h"
 #include "parsers/terrain_parser.h"
 
+static int tensors_match_exactly(const Tensor *a, const Tensor *b) {
+    if (!a || !b || a->len != b->len) return 0;
+
+    for (size_t d = 0; d < a->len; ++d) {
+        const Matrix *am = a->data[d];
+        const Matrix *bm = b->data[d];
+        if (!am || !bm || am->width != bm->width || am->height != bm->height || am->len != bm->len) return 0;
+
+        for (ssize_t i = 0; i < am->len; ++i) {
+            if (am->points[i] != bm->points[i]) return 0;
+        }
+    }
+
+    return 1;
+}
+
+static Tensor *single_kernel_mapping_kernel(const KernelParametersMapping *mapping) {
+    if (!mapping || mapping->kind != KPM_KIND_KERNELS) return NULL;
+
+    Tensor *single_kernel = NULL;
+    for (size_t i = 0; i < mapping->terrain_count; ++i) {
+        if (!mapping->set[i] || !mapping->data.kernels[i]) continue;
+
+        if (!single_kernel) {
+            single_kernel = mapping->data.kernels[i];
+            continue;
+        }
+
+        if (!tensors_match_exactly(single_kernel, mapping->data.kernels[i])) return NULL;
+    }
+
+    return single_kernel;
+}
+
 KernelContext *kernel_context_on_fly(TerrainMap *terrain, KernelParametersMapping *mapping,
                                      const enum ReachabilityMode reachability_mode) {
     KernelContext *context = malloc(sizeof(KernelContext));
@@ -40,7 +74,10 @@ KernelContext *kernel_context_pool(TerrainMap *terrain, KernelParametersMapping 
     KernelContext *context = malloc(sizeof(KernelContext));
     if (!context) return NULL;
 
-    KernelsMap3D *kernels_pool = tensor_map_terrain(terrain, mapping, mode);
+    Tensor *single_kernel = single_kernel_mapping_kernel(mapping);
+    KernelsMap3D *kernels_pool = single_kernel
+                                     ? kernels_map_single(terrain, single_kernel, mapping, mode)
+                                     : tensor_map_terrain(terrain, mapping, mode);
     if (!kernels_pool) {
         free(context);
         return NULL;
