@@ -403,12 +403,12 @@ Matrix *kernel_from_array(const double *array, const ssize_t w, const ssize_t h)
 	return m;
 }
 
-Tensor* rotational_kernel_from_matrix(const Matrix *array, ssize_t d) {
+Tensor *rotational_kernel_from_matrix(const Matrix *array, ssize_t d) {
 	Tensor *result = malloc(sizeof(Tensor));
-	result->data = malloc(sizeof(Matrix *));
+	result->data = malloc(sizeof(Matrix *) * d);
 	result->len = d;
 	for (ssize_t i = 0; i < d; ++i) {
-		Matrix* current = matrix_clone(array);
+		Matrix *current = matrix_clone(array);
 		rotate_kernel(current, (double) (i * 360.0 / (double) d));
 		result->data[i] = current;
 	}
