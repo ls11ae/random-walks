@@ -102,3 +102,23 @@ Tensor *tensor_at(const char *output_path, ssize_t x, ssize_t y) {
     fclose(fp);
     return t;
 }
+
+int landmarks_count(const TerrainMap *terrain) {
+    int count = 0;
+    int *copy = malloc(terrain->height * terrain->width * sizeof(int));
+    for (int i = 0; i < terrain->height; ++i) {
+        memcpy(copy + i * terrain->width, terrain->data[i], terrain->width * sizeof(int));
+    }
+
+    for (int k = 0; k < terrain->width * terrain->height; ++k) {
+        const int current_val = copy[k];
+        if (current_val != 0) {
+            count++;
+            for (int i = 0; i < terrain->width * terrain->height; ++i) {
+                if (copy[i] == current_val) copy[i] = 0;
+            }
+        }
+    }
+    free(copy);
+    return count;
+}

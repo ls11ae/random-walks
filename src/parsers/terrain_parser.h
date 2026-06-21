@@ -46,6 +46,8 @@ void dir_kernels_free(DirKernelsMap *dir_kernels);
 
 Tensor *tensor_at(const char *output_file, ssize_t x, ssize_t y);
 
+int landmarks_count(const TerrainMap *terrain);
+
 #ifdef __cplusplus
 }
 #endif
