@@ -287,6 +287,32 @@ typedef struct {
     int **data;
 } TerrainMap;
 
+typedef struct {
+    int state;
+    int R; // neighborhood radius in pixels
+    int n_terrains;
+
+    int obs_dx;
+    int obs_dy;
+    double weight;
+    TerrainMap *terrain;
+} TerrainNeighborhood;
+
+typedef struct {
+    int n_states;
+    Tensor *kernels;
+    int *n_neighborhoods;
+    TerrainNeighborhood **terrain_neighborhoods;
+} StateTerrainNeighborhoods;
+
+typedef struct {
+    int n_states;
+    int n_classes;
+
+    // size: n_states * n_classes * n_classes
+    double *used;
+    double *available;
+} TerrainWeightStats;
 
 #ifdef __cplusplus
 }

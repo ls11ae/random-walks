@@ -2,7 +2,8 @@
 #include <cstdlib>
 #include <ostream>
 
-#include "../../../../../usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/c++/chrono"
+#include "../../../../../usr/lib/gcc/x86_64-pc-linux-gnu/14.3.1/include/c++/chrono"
+#include "kernels/kernel_context.h"
 #include "matrix/point2D.h"
 #include "math/math_utils.h"
 #include "matrix/tensor.h"
@@ -10,6 +11,7 @@
 #include "parsers/move_bank_parser.h"
 #include "parsers/terrain_parser.h"
 #include "parsers/walk_json.h"
+#include "math/SSF.h"
 #include "walk/m_walker.h"
 
 namespace {
@@ -181,6 +183,14 @@ int main(int argc, char **argv) {
 
     auto mapping = deserialize_kernel_mappings("../../resources/mapping_Azalea_0.bin");
     TerrainMap *terrain = deserialize_terrain("../../resources/terrain_Azalea_0.bin");
+    for (int i = 0; i < terrain->height; ++i) {
+        for (int j = 0; j < terrain->width; ++j) {
+            std::cout << terrain_at(j, i, terrain) << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << landmarks_count(terrain) << std::endl;
+    exit(0);
 
     for (int j = 0; j < terrain->height; ++j) {
         for (int i = 0; i < terrain->width; ++i) {
