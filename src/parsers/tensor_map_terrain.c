@@ -169,7 +169,6 @@ KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, Kern
     if (!terrain || !kernel || !mapping || kernel->len == 0 || !kernel->data || !kernel->data[0]) return NULL;
 
     const bool soft_reachability = mode == REACHABILITY_SOFT;
-    if (mode == REACHABILITY_FULL) return NULL;
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;

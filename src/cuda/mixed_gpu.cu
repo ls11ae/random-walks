@@ -460,6 +460,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
                              TerrainMap *terrain_map,
                              const bool serialize,
                              const char *serialization_path, KernelPoolC *pool) {
+	const int layer_count = T + 1;
 	const int n_kernels = static_cast<int>(pool->kernel_offsets_size);
 	const int Dmax = static_cast<int>(kernels_map->max_D);
 	const int max_D = Dmax;
@@ -536,12 +537,12 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	// host DP flat if not serializing
 	double *h_dp_flat = nullptr;
 	if (!serialize) {
-		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(T) * dp_layer_size));
+		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(layer_count) * dp_layer_size));
 		if (!h_dp_flat) {
 			perror("malloc h_dp_flat failed");
 			exit(EXIT_FAILURE);
 		}
-		memset(h_dp_flat, 0, static_cast<size_t>(T) * dp_layer_size);
+		memset(h_dp_flat, 0, static_cast<size_t>(layer_count) * dp_layer_size);
 	}
 
 	// init t=0
@@ -568,7 +569,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	dim3 block(8, 8, 8);
 	dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (Dmax + block.z - 1) / block.z);
 
-	for (int t = 1; t < T; ++t) {
+	for (int t = 1; t < layer_count; ++t) {
 		dp_step_kernel_mixed<<<grid, block>>>(d_dp_prev, d_dp_current,
 		                                      d_kernel_pool, d_kernel_offsets, d_kernel_widths, d_kernel_Ds,
 		                                      d_kernel_index_by_cell,
@@ -598,7 +599,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
 	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	//                                       serialization_path, "");
-	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	auto walk = backtrace_mixed_gpu(h_dp_flat, layer_count, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	                                serialization_path, "");
 
 	// cleanup

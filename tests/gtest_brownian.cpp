@@ -16,7 +16,7 @@ TEST(BrownianNormal, RunsAndReturnsValidData) {
     auto walk = brownian_backtrace(walker, kernel, end_x, end_y);
 
     ASSERT_NE(walk, nullptr);
-    ASSERT_EQ(walk->length, T);
+    ASSERT_EQ(walk->length, T + 1);
     ASSERT_EQ(walk->points[0].x, start_x);
     ASSERT_EQ(walk->points[0].y, start_y);
     ASSERT_EQ(walk->points[walk->length - 1].x, end_x);
@@ -44,8 +44,8 @@ TEST(BrownianTwoSegmentBacktrace, RunsAndReturnsValidData) {
 
     ASSERT_NE(first_walk, nullptr);
     ASSERT_NE(second_walk, nullptr);
-    ASSERT_EQ(first_walk->length, T);
-    ASSERT_EQ(second_walk->length, T);
+    ASSERT_EQ(first_walk->length, T + 1);
+    ASSERT_EQ(second_walk->length, T + 1);
     ASSERT_EQ(first_walk->points[0].x, steps[0].x);
     ASSERT_EQ(first_walk->points[0].y, steps[0].y);
     ASSERT_EQ(first_walk->points[first_walk->length - 1].x, steps[1].x);

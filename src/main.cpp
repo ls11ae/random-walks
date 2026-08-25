@@ -116,7 +116,8 @@ namespace {
                                              const size_t step_count) {
         if (!context || !steps || step_count < 2) return nullptr;
 
-        const size_t total_length = static_cast<size_t>(kT) + (step_count - 2) * (size_t) (kT - 1);
+        const size_t segment_length = static_cast<size_t>(kT) + 1;
+        const size_t total_length = segment_length + (step_count - 2) * (segment_length - 1);
         Point2DArray *full_walk = point_2d_array_new_empty(total_length);
         if (!full_walk) return nullptr;
 
@@ -142,7 +143,7 @@ namespace {
                              i + 1, attempt, kMaxBacktraceAttempts);
             }
 
-            tensor4D_free(dp, kT);
+            tensor4D_free(dp, kT + 1);
 
             if (!segment) {
                 std::fprintf(stderr, "Failed to backtrace segment %zu\n", i + 1);
@@ -150,7 +151,7 @@ namespace {
                 return nullptr;
             }
 
-            if (segment->length != (size_t) kT) {
+            if (segment->length != segment_length) {
                 std::fprintf(stderr, "Unexpected segment length for segment %zu: %zu\n", i + 1, segment->length);
                 point2d_array_free(segment);
                 point2d_array_free(full_walk);

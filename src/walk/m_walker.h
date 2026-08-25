@@ -45,15 +45,6 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, ssize_t T,
 Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
                                         const KernelContext *kernels_context, ssize_t end_x, ssize_t end_y);
 
-Tensor **mixed_utilization_distribution_parallel_atomic(Tensor **DP_Matrix, ssize_t T,
-                                                        const KernelContext *kernels_context,
-                                                        ssize_t end_x, ssize_t end_y);
-
-
-Tensor **mixed_utilization_distribution_parallel_thread_local(Tensor **DP_Matrix, ssize_t T,
-                                                              const KernelContext *kernels_context,
-                                                              ssize_t end_x, ssize_t end_y);
-
 Tensor **mixed_visit(KernelContext *kernel_context, ssize_t T,
                      ssize_t start_x,
                      ssize_t start_y, const bool *target_area);

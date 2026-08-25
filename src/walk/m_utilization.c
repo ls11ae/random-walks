@@ -66,10 +66,6 @@ static Tensor **tensor_series_new(const ssize_t T, const ssize_t W, const ssize_
     return series;
 }
 
-typedef int (*MixedUtilizationStep)(Tensor **utilization, Tensor **DP_Matrix, ssize_t t,
-                                    const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                    ssize_t max_M, ssize_t W, ssize_t H);
-
 static int omp_max_threads_or_one(void) {
 #ifdef _OPENMP
     return omp_get_max_threads();
@@ -112,102 +108,6 @@ static double utilization_transition_total(Tensor **DP_Matrix, const ssize_t t,
     }
 
     return total;
-}
-
-static int utilization_step_serial(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
-                                   const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                   const ssize_t max_M, const ssize_t W, const ssize_t H) {
-    for (ssize_t y = 0; y < H; ++y) {
-        for (ssize_t x = 0; x < W; ++x) {
-            const Tensor *destination_tensor = kernels_map->kernels[y][x];
-            if (!destination_tensor || destination_tensor->len == 0) continue;
-
-            const size_t D = destination_tensor->len;
-            const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
-            if (!dir_cell_set) continue;
-
-            for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
-                const double current_util = matrix_get(utilization[t]->data[direction], x, y);
-                if (current_util <= 0.0) continue;
-
-                const double total = utilization_transition_total(DP_Matrix, t, kernels_map, dir_cell_set,
-                                                                  direction, x, y, W, H);
-                if (total <= 0.0) continue;
-
-                for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-                    const ssize_t dx = dir_cell_set->offsets[direction][i].x;
-                    const ssize_t dy = dir_cell_set->offsets[direction][i].y;
-                    const ssize_t prev_x = x - dx;
-                    const ssize_t prev_y = y - dy;
-
-                    if (!in_bounds(prev_x, prev_y, W, H)) continue;
-
-                    const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
-                    if (!prev_tensor) continue;
-
-                    for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
-                        const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[prev_d],
-                                                                       prev_x, prev_y);
-                        const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
-                        const double contribution = current_util * previous_probability * transition / total;
-                        const double old_util = matrix_get(utilization[t - 1]->data[prev_d], prev_x, prev_y);
-                        matrix_set(utilization[t - 1]->data[prev_d], prev_x, prev_y, old_util + contribution);
-                    }
-                }
-            }
-        }
-    }
-
-    return 1;
-}
-
-static int utilization_step_atomic(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
-                                   const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                   const ssize_t max_M, const ssize_t W, const ssize_t H) {
-#pragma omp parallel for collapse(2) schedule(dynamic)
-    for (ssize_t y = 0; y < H; ++y) {
-        for (ssize_t x = 0; x < W; ++x) {
-            const Tensor *destination_tensor = kernels_map->kernels[y][x];
-            if (!destination_tensor || destination_tensor->len == 0) continue;
-
-            const size_t D = destination_tensor->len;
-            const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
-            if (!dir_cell_set) continue;
-
-            for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
-                const double current_util = matrix_get(utilization[t]->data[direction], x, y);
-                if (current_util <= 0.0) continue;
-
-                const double total = utilization_transition_total(DP_Matrix, t, kernels_map, dir_cell_set,
-                                                                  direction, x, y, W, H);
-                if (total <= 0.0) continue;
-
-                for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-                    const ssize_t dx = dir_cell_set->offsets[direction][i].x;
-                    const ssize_t dy = dir_cell_set->offsets[direction][i].y;
-                    const ssize_t prev_x = x - dx;
-                    const ssize_t prev_y = y - dy;
-
-                    if (!in_bounds(prev_x, prev_y, W, H)) continue;
-
-                    const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
-                    if (!prev_tensor) continue;
-
-                    for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
-                        const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[prev_d],
-                                                                       prev_x, prev_y);
-                        const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
-                        const double contribution = current_util * previous_probability * transition / total;
-                        const size_t index = (size_t) prev_y * (size_t) W + (size_t) prev_x;
-#pragma omp atomic update
-                        utilization[t - 1]->data[prev_d]->points[index] += contribution;
-                    }
-                }
-            }
-        }
-    }
-
-    return 1;
 }
 
 static int utilization_step_thread_local(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
@@ -284,11 +184,11 @@ static int utilization_step_thread_local(Tensor **utilization, Tensor **DP_Matri
     return 1;
 }
 
-static Tensor **mixed_utilization_distribution_impl(Tensor **DP_Matrix, const ssize_t T,
-                                                    const KernelContext *kernels_context,
-                                                    const ssize_t end_x, const ssize_t end_y,
-                                                    const MixedUtilizationStep step) {
-    if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0 || !step) return NULL;
+Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
+                                        const KernelContext *kernels_context,
+                                        const ssize_t end_x, const ssize_t end_y) {
+    if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0) return NULL;
+    const ssize_t layer_count = T + 1;
 
     int owned = 0;
     const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
@@ -304,7 +204,7 @@ static Tensor **mixed_utilization_distribution_impl(Tensor **DP_Matrix, const ss
         return NULL;
     }
 
-    Tensor **utilization = tensor_series_new(T, W, H, max_D);
+    Tensor **utilization = tensor_series_new(layer_count, W, H, max_D);
     if (!utilization) {
         if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
         return NULL;
@@ -312,18 +212,18 @@ static Tensor **mixed_utilization_distribution_impl(Tensor **DP_Matrix, const ss
 
     const Tensor *end_kernel = kernels_map->kernels[end_y][end_x];
     if (!end_kernel || end_kernel->len == 0) {
-        tensor4D_free(utilization, T);
+        tensor4D_free(utilization, layer_count);
         if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
         return NULL;
     }
 
     for (size_t d = 0; d < end_kernel->len; ++d) {
-        matrix_set(utilization[T - 1]->data[d], end_x, end_y, 1.0 / (double) end_kernel->len);
+        matrix_set(utilization[layer_count - 1]->data[d], end_x, end_y, 1.0 / (double) end_kernel->len);
     }
 
-    for (ssize_t t = T - 1; t >= 1; --t) {
-        if (!step(utilization, DP_Matrix, t, kernels_map, dir_kernels, max_M, W, H)) {
-            tensor4D_free(utilization, T);
+    for (ssize_t t = layer_count - 1; t >= 1; --t) {
+        if (!utilization_step_thread_local(utilization, DP_Matrix, t, kernels_map, dir_kernels, max_M, W, H)) {
+            tensor4D_free(utilization, layer_count);
             if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
             return NULL;
         }
@@ -344,34 +244,14 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
     const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
     if (!kernels_map) return NULL;
 
+    const ssize_t layer_count = T + 1;
     const Point2D end = {.x = end_x, .y = end_y};
-    const ssize_t direction = best_end_direction(DP_Matrix, T - 1, end);
-    Point2DArray *walk = m_walk_backtrack_base(DP_Matrix, T, kernels_map, kernels_context->terrain,
+    const ssize_t direction = best_end_direction(DP_Matrix, layer_count - 1, end);
+    Point2DArray *walk = m_walk_backtrack_base(DP_Matrix, layer_count, kernels_map, kernels_context->terrain,
                                                end_x, end_y, direction);
 
     if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
     return walk;
-}
-
-Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
-                                        const KernelContext *kernels_context, const ssize_t end_x,
-                                        const ssize_t end_y) {
-    return mixed_utilization_distribution_parallel_thread_local(DP_Matrix, T, kernels_context, end_x, end_y);
-}
-
-Tensor **mixed_utilization_distribution_parallel_atomic(Tensor **DP_Matrix, const ssize_t T,
-                                                        const KernelContext *kernels_context,
-                                                        const ssize_t end_x, const ssize_t end_y) {
-    return mixed_utilization_distribution_impl(DP_Matrix, T, kernels_context, end_x, end_y,
-                                               utilization_step_atomic);
-}
-
-
-Tensor **mixed_utilization_distribution_parallel_thread_local(Tensor **DP_Matrix, const ssize_t T,
-                                                              const KernelContext *kernels_context,
-                                                              const ssize_t end_x, const ssize_t end_y) {
-    return mixed_utilization_distribution_impl(DP_Matrix, T, kernels_context, end_x, end_y,
-                                               utilization_step_thread_local);
 }
 
 Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,
@@ -381,7 +261,7 @@ Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,
                                 const ssize_t end_y) {
     Tensor **dp = m_walk(kernel_context, T, start_x, start_y);
     Point2DArray *walk = m_walk_backtrace(dp, T, kernel_context, end_x, end_y);
-    tensor4D_free(dp, T);
+    tensor4D_free(dp, T + 1);
     return walk;
 }
 
@@ -390,6 +270,7 @@ Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
                      const ssize_t start_x,
                      const ssize_t start_y, const bool *target_area) {
     if (!kernel_context || !kernel_context->terrain || !target_area || T <= 0) return NULL;
+    const ssize_t layer_count = T + 1;
 
     int owned = 0;
     const KernelsMap3D *kernels_map = context_kernels_map(kernel_context, &owned);
@@ -411,11 +292,11 @@ Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
         return NULL;
     }
 
-    Tensor **dp = tensor_series_new(T, W, H, max_D);
-    Tensor **visit = tensor_series_new(T, W, H, max_D);
+    Tensor **dp = tensor_series_new(layer_count, W, H, max_D);
+    Tensor **visit = tensor_series_new(layer_count, W, H, max_D);
     if (!dp || !visit) {
-        tensor4D_free(dp, T);
-        tensor4D_free(visit, T);
+        tensor4D_free(dp, layer_count);
+        tensor4D_free(visit, layer_count);
         if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
         return NULL;
     }
@@ -426,7 +307,7 @@ Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
         matrix_set(visit[0]->data[d], start_x, start_y, initial_visit);
     }
 
-    for (ssize_t t = 1; t < T; ++t) {
+    for (ssize_t t = 1; t < layer_count; ++t) {
         for (ssize_t y = 0; y < H; ++y) {
             for (ssize_t x = 0; x < W; ++x) {
                 const Tensor *destination_tensor = kernels_map->kernels[y][x];
@@ -474,7 +355,7 @@ Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
         }
     }
 
-    tensor4D_free(dp, T);
+    tensor4D_free(dp, layer_count);
     if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
     return visit;
 }
