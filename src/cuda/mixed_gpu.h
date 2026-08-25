@@ -4,7 +4,12 @@
 #include <stdlib.h>
 #include <math.h>
 
+#ifdef __cplusplus
+#include <vector>
+#endif
+
 #include "cuda_adapter.h"
+#include "kernels/kernel_context.h"
 #include "math/math_utils.h"
 #include "parsers/types.h"
 
@@ -16,6 +21,7 @@ extern "C" {
 // ----------------------------------------------------------------------
 // Host builder: flatten kernels_map into kernel_pool and offsets layout
 // ----------------------------------------------------------------------
+#ifdef __cplusplus
 struct KernelPool {
     std::vector<double> kernel_pool; // packed kernel elements (double)
     std::vector<int> kernel_offsets; // offset (in elements) per kernel_index
@@ -30,6 +36,7 @@ struct KernelPool {
     int max_D = 0;
     int max_kernel_width = 0;
 };
+#endif
 
 typedef struct {
     double *kernel_pool;
@@ -66,8 +73,41 @@ KernelPoolC *build_kernel_pool_c(const KernelsMap3D *km,
 
 void kernelpoolc_free(const KernelPoolC *pool);
 
+#ifdef __cplusplus
 KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
                                               const TerrainMap *terrain_map);
+#endif
+
+/**
+ * CUDA forward calculation matching m_walk(). The returned series contains
+ * T + 1 Tensor layers and is released with tensor4D_free(result, T + 1).
+ */
+Tensor **gpu_m_walk(const KernelContext *kernels_context, ssize_t T,
+                    ssize_t start_x, ssize_t start_y);
+
+/**
+ * Forward variant for callers that already own a matching packed kernel pool.
+ */
+Tensor **gpu_m_walk_pooled(const KernelsMap3D *kernels_map, const KernelPoolC *pool,
+                           ssize_t T, ssize_t start_x, ssize_t start_y);
+
+/**
+ * Compute the mixed-walker utilization distribution on CUDA using an already
+ * packed kernel map. The returned series contains T + 1 Tensor layers and is
+ * released with tensor4D_free(result, T + 1).
+ */
+Tensor **gpu_mixed_utilization_distribution_pooled(Tensor **DP_Matrix, ssize_t T,
+                                                   const KernelsMap3D *kernels_map,
+                                                   const KernelPoolC *pool,
+                                                   ssize_t end_x, ssize_t end_y);
+
+/**
+ * High-level CUDA mixed-walker utilization distribution matching the CPU API.
+ * Kernel-map ownership is handled according to the supplied KernelContext.
+ */
+Tensor **gpu_mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
+                                            const KernelContext *kernels_context,
+                                            ssize_t end_x, ssize_t end_y);
 
 Point2DArray *gpu_mixed_walk(int T, int W, int H,
                              int start_x, int start_y,
@@ -81,6 +121,3 @@ Point2DArray *gpu_mixed_walk(int T, int W, int H,
 #ifdef __cplusplus
 }
 #endif
-
-
-

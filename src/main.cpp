@@ -1,8 +1,9 @@
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <ostream>
 
-#include "../../../../../usr/lib/gcc/x86_64-pc-linux-gnu/14.3.1/include/c++/chrono"
+#include "cuda/mixed_gpu.h"
 #include "kernels/kernel_context.h"
 #include "matrix/point2D.h"
 #include "math/math_utils.h"
@@ -178,94 +179,96 @@ namespace {
 
 #include <iostream>
 
+
 int main(int argc, char **argv) {
-    const char *output_path = argc > 1 ? argv[1] : kOutputPath;
-    const size_t step_count = sizeof(kSteps) / sizeof(kSteps[0]);
+#ifndef USE_CUDA
+    (void) argc;
+    (void) argv;
+    std::fprintf(stderr, "This comparison requires a CUDA-enabled build.\n");
+    return EXIT_FAILURE;
+#else
+    const char *terrain_path = argc > 1
+                                   ? argv[1]
+                                   : "/home/omar/CLionProjects/random-walks/resources/landcover_baboons123_400.txt";
+    const char *mapping_path = argc > 2
+                                   ? argv[2]
+                                   : "/home/omar/CLionProjects/random-walks/resources/kernel_mappings/mesa_mixed_terrestrial.csv";
+    constexpr ssize_t T = 200;
+    constexpr ssize_t start_x = 100;
+    constexpr ssize_t start_y = 100;
+    constexpr ssize_t end_x = 200;
+    constexpr ssize_t end_y = 200;
+    constexpr ssize_t layer_count = T + 1;
 
-    auto mapping = deserialize_kernel_mappings("../../resources/mapping_Azalea_0.bin");
-    TerrainMap *terrain = deserialize_terrain("../../resources/terrain_Azalea_0.bin");
-    for (int i = 0; i < terrain->height; ++i) {
-        for (int j = 0; j < terrain->width; ++j) {
-            std::cout << terrain_at(j, i, terrain) << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << landmarks_count(terrain) << std::endl;
-    exit(0);
+    TerrainMap *terrain = create_terrain_map(terrain_path, ' ');
+    KernelParametersMapping *mapping = kernel_mapping_load_csv(mapping_path);
+    KernelContext *context = terrain && mapping
+                                 ? kernel_context_pool(terrain, mapping, REACHABILITY_FULL)
+                                 : nullptr;
 
-    for (int j = 0; j < terrain->height; ++j) {
-        for (int i = 0; i < terrain->width; ++i) {
-            std::cout << terrain_at(i, j, terrain) << " ";
-        }
-        std::cout << std::endl;
-    }
-    auto ccontext = kernel_context_pool(terrain, mapping, REACHABILITY_SOFT);
-    auto T = 30, S = 4;
-    auto segment_points = single_state_walk(T, ccontext, 66, 270, 58, 314);
-    point2d_array_print(segment_points);
-
-    exit(0);
-
-    set_terrain_barrier(mapping, 50, true);
-
-    size_t ts = mapping->terrain_count;
-    std::printf("Has barrier: %d\n", mapping->has_barrier);
-    for (int i = 0; i < ts; ++i) {
-        std::printf("Terrain %i: \n", mapping->terrain_values[i]);
-        std::printf("Barrier: %d\n", mapping->barrier[i]);
-        std::printf("Set: %d\n", mapping->set[i]);
-        std::printf("Unmapped: %d\n", mapping->unmapped[i]);
-        std::printf("----------------------------------------\n");
-    }
-    if (!terrain || !mapping) {
-        std::fprintf(stderr, "Failed to create terrain or mapping\n");
-        terrain_map_free(terrain);
-        kernel_mapping_free(mapping);
-        return EXIT_FAILURE;
-    }
-
-    for (size_t i = 0; i < step_count; ++i) {
-        if (!point_in_bounds(terrain, kSteps[i])) {
-            std::fprintf(stderr, "Step %zu is out of bounds: (%zd, %zd)\n",
-                         i, kSteps[i].x, kSteps[i].y);
-            terrain_map_free(terrain);
-            kernel_mapping_free(mapping);
-            return EXIT_FAILURE;
-        }
-    }
-
-    KernelContext *context = kernel_context_pool(terrain, mapping, REACHABILITY_SOFT);
-    if (!context) {
-        std::fprintf(stderr, "Failed to create kernel context\n");
-        terrain_map_free(terrain);
-        kernel_mapping_free(mapping);
-        return EXIT_FAILURE;
-    }
-
-    Point2DArray *steps = point_2d_array_new(const_cast<Point2D *>(kSteps), step_count);
-    auto start = std::chrono::high_resolution_clock::now();
-    Point2DArray *walk = generate_concatenated_walk(context, kSteps, step_count);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    if (!steps || !walk) {
-        std::fprintf(stderr, "Failed to create requested walk\n");
-        point2d_array_free(steps);
-        point2d_array_free(walk);
+    if (!terrain || !mapping || !context) {
+        std::fprintf(stderr, "Failed to create the terrain, kernel mapping, or kernel context.\n");
         kernel_context_free(context);
-        terrain_map_free(terrain);
         kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
         return EXIT_FAILURE;
     }
 
-    save_walk_to_json(steps, walk, terrain, output_path);
-    point2d_array_print(walk);
-    std::printf("Walk length: %zu\n", walk->length);
+    const auto cpu_start = std::chrono::steady_clock::now();
+    Tensor **cpu_dp = m_walk(context, T, start_x, start_y);
+    if (!cpu_dp) {
+        std::fprintf(stderr, "CPU forward calculation failed.\n");
+        kernel_context_free(context);
+        kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
+        return EXIT_FAILURE;
+    }
 
-    point2d_array_free(steps);
-    point2d_array_free(walk);
+    Tensor **cpu_ud = mixed_utilization_distribution(cpu_dp, T, context, end_x, end_y);
+    const auto cpu_end = std::chrono::steady_clock::now();
+    if (!cpu_ud) {
+        std::fprintf(stderr, "CPU utilization calculation failed.\n");
+        tensor4D_free(cpu_dp, layer_count);
+        kernel_context_free(context);
+        kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
+        return EXIT_FAILURE;
+    }
+
+    const auto cpu_ms = std::chrono::duration_cast<std::chrono::milliseconds>(cpu_end - cpu_start).count();
+    tensor4D_free(cpu_ud, layer_count);
+    tensor4D_free(cpu_dp, layer_count);
+
+    const auto gpu_start = std::chrono::steady_clock::now();
+    Tensor **gpu_dp = gpu_m_walk(context, T, start_x, start_y);
+    if (!gpu_dp) {
+        std::fprintf(stderr, "GPU forward calculation failed.\n");
+        kernel_context_free(context);
+        kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
+        return EXIT_FAILURE;
+    }
+
+    Tensor **gpu_ud = gpu_mixed_utilization_distribution(gpu_dp, T, context, end_x, end_y);
+    const auto gpu_end = std::chrono::steady_clock::now();
+    if (!gpu_ud) {
+        std::fprintf(stderr, "GPU utilization calculation failed.\n");
+        tensor4D_free(gpu_dp, layer_count);
+        kernel_context_free(context);
+        kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
+        return EXIT_FAILURE;
+    }
+
+    const auto gpu_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gpu_end - gpu_start).count();
+    std::cout << "CPU forward + utilization: " << cpu_ms << " ms\n";
+    std::cout << "GPU forward + utilization: " << gpu_ms << " ms\n";
+
+    tensor4D_free(gpu_ud, layer_count);
+    tensor4D_free(gpu_dp, layer_count);
     kernel_context_free(context);
-    terrain_map_free(terrain);
     kernel_mapping_free(mapping);
-    printf("Duration: %ld ms\n", duration.count());
+    terrain_map_free(terrain);
     return EXIT_SUCCESS;
+#endif
 }

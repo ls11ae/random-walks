@@ -2,6 +2,9 @@
 
 #include "matrix/tensor.h"
 
+#include <limits.h>
+#include <stdint.h>
+
 
 Tensor *tensor_new_empty(int D) {
     Tensor *t = (Tensor *) malloc(sizeof(Tensor));
@@ -24,6 +27,23 @@ void tensor_flat(const Tensor *t, float *values) {
     }
 }
 
+int tensor_flat_double(const Tensor *t, double *values, const size_t value_count) {
+    if (!t || !t->data || !values || t->len == 0) return 0;
+
+    size_t index = 0;
+    for (size_t d = 0; d < t->len; ++d) {
+        const Matrix *matrix = t->data[d];
+        if (!matrix || !matrix->points || matrix->len < 0) return 0;
+
+        const size_t matrix_len = (size_t) matrix->len;
+        if (matrix_len > value_count - index) return 0;
+        memcpy(values + index, matrix->points, matrix_len * sizeof(double));
+        index += matrix_len;
+    }
+
+    return index == value_count;
+}
+
 Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_width, int32_t mat_height) {
     if (!flat || tensor_len == 0 || mat_width <= 0 || mat_height <= 0) return NULL;
 
@@ -44,23 +64,64 @@ Tensor *tensor_from_flat(const float *flat, uint32_t tensor_len, int32_t mat_wid
     return t;
 }
 
+Tensor *tensor_from_flat_double(const double *flat, const size_t tensor_len,
+                                const ssize_t mat_width, const ssize_t mat_height) {
+    if (!flat || tensor_len == 0 || mat_width <= 0 || mat_height <= 0) return NULL;
+
+    const size_t width = (size_t) mat_width;
+    const size_t height = (size_t) mat_height;
+    if (height > SIZE_MAX / width) return NULL;
+    const size_t matrix_len = width * height;
+    if (tensor_len > SIZE_MAX / matrix_len || tensor_len > SIZE_MAX / sizeof(Matrix *)) return NULL;
+
+    Tensor *tensor = tensor_new(width, height, tensor_len);
+    if (!tensor) return NULL;
+
+    for (size_t d = 0; d < tensor_len; ++d) {
+        memcpy(tensor->data[d]->points, flat + d * matrix_len,
+               matrix_len * sizeof(double));
+    }
+    return tensor;
+}
+
 
 void dir_kernel_to_cuda(const DirOffsets *input, int2 **out_offsets, int **out_sizes, uint32_t *out_D) {
-    *out_D = input->count;
-    int total_points = 0;
-    for (size_t d = 0; d < input->count; ++d)
-        total_points += (int) input->sizes[d];
+    if (!out_offsets || !out_sizes || !out_D) return;
+    *out_offsets = NULL;
+    *out_sizes = NULL;
+    *out_D = 0;
+    if (!input || !input->sizes || !input->offsets || input->count == 0 || input->count > UINT32_MAX) return;
 
-    *out_offsets = (int2 *) malloc(total_points * sizeof(int2));
-    *out_sizes = (int *) malloc(input->count * sizeof(int));
-
-    int index = 0;
+    size_t total_points = 0;
     for (size_t d = 0; d < input->count; ++d) {
-        (*out_sizes)[d] = (int) input->sizes[d];
+        if (input->sizes[d] > INT_MAX ||
+            input->sizes[d] > SIZE_MAX - total_points ||
+            (input->sizes[d] > 0 && !input->offsets[d])) {
+            return;
+        }
+        total_points += input->sizes[d];
+    }
+    if (total_points > SIZE_MAX / sizeof(int2) || input->count > SIZE_MAX / sizeof(int)) return;
+
+    int2 *offsets = total_points > 0 ? (int2 *) malloc(total_points * sizeof(int2)) : NULL;
+    int *sizes = (int *) malloc(input->count * sizeof(int));
+    if ((total_points > 0 && !offsets) || !sizes) {
+        free(offsets);
+        free(sizes);
+        return;
+    }
+
+    size_t index = 0;
+    for (size_t d = 0; d < input->count; ++d) {
+        sizes[d] = (int) input->sizes[d];
         for (size_t i = 0; i < input->sizes[d]; ++i) {
-            (*out_offsets)[index++] = (int2){(int) input->offsets[d][i].x, (int) input->offsets[d][i].y};
+            offsets[index++] = (int2){(int) input->offsets[d][i].x, (int) input->offsets[d][i].y};
         }
     }
+
+    *out_offsets = offsets;
+    *out_sizes = sizes;
+    *out_D = (uint32_t) input->count;
 }
 
 Tensor **convert_dp_host_to_tensor(const float *dp_host, const ssize_t T, ssize_t D, ssize_t H, ssize_t W) {
@@ -82,4 +143,3 @@ Tensor **convert_dp_host_to_tensor(const float *dp_host, const ssize_t T, ssize_
 
     return DP_Matrix;
 }
-
