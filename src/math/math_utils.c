@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <time.h>
 
+typedef struct {
+    int x;
+    int y;
+} Point;
+
 ssize_t weighted_random_index(const double *array, size_t len) {
     // Seed the random number generator with the current time
     static int seeded = 0;
@@ -68,23 +73,6 @@ ssize_t weighted_random_index_float(const float *array, ssize_t len) {
     return length - 1;
 }
 
-Point rotate_point(Point p, double theta) {
-    Point result;
-
-    // Berechne den Cosinus und Sinus des Winkels in double
-    double cos_theta = cos(theta);
-    double sin_theta = sin(theta);
-
-    // Drehe den Punkt
-    result.x = (int) (p.x * cos_theta - p.y * sin_theta);
-    result.y = (int) (p.x * sin_theta + p.y * cos_theta);
-
-    return result;
-}
-
-double to_radians(const double angle) {
-    return angle * M_PI / 180;
-}
 
 double compute_angle(ssize_t dx, ssize_t dy) {
     if (dx == 0 && dy == 0) return 0.0; // Handle zero vector
@@ -132,10 +120,6 @@ double find_closest_angle(double angle, double angle_step_size) {
     return closest_angle;
 }
 
-double alpha(int i, int j, double rotation_angle) {
-    double original_alpha = atan2(j, i);
-    return original_alpha - rotation_angle;
-}
 
 double euclid(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t point2_y) {
     const double delta_x = (double) (point2_x - point1_x);
@@ -148,8 +132,3 @@ double euclid_sqr(ssize_t point1_x, ssize_t point1_y, ssize_t point2_x, ssize_t 
     double delta_y = point2_y - point1_y;
     return delta_x * delta_x + delta_y * delta_y;
 }
-
-double euclid_origin(const int i, const int j) {
-    return sqrt(i * i + j * j);
-}
-

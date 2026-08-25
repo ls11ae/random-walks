@@ -58,10 +58,7 @@ typedef struct {
     ssize_t width; /**< The number of columns in the matrix. */
     ssize_t height; /**< The number of rows in the matrix. */
     ssize_t len; /**< The total number of elements (width * height). */
-    union {
-        double *points; /**< Pointer to the array of floating point elements. */
-        Pair *pair; /**< Pointer to the array of Pair (double, double) elements. */
-    } data;
+    double *points; /**< Pointer to the array of floating point elements. */
 } Matrix;
 
 typedef struct {
@@ -86,10 +83,10 @@ typedef struct {
 } Biases;
 
 typedef struct {
-    Point2D **data; // offsets per direction
+    Point2D **offsets; // offsets per direction
     size_t *sizes; // No. offsets per direction
     size_t count; // D
-} Vector2D;
+} DirOffsets;
 
 typedef struct {
     //size_t dim_len;
@@ -136,8 +133,10 @@ typedef struct {
     //size_t *dim;
     size_t len;
     size_t max_D;
+    size_t max_M;
+    int *terrain_values;
     Tensor **data;
-    Vector2D **grid_cells;
+    DirOffsets **grid_cells;
 } TensorSet;
 
 typedef struct {
@@ -151,6 +150,12 @@ typedef struct {
     float directions_mod;
     float diffusity_mod;
 } KernelModifier;
+
+enum ReachabilityMode {
+    REACHABILITY_SOFT,
+    REACHABILITY_HARD,
+    REACHABILITY_FULL
+};
 
 typedef struct {
     double x; // longitude
@@ -192,13 +197,17 @@ typedef struct {
 typedef struct {
     DateTime *date_time;
     KernelParameters *params;
-    int landmark;
+    int terrain;
 } TimedKernelParameters;
 
 
 typedef struct {
     size_t y, x, t;
 } Dimensions3D;
+
+typedef struct {
+    size_t T, D, W, H;
+} GridDimensions;
 
 typedef struct {
     TimedKernelParameters ****params;
@@ -209,75 +218,43 @@ typedef struct {
     DateTime start, end;
 } DateTimeInterval;
 
-#define LAND_MARKS_COUNT  11
-
-enum landmarkType {
-    TREE_COVER = 10,
-    SHRUBLAND = 20,
-    GRASSLAND = 30,
-    CROPLAND = 40,
-    BUILT_UP = 50,
-    SPARSE_VEGETATION = 60,
-    SNOW_AND_ICE = 70,
-    WATER = 80,
-    HERBACEOUS_WETLAND = 90,
-    MANGROVES = 95,
-    MOSS_AND_LICHEN = 100,
-};
-
-static enum landmarkType landmarks[LAND_MARKS_COUNT] = {
-    TREE_COVER, SHRUBLAND, GRASSLAND, CROPLAND, BUILT_UP, SPARSE_VEGETATION,
-    SNOW_AND_ICE, WATER, HERBACEOUS_WETLAND, MANGROVES, MOSS_AND_LICHEN
-};
-
 typedef enum {
     KPM_KIND_PARAMETERS,
     KPM_KIND_KERNELS
 } KernelMapKind;
 
-enum animal_type {
-    AIRBORNE,
-    TERRESTRIAL,
-    MARINE
-};
-
 typedef struct {
-    enum landmarkType forbidden_landmarks[LAND_MARKS_COUNT];
-    bool has_forbidden_landmarks;
-    int forbidden_landmarks_count;
+    size_t terrain_count;
+    int *terrain_values;
 
-    double stay_probabilities[LAND_MARKS_COUNT];
-    double transition_matrix[LAND_MARKS_COUNT][LAND_MARKS_COUNT];
+    bool *set;
+    bool *barrier;
+    bool *unmapped;
+    bool has_barrier;
+
+    double *transition_weights;
 
     KernelMapKind kind;
-    enum animal_type animal;
 
     union {
-        KernelParameters parameters[LAND_MARKS_COUNT]; // when kind == KPM_KIND_PARAMETERS
-        Tensor *kernels[LAND_MARKS_COUNT]; // when kind == KPM_KIND_KERNELS
+        KernelParameters *parameters; // when kind == KPM_KIND_PARAMETERS
+        Tensor **kernels; // when kind == KPM_KIND_KERNELS
     } data;
 } KernelParametersMapping;
 
 typedef struct {
     ssize_t max_D;
     ssize_t max_kernel_size;
-    Vector2D ***data; // [D][M]
+    DirOffsets ***data; // [D][M]
 } DirKernelsMap;
 
 typedef struct {
+    enum ReachabilityMode soft_reachability;
     Tensor ***kernels; // 3D [y][x][d]
     ssize_t width, height, max_D;
     Cache *cache;
     DirKernelsMap *dir_kernels;
 } KernelsMap3D;
-
-
-typedef struct {
-    Tensor ****kernels; // 4D array [y][x][t][d]
-    ssize_t width, height, timesteps, max_D;
-    Cache *cache;
-} KernelsMap4D;
-
 
 typedef struct {
     size_t width;
@@ -301,38 +278,41 @@ typedef struct {
 
 
 typedef struct {
-    TimedLocation *data;
     size_t length;
+    TimedLocation *data;
 } TimedLocationArray;
 
 typedef struct {
-    DateTime timestamp;
-    float temperature;
-    int humidity;
-    float precipitation;
-    float wind_speed;
-    float wind_direction;
-    float snow_fall;
-    int weather_code;
-    int cloud_cover;
-} WeatherEntry;
-
-typedef struct {
-    WeatherEntry *data;
-    size_t length;
-} WeatherTimeline;
-
-typedef struct {
-    size_t height;
-    size_t width;
-    WeatherTimeline **entries; // Timeline at [y][x]
-} WeatherGrid;
-
-typedef struct {
-    int **data;
     ssize_t width, height;
+    int **data;
 } TerrainMap;
 
+typedef struct {
+    int state;
+    int R; // neighborhood radius in pixels
+    int n_terrains;
+
+    int obs_dx;
+    int obs_dy;
+    double weight;
+    TerrainMap *terrain;
+} TerrainNeighborhood;
+
+typedef struct {
+    int n_states;
+    Tensor *kernels;
+    int *n_neighborhoods;
+    TerrainNeighborhood **terrain_neighborhoods;
+} StateTerrainNeighborhoods;
+
+typedef struct {
+    int n_states;
+    int n_classes;
+
+    // size: n_states * n_classes * n_classes
+    double *used;
+    double *available;
+} TerrainWeightStats;
 
 #ifdef __cplusplus
 }

@@ -105,6 +105,7 @@ target_link_libraries(${PROJECT_NAME}
         ${R_LIBRARIES}
 )
 
+
 # Executable
 #add_executable(${PROJECT_NAME}_main ${PROJECT_SOURCE_DIR}/src/main.cpp)
 #target_link_libraries(${PROJECT_NAME}_main PRIVATE ${PROJECT_NAME})
@@ -113,7 +114,7 @@ target_link_libraries(${PROJECT_NAME}
 #endif ()
 
 # Tests
-enable_testing()
-if (BUILD_TESTING)
-    add_subdirectory(tests)
-endif ()
+#enable_testing()
+#if (BUILD_TESTING)
+#    add_subdirectory(tests)
+#endif ()

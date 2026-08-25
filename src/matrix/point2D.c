@@ -1,7 +1,7 @@
 //
 // Created by omar on 24.03.25.
 //
-#include "math/Point2D.h"
+#include "matrix/point2D.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +10,7 @@
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/move_bank_parser.h"
 #include "parsers/types.h"
-#include "parsers/weather_parser.h"
+#include "parsers/timed_params.h"
 
 Point2D *point_2d_new(const ssize_t x, const ssize_t y) {
     Point2D *result = malloc(sizeof(Point2D));

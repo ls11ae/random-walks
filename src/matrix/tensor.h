@@ -5,13 +5,11 @@
  * @brief Public API for tensor and vector utilities.
  *
  * This header declares functions to create, manage, persist, and compare Tensor objects,
- * lightweight Vector2D helpers, and a simple Tensor4D aggregate.
+ * lightweight DirOffsets helpers, and a simple Tensor4D aggregate.
  *
  * All functions are C-compatible and can be consumed from C and C++ code.
  */
 
-#include "math/Point2D.h"
-#include "matrix/matrix.h"
 #include "parsers/types.h"
 
 #ifdef __cplusplus
@@ -62,22 +60,22 @@ bool tensor_equals(const Tensor *t1, const Tensor *t2);
  * @return Newly allocated direction kernels, or NULL on failure.
  * @note The caller must free the returned array with free_Vector2D().
  */
-Vector2D *get_dir_kernel(ssize_t D, ssize_t size);
+DirOffsets *get_dir_kernel(ssize_t D, ssize_t size);
 
 /**
- * @brief Clone a Vector2D array.
+ * @brief Clone a DirOffsets array.
  * @param src Pointer to the source array.
  * @param len Number of elements to clone.
  * @return Newly allocated copy of the array, or NULL on failure.
  * @note The caller must free the returned array with free_Vector2D().
  */
-Vector2D *vector2d_clone(const Vector2D *src, size_t len);
+DirOffsets *vector2d_clone(const DirOffsets *src, size_t len);
 
 /**
- * @brief Free a Vector2D array previously allocated by this API.
+ * @brief Free a DirOffsets array previously allocated by this API.
  * @param vec Pointer to the array to free. It is safe to pass NULL.
  */
-void free_Vector2D(Vector2D *vec);
+void free_Vector2D(DirOffsets *vec);
 
 /**
  * @brief Destroy a tensor and release its memory.
@@ -146,6 +144,10 @@ typedef struct {
  * @param T Number of Tensor* entries in the array.
  */
 void tensor4D_free(Tensor **tensor, ssize_t T);
+
+void tensor_normalize(Tensor *tensor);
+
+double tensor_sum(const Tensor *tensor);
 
 
 #ifdef __cplusplus

@@ -21,43 +21,6 @@
  */
 
 
- /**
- * @struct NormalDistribution
- * @brief Represents a normal (Gaussian) distribution.
- * @var NormalDistribution::mean
- *   The mean (μ) of the distribution.
- * @var NormalDistribution::stddev
- *   The standard deviation (σ) of the distribution.
- * @var NormalDistribution::_a
- *   Internal parameter (implementation detail).
- * @var NormalDistribution::_b
- *   Internal parameter (implementation detail).
- */
-typedef struct {
-    const double mean;
-    const double stddev;
-    const double _a;
-    const double _b;
-} NormalDistribution;
-
-
-/**
- * @brief Allocates and initializes a new NormalDistribution.
- * @param mean The mean (μ) of the distribution.
- * @param stddev The standard deviation (σ) of the distribution.
- * @return Pointer to the created NormalDistribution, or NULL on failure.
- */
-NormalDistribution *normal_distribution_new(double mean, double stddev);
-
-/**
- * @brief Generates a value from the normal distribution at a given point.
- * @param dist Pointer to the NormalDistribution.
- * @param x The input value.
- * @return The generated value.
- */
-double normal_distribution_generate(NormalDistribution *dist, double x);
-
-
 /**
  * @brief Computes the probability density function (PDF) of a normal distribution.
  * @param mean The mean (μ) of the distribution.
@@ -102,51 +65,6 @@ double chi_distribution_generate(ChiDistribution *dist, double x);
  * @return The PDF value at x.
  */
 double chi_pdf(int k, double x);
-
-/**
- * @struct WrappedDistribution
- * @brief Represents a wrapped distribution (e.g., wrapped normal).
- * @var WrappedDistribution::period
- *   The period of the wrapped distribution.
- */
-typedef struct {
-    double period;
-} WrappedDistribution;
-
-
-/**
- * @brief Generates a value from the wrapped distribution at a given point.
- * @param dist Pointer to the WrappedDistribution.
- * @param x The input value.
- * @return The generated value.
- */
-double wrapped_generate(WrappedDistribution *dist, double x);
-
-/**
- * @brief Computes the PDF of a wrapped normal distribution.
- * @param mu The mean of the distribution.
- * @param rho The concentration parameter.
- * @param x The value at which to evaluate the PDF.
- * @return The PDF value at x.
- */
-double wrapped_normal_pdf(double mu, double rho, double x);
-
-/**
- * @brief Computes an approximate PDF of a wrapped normal distribution.
- * @param mu The mean of the distribution.
- * @param rho The concentration parameter.
- * @param x The value at which to evaluate the PDF.
- * @return The approximate PDF value at x.
- */
-double wrapped_normal_approx_pdf(double mu, double rho, double x);
-
-/**
- * @brief Samples an index from a discrete probability distribution.
- * @param probabilities Array of probabilities (must sum to 1).
- * @param size Number of elements in the array.
- * @return The sampled index.
- */
-int discrete_pdf(const double *probabilities, size_t size);
 
 /**
  * @brief Generates a discrete distribution from an array of probabilities.

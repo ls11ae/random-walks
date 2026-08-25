@@ -54,6 +54,18 @@ void ensure_dir_exists_for(const char *filepath) {
     ensure_dir_exists(path_copy);
 }
 
+char *join_path(const char *base, const char *child) {
+    if (!base || !child) return NULL;
+    const size_t base_len = strlen(base);
+    const size_t child_len = strlen(child);
+    const bool needs_slash = base_len > 0 && base[base_len - 1] != '/';
+    const size_t result_len = base_len + child_len + (needs_slash ? 2 : 1);
+    char *result = malloc(result_len);
+    if (!result) return NULL;
+    snprintf(result, result_len, needs_slash ? "%s/%s" : "%s%s", base, child);
+    return result;
+}
+
 size_t serialize_point2d(FILE *fp, const Point2D *p) {
     assert(p != NULL);
     size_t bytes_written = 0;
@@ -67,13 +79,13 @@ size_t serialize_matrix(FILE *fp, const Matrix *m) {
     bytes_written += fwrite(&m->width, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->height, sizeof(ssize_t), 1, fp);
     bytes_written += fwrite(&m->len, sizeof(ssize_t), 1, fp);
-    if (m->len > 0 && m->data.points != NULL) {
-        bytes_written += fwrite(m->data.points, sizeof(double), m->len, fp);
+    if (m->len > 0 && m->points != NULL) {
+        bytes_written += fwrite(m->points, sizeof(double), m->len, fp);
     }
     return bytes_written * (sizeof(ssize_t) + (m->len > 0 ? sizeof(double) : 0)); // Approximate total bytes
 }
 
-size_t serialize_vector2d(FILE *fp, const Vector2D *v) {
+size_t serialize_vector2d(FILE *fp, const DirOffsets *v) {
     size_t bytes_written = 0;
 
     // 1. Anzahl der Richtungen
@@ -88,11 +100,11 @@ size_t serialize_vector2d(FILE *fp, const Vector2D *v) {
 
     // 3. Daten: für jede Richtung (v->count)
     for (size_t i = 0; i < v->count; ++i) {
-        int is_null = (v->data[i] == NULL);
+        int is_null = (v->offsets[i] == NULL);
         bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
         if (!is_null) {
             size_t len = v->sizes[i];
-            bytes_written += fwrite(v->data[i], sizeof(Point2D), len, fp);
+            bytes_written += fwrite(v->offsets[i], sizeof(Point2D), len, fp);
         }
     }
 
@@ -115,39 +127,144 @@ size_t serialize_tensor(FILE *fp, const Tensor *t) {
             }
         }
     }
-
-    rewind(fp);
     return bytes_written;
 }
 
-size_t serialize_kernels_map_4d(FILE *fp, const KernelsMap4D *km) {
-    size_t bytes_written = 0;
-    bytes_written += fwrite(&km->width, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->height, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->timesteps, sizeof(ssize_t), 1, fp);
-    bytes_written += fwrite(&km->max_D, sizeof(ssize_t), 1, fp);
+uint64_t serialize_kernel_params(FILE *fp, const KernelParameters *params) {
+    uint64_t bytes_written = 0;
+    bytes_written += fwrite(&params->is_brownian, sizeof(bool), 1, fp);
+    bytes_written += fwrite(&params->S, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->D, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->sigma_length, sizeof(float), 1, fp);
+    bytes_written += fwrite(&params->sigma_angle, sizeof(float), 1, fp);
+    bytes_written += fwrite(&params->bias_x, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&params->bias_y, sizeof(ssize_t), 1, fp);
+    return bytes_written;
+}
 
-    // Serialize Tensor**** kernels
-    if (km->kernels != NULL) {
-        for (ssize_t y = 0; y < km->height; ++y) {
-            for (ssize_t x = 0; x < km->width; ++x) {
-                for (ssize_t t = 0; t < km->timesteps; ++t) {
-                    for (ssize_t d = 0; d < km->max_D; ++d) {
-                        // Write a flag indicating if the Tensor* is NULL
-                        int is_null = (!km->kernels[y][x][t] || km->kernels[y][x][t]->data[d] == NULL);
-                        bytes_written += fwrite(&is_null, sizeof(int), 1, fp);
-                        if (!is_null) {
-                            bytes_written += serialize_tensor(fp, km->kernels[y][x][t]);
-                        }
-                    }
-                }
-            }
+KernelParameters *deserialize_kernel_params(FILE *fp) {
+    KernelParameters *params = malloc(sizeof(KernelParameters));
+    fread(&params->is_brownian, sizeof(bool), 1, fp);
+    fread(&params->S, sizeof(ssize_t), 1, fp);
+    fread(&params->D, sizeof(ssize_t), 1, fp);
+    fread(&params->sigma_length, sizeof(float), 1, fp);
+    fread(&params->sigma_angle, sizeof(float), 1, fp);
+    fread(&params->bias_x, sizeof(ssize_t), 1, fp);
+    fread(&params->bias_y, sizeof(ssize_t), 1, fp);
+
+    return params;
+}
+
+uint64_t serialize_kernel_mappings(const char *path, const KernelParametersMapping *mapping) {
+    FILE *fp = fopen(path, "wb");
+    uint64_t bytes_written = 0;
+    const size_t terrain_count = mapping->terrain_count;
+    bytes_written += fwrite(&mapping->terrain_count, sizeof(size_t), 1, fp);
+    bytes_written += fwrite(mapping->terrain_values, sizeof(int), terrain_count, fp);
+    bytes_written += fwrite(mapping->set, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(mapping->barrier, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(mapping->unmapped, sizeof(bool), terrain_count, fp);
+    bytes_written += fwrite(&mapping->has_barrier, sizeof(bool), 1, fp);
+    bytes_written += fwrite(mapping->transition_weights, sizeof(double), terrain_count * terrain_count, fp);
+    bytes_written += fwrite(&mapping->kind, sizeof(KernelMapKind), 1, fp);
+    for (int i = 0; i < terrain_count; ++i) {
+        if (mapping->kind == KPM_KIND_PARAMETERS) {
+            bytes_written += serialize_kernel_params(fp, &mapping->data.parameters[i]);
+        } else {
+            bytes_written += serialize_tensor(fp, mapping->data.kernels[i]);
+        }
+    }
+    fclose(fp);
+    return bytes_written;
+}
+
+uint64_t serialize_terrain(const char *path, const TerrainMap *terrain) {
+    FILE *fp = fopen(path, "wb");
+    uint64_t bytes_written = 0;
+    bytes_written += fwrite(&terrain->width, sizeof(ssize_t), 1, fp);
+    bytes_written += fwrite(&terrain->height, sizeof(ssize_t), 1, fp);
+    for (int i = 0; i < terrain->height; ++i) {
+        bytes_written += fwrite(terrain->data[i], sizeof(int), terrain->width, fp);
+    }
+    fclose(fp);
+    return bytes_written;
+}
+
+TerrainMap *deserialize_terrain(const char *path) {
+    FILE *fp = fopen(path, "rb");
+    TerrainMap *terrain = malloc(sizeof(TerrainMap));
+    if (!terrain) handle_error("Failed to allocate TerrainMap");
+    if (fread(&terrain->width, sizeof(ssize_t), 1, fp) != 1) {
+        free(terrain);
+        handle_error("Failed to read terrain width");
+    }
+    if (fread(&terrain->height, sizeof(ssize_t), 1, fp) != 1) {
+        free(terrain);
+        handle_error("Failed to read terrain height");
+    }
+
+    terrain->data = malloc(terrain->width * terrain->height * sizeof(int));
+    if (!terrain->data) {
+        free(terrain);
+        handle_error("Failed to allocate terrain data");
+    }
+    for (int i = 0; i < terrain->height; ++i) {
+        terrain->data[i] = malloc(terrain->width * sizeof(int));
+        if (!terrain->data[i]) {
+            free(terrain->data);
+            free(terrain);
+        }
+        fread(terrain->data[i], sizeof(int), terrain->width, fp);
+    }
+
+    fclose(fp);
+    return terrain;
+}
+
+KernelParametersMapping *deserialize_kernel_mappings(const char *path) {
+    FILE *fp = fopen(path, "rb");
+
+    KernelParametersMapping *mapping = malloc(sizeof(KernelParametersMapping));
+    if (!mapping) handle_error("Failed to allocate KernelParametersMapping");
+
+    size_t terrain_count = 0;
+    if (fread(&terrain_count, sizeof(size_t), 1, fp) != 1) {
+        free(mapping);
+        handle_error("Failed to read terrain_count");
+    }
+
+    mapping->terrain_count = terrain_count;
+    mapping->terrain_values = malloc(terrain_count * sizeof(int));
+    mapping->set = malloc(terrain_count * sizeof(bool));
+    mapping->barrier = malloc(terrain_count * sizeof(bool));
+    mapping->unmapped = malloc(terrain_count * sizeof(bool));
+    mapping->has_barrier = 0;
+    mapping->transition_weights = malloc(terrain_count * terrain_count * sizeof(double));
+
+    fread(mapping->terrain_values, sizeof(int), terrain_count, fp);
+    fread(mapping->set, sizeof(bool), terrain_count, fp);
+    fread(mapping->barrier, sizeof(bool), terrain_count, fp);
+    fread(mapping->unmapped, sizeof(bool), terrain_count, fp);
+    fread(&mapping->has_barrier, sizeof(bool), 1, fp);
+    fread(mapping->transition_weights, sizeof(double), terrain_count * terrain_count, fp);
+    fread(&mapping->kind, sizeof(KernelMapKind), 1, fp);
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        mapping->data.parameters = malloc(terrain_count * sizeof(KernelParameters));
+        for (int i = 0; i < terrain_count; ++i) {
+            KernelParameters *p = deserialize_kernel_params(fp);
+            mapping->data.parameters[i] = *p;
+            free(p);
+        }
+    } else {
+        mapping->data.kernels = malloc(terrain_count * sizeof(Tensor *));
+        for (int i = 0; i < terrain_count; ++i) {
+            mapping->data.kernels[i] = deserialize_tensor(fp);
         }
     }
     rewind(fp);
-
-    return bytes_written;
+    return mapping;
 }
+
 
 size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
     size_t bytes_written = 0;
@@ -173,7 +290,7 @@ size_t serialize_kernels_map_3d(FILE *fp, const KernelsMap3D *km) {
     return bytes_written;
 }
 
-uint64_t serialize_array(FILE *fp, float *values, const uint64_t size) {
+uint64_t serialize_array(FILE *fp, const float *values, const uint64_t size) {
     uint64_t bytes_written = 0;
     bytes_written += fwrite(&size, sizeof(uint64_t), 1, fp);
     bytes_written += fwrite(values, sizeof(float), size, fp);
@@ -221,15 +338,15 @@ Matrix *deserialize_matrix(FILE *fp) {
         handle_error("Failed to read Matrix len");
     }
 
-    m->data.points = NULL;
+    m->points = NULL;
     if (m->len > 0) {
-        m->data.points = (double *) malloc(m->len * sizeof(double));
-        if (!m->data.points) {
+        m->points = (double *) malloc(m->len * sizeof(double));
+        if (!m->points) {
             free(m);
             handle_error("Failed to allocate Matrix data");
         }
-        if (fread(m->data.points, sizeof(double), m->len, fp) != m->len) {
-            free(m->data.points);
+        if (fread(m->points, sizeof(double), m->len, fp) != m->len) {
+            free(m->points);
             free(m);
             handle_error("Failed to read Matrix data");
         }
@@ -271,89 +388,6 @@ Tensor *deserialize_tensor(FILE *fp) {
 
     return t;
 }
-
-KernelsMap4D *deserialize_kernels_map_4d(FILE *fp) {
-    KernelsMap4D *km = (KernelsMap4D *) malloc(sizeof(KernelsMap4D));
-    if (!km) {
-        handle_error("Failed to allocate KernelsMap4D");
-        return NULL;
-    }
-
-    if (fread(&km->width, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D width");
-    }
-    if (fread(&km->height, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D height");
-    }
-    if (fread(&km->timesteps, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D timesteps");
-    }
-    if (fread(&km->max_D, sizeof(ssize_t), 1, fp) != 1) {
-        free(km);
-        handle_error("Failed to read KernelsMap4D max_D");
-    }
-
-    // Deserialize Tensor**** kernels
-    km->kernels = NULL;
-    if (km->width > 0 && km->height > 0 && km->timesteps > 0 && km->max_D > 0) {
-        km->kernels = (Tensor ****) malloc(km->height * sizeof(Tensor ***));
-        if (!km->kernels) {
-            free(km);
-            handle_error("Failed to allocate kernels 1st dim");
-        }
-        for (ssize_t y = 0; y < km->height; ++y) {
-            km->kernels[y] = (Tensor ***) malloc(km->width * sizeof(Tensor **));
-            if (!km->kernels[y]) {
-                // Cleanup previously allocated dimensions
-                for (ssize_t prev_y = 0; prev_y < y; ++prev_y) free(km->kernels[prev_y]);
-                free(km->kernels);
-                free(km);
-                handle_error("Failed to allocate kernels 2nd dim");
-            }
-            for (ssize_t x = 0; x < km->width; ++x) {
-                km->kernels[y][x] = (Tensor **) malloc(km->timesteps * sizeof(Tensor *));
-                if (!km->kernels[y][x]) {
-                    // Cleanup
-                    for (ssize_t prev_x = 0; prev_x < x; ++prev_x) free(km->kernels[y][prev_x]);
-                    for (ssize_t prev_y = 0; prev_y <= y; ++prev_y) free(km->kernels[prev_y]);
-                    free(km->kernels);
-                    free(km);
-                    handle_error("Failed to allocate kernels 3rd dim");
-                }
-                for (ssize_t t = 0; t < km->timesteps; ++t) {
-                    km->kernels[y][x][t] = (Tensor *) malloc(km->max_D * sizeof(Tensor));
-                    // This is actually storing Tensor*
-                    if (!km->kernels[y][x][t]) {
-                        // Cleanup
-                        for (ssize_t prev_t = 0; prev_t < t; ++prev_t) free(km->kernels[y][x][prev_t]);
-                        for (ssize_t prev_x = 0; prev_x <= x; ++prev_x) free(km->kernels[y][prev_x]);
-                        for (ssize_t prev_y = 0; prev_y <= y; ++prev_y) free(km->kernels[prev_y]);
-                        free(km->kernels);
-                        free(km);
-                        handle_error("Failed to allocate kernels 4th dim");
-                    }
-                    for (ssize_t d = 0; d < km->max_D; ++d) {
-                        int is_null;
-                        if (fread(&is_null, sizeof(int), 1, fp) != 1) {
-                            free_kernels_map_4d(km);
-                            handle_error("Failed to read Tensor* null flag in KernelsMap4D");
-                        }
-                        if (!is_null) {
-                            km->kernels[y][x][t] = deserialize_tensor(fp);
-                        } else {
-                            km->kernels[y][x][t] = NULL;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return km;
-}
-
 
 KernelsMap3D *deserialize_kernels_map_3d(const char *filename) {
     FILE *fp = fopen(filename, "rb");
@@ -500,8 +534,8 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
                     return NULL;
                 }
 
-                int landmark;
-                if (!fread(&landmark, sizeof(int), 1, f)) {
+                int terrain_value;
+                if (!fread(&terrain_value, sizeof(int), 1, f)) {
                     handle_error("Failed to parse terrain");
                     return NULL;
                 }
@@ -509,7 +543,7 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
                 TimedKernelParameters *yxt = malloc(sizeof(TimedKernelParameters));
                 yxt->date_time = dt;
                 yxt->params = kp;
-                yxt->landmark = landmark;
+                yxt->terrain = terrain_value;
 
                 params[y][x][t] = yxt;
             }
@@ -523,17 +557,17 @@ EnvironmentInfluenceGrid *deserialize_env_grid(const char *filename) {
 
 void free_matrix(Matrix *m) {
     if (m == NULL) return;
-    free(m->data.points);
+    free(m->points);
     free(m);
 }
 
-void free_vector2d(Vector2D *v) {
+void free_vector2d(DirOffsets *v) {
     if (v == NULL) return;
-    if (v->data != NULL) {
+    if (v->offsets != NULL) {
         for (size_t i = 0; i < v->count; ++i) {
-            free(v->data[i]); // Free individual Point2D*
+            free(v->offsets[i]); // Free individual Point2D*
         }
-        free(v->data);
+        free(v->offsets);
     }
     free(v->sizes);
     free(v);
@@ -548,31 +582,6 @@ void free_tensor(Tensor *t) {
         free(t->data);
     }
     free(t);
-}
-
-void free_kernels_map_4d(KernelsMap4D *km) {
-    if (km == NULL) return;
-    assert(km);
-    if (km->kernels != NULL) {
-        for (ssize_t y = 0; y < km->height; ++y) {
-            if (km->kernels[y] != NULL) {
-                for (ssize_t x = 0; x < km->width; ++x) {
-                    if (km->kernels[y][x] != NULL) {
-                        for (ssize_t t = 0; t < km->timesteps; ++t) {
-                            if (km->kernels[y][x][t] != NULL) {
-                                free_tensor(km->kernels[y][x][t]);
-                                free(km->kernels[y][x][t]);
-                            }
-                        }
-                        free(km->kernels[y][x]);
-                    }
-                }
-                free(km->kernels[y]);
-            }
-        }
-        free(km->kernels);
-    }
-    free(km);
 }
 
 void write_kernel_map_meta(const char *path, KernelMapMeta *meta) {

@@ -7,20 +7,15 @@
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/terrain_parser.h"
 
 
-KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping) {
-    // 1) Vorbereitung: Parameter‐Set und Dimensionen
-    KernelParametersTerrain *tensor_set = NULL;
-    if (mapping->kind == KPM_KIND_PARAMETERS) {
-        tensor_set = get_kernels_terrain(terrain, mapping);
-    }
+KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapping *mapping,
+                                 const enum ReachabilityMode mode) {
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
 
-    // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
     kernels_map->width = terrain_width;
     kernels_map->height = terrain_height;
@@ -28,37 +23,85 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     for (ssize_t y = 0; y < terrain_height; y++)
         kernels_map->kernels[y] = malloc(terrain_width * sizeof(Tensor *));
 
-    Cache *cache = cache_create(4096);
-
-    int recomputed = 0;
-    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
-
-    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    kernels_map->max_D = (ssize_t) correlated_kernels->max_D;
+    TensorSet *correlated_kernels = NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        correlated_kernels = generate_correlated_tensors(mapping);
+        if (!correlated_kernels) {
+            kernels_map3d_free(kernels_map);
+            return NULL;
+        }
+        kernels_map->max_D = (ssize_t) correlated_kernels->max_D;
+    } else {
+        kernels_map->max_D = 0;
+        for (size_t i = 0; i < mapping->terrain_count; ++i) {
+            Tensor *kernel = mapping->data.kernels[i];
+            if (kernel && (ssize_t) kernel->len > kernels_map->max_D) {
+                kernels_map->max_D = (ssize_t) kernel->len;
+            }
+        }
+    }
     kernels_map->dir_kernels = generate_dir_kernels(mapping);
+    kernels_map->soft_reachability = mode;
 
-    // 4) Hauptschleife: pro Terrain-Punkt
+    if (mode == REACHABILITY_FULL) {
+#pragma omp parallel for collapse(2) schedule(dynamic)
+        for (ssize_t y = 0; y < terrain_height; y++) {
+            for (ssize_t x = 0; x < terrain_width; x++) {
+                const ssize_t terrain_val = terrain_at(x, y, terrain);
+                if (is_unmapped_terrain((int) terrain_val, mapping)) {
+                    kernels_map->kernels[y][x] = NULL;
+                    continue;
+                }
+                const int index = terrain_to_mapping_index(mapping, (int) terrain_val);
+                if (index < 0 || !mapping->set[index]) {
+                    kernels_map->kernels[y][x] = NULL;
+                    continue;
+                }
+                kernels_map->kernels[y][x] = mapping->kind == KPM_KIND_PARAMETERS
+                                                 ? correlated_kernels->data[index]
+                                                 : mapping->data.kernels[index];
+            }
+        }
+        kernels_map->cache = NULL;
+        return kernels_map;
+    }
+
+    KernelParametersTerrain *tensor_set = NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        tensor_set = get_kernels_terrain(terrain, mapping);
+    }
+
+    Cache *cache = cache_create(4096);
+    int recomputed = 0;
+
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
-            if (terrain_val == UNMAPPED_TERRAIN) {
+            if (is_unmapped_terrain((int) terrain_val, mapping)) {
                 kernels_map->kernels[y][x] = NULL;
                 continue;
             }
-            bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+            bool on_barrier = is_barrier_terrain((int) terrain_val, mapping);
             // a) Einzel-Hashes
             Tensor *arr;
             Matrix *soft_reach_mat = NULL;
             if (mapping->kind == KPM_KIND_PARAMETERS) {
-                if (on_forbidden_terrain) {
-                    arr = tensor_clone(correlated_kernels->data[7]);
+                if (!tensor_set->data[y][x]) {
+                    kernels_map->kernels[y][x] = NULL;
+                    continue;
+                }
+                if (on_barrier) {
+                    arr = generate_kernel_from_set(tensor_set->data[y][x], (int) terrain_val,
+                                                   correlated_kernels, true);
                     apply_terrain_bias(x, y, terrain, arr, mapping);
                     const uint64_t hash = tensor_hash(arr);
                     cache_insert(cache, hash, arr, true, arr->len);
                 } else {
-                    soft_reach_mat =
-                            get_reachability_kernel_soft(x, y, 2 * tensor_set->data[y][x]->S + 1, terrain, mapping);
+                    const ssize_t M = 2 * tensor_set->data[y][x]->S + 1;
+                    soft_reach_mat = mode == REACHABILITY_SOFT
+                                         ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                         : get_hard_reachability_mask(x, y, M, terrain, mapping);
                     uint64_t h_params = compute_parameters_hash(tensor_set->data[y][x]);
                     uint64_t h_reach = compute_matrix_hash(soft_reach_mat);
                     uint64_t combined = hash_combine(h_params, h_reach);
@@ -71,25 +114,34 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
                         // c) Cache‐Miss → neu berechnen und einfügen
                         recomputed++;
                         ssize_t D = tensor_set->data[y][x]->D;
-                        arr = generate_kernel_from_set(tensor_set->data[y][x], (int) terrain_val, false,
-                                                       correlated_kernels,
-                                                       true);
+                        arr = generate_kernel_from_set(tensor_set->data[y][x], (int) terrain_val,
+                                                       correlated_kernels, true);
                         for (ssize_t d = 0; d < D; d++) {
                             matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                            if (!on_forbidden_terrain)
+                            if (!on_barrier)
                                 matrix_normalize_L1(arr->data[d]);
                         }
                         cache_insert(cache, combined, arr, true, D);
                     }
                 }
             } else {
-                const int index = landmark_to_index(terrain_val);
+                const int index = terrain_to_mapping_index(mapping, (int) terrain_val);
+                if (index < 0) {
+                    kernels_map->kernels[y][x] = NULL;
+                    continue;
+                }
+                if (!mapping->set[index]) {
+                    kernels_map->kernels[y][x] = NULL;
+                    continue;
+                }
                 arr = mapping->data.kernels[index];
-                if (on_forbidden_terrain) {
-                    arr = tensor_clone(correlated_kernels->data[7]);
+                if (on_barrier) {
+                    arr = tensor_clone(arr);
                     apply_terrain_bias(x, y, terrain, arr, mapping);
                 } else {
-                    soft_reach_mat = get_reachability_kernel_soft(x, y, arr->data[0]->width, terrain, mapping);
+                    soft_reach_mat = mode == REACHABILITY_SOFT
+                                         ? get_relaxed_reachability_mask(x, y, arr->data[0]->width, terrain, mapping)
+                                         : get_hard_reachability_mask(x, y, arr->data[0]->width, terrain, mapping);
                     for (ssize_t d = 0; d < arr->len; d++) {
                         matrix_mul_inplace(arr->data[d], soft_reach_mat);
                         matrix_normalize_L1(arr->data[d]);
@@ -105,8 +157,6 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     }
 
 
-    // 5) Abschluss
-    // printf("Recomputed: %d / %zd\n", recomputed, terrain->width * terrain->height);
     kernels_map->cache = cache;
     kernel_parameters_terrain_free(tensor_set);
     tensor_set_free(correlated_kernels);
@@ -114,88 +164,142 @@ KernelsMap3D *tensor_map_terrain(const TerrainMap *terrain, KernelParametersMapp
     return kernels_map;
 }
 
-KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kern, KernelParametersMapping *mapping,
-                                 bool soft_reachability) {
+KernelsMap3D *kernels_map_single(const TerrainMap *terrain, Tensor *kernel, KernelParametersMapping *mapping,
+                                 const enum ReachabilityMode mode) {
+    if (!terrain || !kernel || !mapping || kernel->len == 0 || !kernel->data || !kernel->data[0]) return NULL;
+
+    const bool soft_reachability = mode == REACHABILITY_SOFT;
     // 1) Vorbereitung: Parameter‐Set und Dimensionen
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
 
     // 2) Map und Cache anlegen
     KernelsMap3D *kernels_map = malloc(sizeof(KernelsMap3D));
+    if (!kernels_map) return NULL;
+
     kernels_map->width = terrain_width;
     kernels_map->height = terrain_height;
+    kernels_map->cache = NULL;
+    kernels_map->dir_kernels = NULL;
     kernels_map->kernels = malloc(terrain_height * sizeof(Tensor **));
     if (!kernels_map->kernels) {
-        perror("Malloc failed for kernelsmap");
+        free(kernels_map);
+        return NULL;
     }
-    for (ssize_t y = 0; y < terrain_height; y++)
+    for (ssize_t y = 0; y < terrain_height; y++) {
         kernels_map->kernels[y] = malloc(terrain_width * sizeof(Tensor *));
+        if (!kernels_map->kernels[y]) {
+            for (ssize_t i = 0; i < y; ++i) free(kernels_map->kernels[i]);
+            free(kernels_map->kernels);
+            free(kernels_map);
+            return NULL;
+        }
+    }
 
-    bool has_forbidden = mapping->has_forbidden_landmarks;
-    Cache *cache = has_forbidden ? cache_create(4096) : NULL;
+    Cache *cache = mode == REACHABILITY_FULL ? NULL : cache_create(4096);
+    if (mode != REACHABILITY_FULL && !cache) {
+        kernels_map3d_free(kernels_map);
+        return NULL;
+    }
 
     int recomputed = 0;
-    const size_t D = kern->len;
-    const ssize_t M = kern->data[0]->width;
+    const size_t D = kernel->len;
+    const ssize_t M = kernel->data[0]->width;
 
-    // 3) Maximaler D-Wert bestimmen (für array_size-Berechnung)
-    kernels_map->max_D = (ssize_t) kern->len;
+    kernels_map->max_D = (ssize_t) kernel->len;
     kernels_map->dir_kernels = get_dir_kernels(M, D);
+    kernels_map->soft_reachability = mode;
 
-    // 4) Hauptschleife: pro Terrain-Punkt
 #pragma omp parallel for collapse(2) reduction(+:recomputed) schedule(dynamic)
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
-            if (!has_forbidden) {
-                kernels_map->kernels[y][x] = kern;
+            ssize_t terrain_val = terrain_at(x, y, terrain);
+            if (is_unmapped_terrain((int) terrain_val, mapping)) {
+                kernels_map->kernels[y][x] = NULL;
                 continue;
             }
-            ssize_t terrain_val = terrain_at(x, y, terrain);
-            if (terrain_val == UNMAPPED_TERRAIN) {
-                terrain_set(terrain, x, y, 10);
+
+            if (mode == REACHABILITY_FULL) {
+                kernels_map->kernels[y][x] = kernel;
+                continue;
             }
-            bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
-            // a) Einzel-Hashes
-            Tensor *arr;
-            if (on_forbidden_terrain) {
-                arr = tensor_clone(kern);
-                apply_terrain_bias(x, y, terrain, arr, mapping);
-                const uint64_t hash = tensor_hash(arr);
-                cache_insert(cache, hash, arr, true, arr->len);
+
+            bool on_barrier = is_barrier_terrain((int) terrain_val, mapping);
+            Tensor *arr = NULL;
+            if (on_barrier) {
+                Tensor *candidate = tensor_clone(kernel);
+                if (candidate) {
+                    apply_terrain_bias(x, y, terrain, candidate, mapping);
+                    const uint64_t hash = tensor_hash(candidate);
+
+#pragma omp critical(kernels_map_single_cache)
+                    {
+                        CacheEntry *entry = cache_lookup_entry(cache, hash);
+                        if (entry && entry->is_array && entry->array_size == (ssize_t) D) {
+                            arr = entry->data.array;
+                        } else {
+                            cache_insert(cache, hash, candidate, true, (ssize_t) D);
+                            arr = candidate;
+                            candidate = NULL;
+                            recomputed++;
+                        }
+                    }
+
+                    if (candidate) tensor_free(candidate);
+                }
             } else {
                 Matrix *soft_reach_mat = soft_reachability
-                                             ? get_reachability_kernel_soft(x, y, M, terrain, mapping)
-                                             : get_reachability_kernel(x, y, M, terrain, mapping);
-                uint64_t combined = compute_matrix_hash(soft_reach_mat);
+                                             ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                             : get_hard_reachability_mask(x, y, M, terrain, mapping);
+                if (soft_reach_mat) {
+                    const uint64_t combined = compute_matrix_hash(soft_reach_mat);
 
-                // b) Cache‐Lookup
-                CacheEntry *entry = cache_lookup_entry(cache, combined);
-                if (entry && entry->is_array && entry->array_size == D) {
-                    arr = entry->data.array;
-                } else {
-                    // c) Cache‐Miss → neu berechnen und einfügen
-                    recomputed++;
-                    arr = tensor_clone(kern);
-                    for (ssize_t d = 0; d < D; d++) {
-                        matrix_mul_inplace(arr->data[d], soft_reach_mat);
-                        if (!on_forbidden_terrain)
-                            matrix_normalize_L1(arr->data[d]);
+#pragma omp critical(kernels_map_single_cache)
+                    {
+                        CacheEntry *entry = cache_lookup_entry(cache, combined);
+                        if (entry && entry->is_array && entry->array_size == (ssize_t) D) {
+                            arr = entry->data.array;
+                        }
                     }
-                    cache_insert(cache, combined, arr, true, D);
+
+                    if (!arr) {
+                        Tensor *candidate = tensor_clone(kernel);
+                        if (candidate) {
+                            for (ssize_t d = 0; d < (ssize_t) D; d++) {
+                                matrix_mul_inplace(candidate->data[d], soft_reach_mat);
+                                matrix_normalize_L1(candidate->data[d]);
+                            }
+
+#pragma omp critical(kernels_map_single_cache)
+                            {
+                                CacheEntry *entry = cache_lookup_entry(cache, combined);
+                                if (entry && entry->is_array && entry->array_size == (ssize_t) D) {
+                                    arr = entry->data.array;
+                                } else {
+                                    cache_insert(cache, combined, candidate, true, (ssize_t) D);
+                                    arr = candidate;
+                                    candidate = NULL;
+                                    recomputed++;
+                                }
+                            }
+
+                            if (candidate) tensor_free(candidate);
+                        }
+                    }
+                    matrix_free(soft_reach_mat);
                 }
-                matrix_free(soft_reach_mat);
             }
             kernels_map->kernels[y][x] = arr;
         }
     }
-    // 5) Abschluss
+
     kernels_map->cache = cache;
     return kernels_map;
 }
 
 
 void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMapping *mapping,
-                                  const char *output_path) {
+                                  const char *output_path, const enum ReachabilityMode mode) {
     ssize_t terrain_width = terrain->width;
     ssize_t terrain_height = terrain->height;
     printf("terrain width = %zd\n", terrain_width);
@@ -206,18 +310,21 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
         tensor_set = get_kernels_terrain(terrain, mapping);
     }
 
-    TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
+    TensorSet *correlated_kernels = NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        correlated_kernels = generate_correlated_tensors(mapping);
+    }
 
     // 1) Maximaler D-Wert bestimmen
     size_t maxD = 0;
     if (mapping->kind == KPM_KIND_PARAMETERS) {
         for (ssize_t i = 0; i < tensor_set->height; i++)
             for (ssize_t j = 0; j < tensor_set->width; j++)
-                if ((ssize_t) tensor_set->data[i][j]->D > maxD)
+                if (tensor_set->data[i][j] && (ssize_t) tensor_set->data[i][j]->D > maxD)
                     maxD = tensor_set->data[i][j]->D;
     } else {
-        for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-            if (mapping->data.kernels[i]->len > maxD)
+        for (size_t i = 0; i < mapping->terrain_count; i++) {
+            if (mapping->data.kernels[i] && mapping->data.kernels[i]->len > maxD)
                 maxD = mapping->data.kernels[i]->len;
         }
     }
@@ -239,7 +346,8 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
     for (ssize_t y = 0; y < terrain_height; y++) {
         for (ssize_t x = 0; x < terrain_width; x++) {
             ssize_t terrain_val = terrain_at(x, y, terrain);
-            if (is_forbidden_landmark(terrain_val, mapping)) {
+            if (is_unmapped_terrain((int) terrain_val, mapping) ||
+                is_barrier_terrain((int) terrain_val, mapping)) {
                 continue;
             }
 
@@ -249,27 +357,30 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
             if (mapping->kind == KPM_KIND_PARAMETERS) {
                 // ---- Parameters case ----
                 KernelParameters *current_parameters = tensor_set->data[y][x];
+                if (!current_parameters) continue;
                 ssize_t D = current_parameters->D;
-                reach_mat = get_reachability_kernel(x, y, 2 * current_parameters->S + 1, terrain, mapping);
-                arr = generate_kernel_from_set(current_parameters, (int) terrain_val, false, correlated_kernels, true);
+                const ssize_t M = 2 * current_parameters->S + 1;
+                reach_mat = mode == REACHABILITY_SOFT
+                                ? get_relaxed_reachability_mask(x, y, M, terrain, mapping)
+                                : get_hard_reachability_mask(x, y, M, terrain, mapping);
+                arr = generate_kernel_from_set(current_parameters, (int) terrain_val, correlated_kernels, true);
 
                 for (ssize_t d = 0; d < D; d++) {
-                    Matrix *mat = matrix_elementwise_mul(arr->data[d], reach_mat);
-                    matrix_normalize_L1(mat);
-                    matrix_free(arr->data[d]);
-                    arr->data[d] = mat;
+                    matrix_mul_inplace(arr->data[d], reach_mat);
+                    matrix_normalize_L1(arr->data[d]);
                 }
             } else {
-                // ---- Landmark kernels case ----
-                const int index = landmark_to_index(terrain_val);
+                // ---- Terrain kernels case ----
+                const int index = terrain_to_mapping_index(mapping, (int) terrain_val);
+                if (index < 0) continue;
                 arr = tensor_clone(mapping->data.kernels[index]); // deep copy!
-                reach_mat = get_reachability_kernel(x, y, arr->data[0]->width, terrain, mapping);
+                reach_mat = mode == REACHABILITY_SOFT
+                                ? get_relaxed_reachability_mask(x, y, arr->data[0]->width, terrain, mapping)
+                                : get_hard_reachability_mask(x, y, arr->data[0]->width, terrain, mapping);
 
                 for (ssize_t d = 0; d < arr->len; d++) {
-                    Matrix *mat = matrix_elementwise_mul(arr->data[d], reach_mat);
-                    matrix_normalize_L1(mat);
-                    matrix_free(arr->data[d]);
-                    arr->data[d] = mat;
+                    matrix_mul_inplace(arr->data[d], reach_mat);
+                    matrix_normalize_L1(arr->data[d]);
                 }
             }
 
@@ -315,4 +426,10 @@ void tensor_map_terrain_serialize(const TerrainMap *terrain, KernelParametersMap
     // 3) Abschluss
     kernel_parameters_terrain_free(tensor_set);
     tensor_set_free(correlated_kernels);
+}
+
+KernelMapMeta load_meta_info(const char *serialization_dir) {
+    char meta_path[256];
+    snprintf(meta_path, sizeof(meta_path), "%s/meta.info", serialization_dir);
+    return read_kernel_map_meta(meta_path);
 }

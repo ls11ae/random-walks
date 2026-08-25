@@ -1,14 +1,7 @@
 #pragma once
+
 #include "matrix/tensor.h"
-/**
- * @file
- * @brief Terrain-to-kernel parameter mapping utilities.
- *
- * Customize animal movement behavior based on Walk categories and default motion models.
- * This header provides factory helpers to build default mappings/kernels (mixed, Brownian,
- * correlated), as well as functions to configure per-terrain overrides, forbidden terrain,
- * and to query mappings.
- */
+#include "parsers/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,137 +10,38 @@ extern "C" {
 
 #endif
 
-#include "parsers/types.h"
+KernelParametersMapping *kernel_mapping_new(const TerrainMap *terrain, KernelMapKind kind);
 
-/**
- * @brief Create a default mixed-model parameters mapping for the given animal type.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @param base_dirs Base directions
- * @param len_diffusivity Base diffusivity for length
- * @param angle_diffusivity Base diffusivity for opening angle
- * @return Newly allocated KernelParametersMapping, or NULL on failure.
- */
-KernelParametersMapping *create_default_marine_mapping(int base_step_size, ssize_t base_dirs,
-                                                       float len_diffusivity, float angle_diffusivity);
+KernelParametersMapping *kernel_mapping_load_csv(const char *filename);
 
-/**
- * @param m mapping to be updated
- * @param terrain Terrain value for which the mapping should be updated
- * @param S new base stepsize
- * @param D new number of directions
- * @param diffusity new base diffusivity
- */
-void
-update_mapping(const KernelParametersMapping *m, int terrain, int S, ssize_t D, float diffusity);
+bool set_terrain_params(KernelParametersMapping *mapping, int terrain, const KernelParameters *params);
 
-/**
- * @brief Create a default mixed-model parameters mapping for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @return Newly allocated KernelParametersMapping, or NULL on failure.
- */
-KernelParametersMapping *create_default_mixed_mapping(enum animal_type animal_type, int base_step_size);
+bool set_terrain_kernel(KernelParametersMapping *mapping, int terrain, Matrix *kernel, ssize_t dirs);
 
-/**
- * @brief Create a default Brownian-motion parameters mapping for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value.
- * @return Newly allocated KernelParametersMapping, or NULL on failure.
- */
-KernelParametersMapping *create_default_brownian_mapping(enum animal_type animal_type, int base_step_size);
+bool set_terrain_barrier(KernelParametersMapping *mapping, int terrain, bool barrier);
 
-/**
- * @brief Create a default correlated random walk parameters mapping for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @return Newly allocated KernelParametersMapping, or NULL on failure.
- */
-KernelParametersMapping *create_default_correlated_mapping(enum animal_type animal_type, int base_step_size);
+bool set_terrain_unmapped(KernelParametersMapping *mapping, int terrain, bool unmapped);
 
-/**
- * @brief Create default kernels for the mixed model for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @return Newly allocated KernelParametersMapping containing kernels, or NULL on failure.
- */
-KernelParametersMapping *create_default_mixed_kernels(enum animal_type animal_type, int base_step_size);
+bool set_terrain_weight(KernelParametersMapping *mapping, int from, int to, double weight);
 
-/**
- * @brief Create default kernels for the Brownian model for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @return Newly allocated KernelParametersMapping containing kernels, or NULL on failure.
- */
-KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal_type, int base_step_size);
+double terrain_weight(const KernelParametersMapping *mapping, int from, int to);
 
-/**
- * @brief Create default kernels for the correlated model for the given animal type.
- * @param animal_type The animal archetype influencing default behavior.
- * @param base_step_size Base step size. Terrain dependant scaling around that value
- * @return Newly allocated KernelParametersMapping containing kernels, or NULL on failure.
- */
-KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size);
+double terrain_stay_weight(const KernelParametersMapping *mapping, int terrain);
 
-/**
- * @brief Initialize or recompute the transition matrix within a mapping.
- * @param mapping Mapping whose transition matrix will be initialized.
- */
-void init_transition_matrix(KernelParametersMapping *mapping);
+int terrain_to_mapping_index(const KernelParametersMapping *mapping, int terrain);
 
-/**
- * @brief Override parameters for a specific terrain category.
- * @param kernel_mapping Target mapping to modify.
- * @param terrain_value Terrain/category to set.
- * @param params Parameters to associate with the terrain.
- */
-void set_landmark_mapping(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
-                          const KernelParameters *params);
+int mapping_index_to_terrain(const KernelParametersMapping *mapping, size_t index);
 
-/**
- * @brief Assign a concrete kernel to a specific terrain category.
- * @param kernel_mapping Target mapping to modify.
- * @param terrain_value Terrain/category to set.
- * @param kernel Kernel matrix to associate.
- * @param dirs Number of directional components contained in the kernel.
- */
-void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
-                         Matrix *kernel, ssize_t dirs);
+bool is_barrier_terrain(int terrain, const KernelParametersMapping *mapping);
 
-/**
- * @brief Map a terrain/category value to a stable index.
- * @param terrain_value Terrain/category to map.
- * @return Zero-based index corresponding to the terrain value, or a negative value on error.
- */
-int landmark_to_index(enum landmarkType terrain_value);
+bool is_unmapped_terrain(int terrain, const KernelParametersMapping *mapping);
 
-/**
- * @brief Mark a terrain/category as forbidden for movement.
- * @param kernel_mapping Target mapping to modify.
- * @param terrain_value Terrain/category to forbid.
- */
-void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value);
+KernelParameters *terrain_params(KernelParametersMapping *mapping, int terrain);
 
-/**
- * @brief Query whether a terrain/category is forbidden.
- * @param terrain_value Terrain/category to check.
- * @param kernel_mapping Mapping containing the forbidden set.
- * @return true if the terrain is forbidden; false otherwise.
- */
-bool is_forbidden_landmark(enum landmarkType terrain_value, const KernelParametersMapping *kernel_mapping);
+const KernelParameters *terrain_params_const(const KernelParametersMapping *mapping, int terrain);
 
-/**
- * @brief Retrieve parameters associated with a given terrain/category.
- * @param mapping Mapping to query.
- * @param terrain_value Terrain/category to look up.
- * @return Pointer to parameters if present, or NULL if none are set.
- */
-KernelParameters *get_parameters_of_terrain(KernelParametersMapping *mapping, enum landmarkType terrain_value);
+void kernel_mapping_free(KernelParametersMapping *mapping);
 
-/**
- * @brief Free KernelParametersMapping
- * @param mapping Mapping to free.
- */
-void kernel_parameters_mapping_free(KernelParametersMapping *mapping);
 #ifdef __cplusplus
 }
 #endif

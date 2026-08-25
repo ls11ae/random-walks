@@ -7,7 +7,8 @@
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/terrain_parser.h" // Bresenham's line algorithm
 
-static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *mapping, ssize_t x0, ssize_t y0,
+static int is_path_clear(const TerrainMap *terrain, const KernelParametersMapping *mapping, const ssize_t x0,
+                         ssize_t y0,
                          ssize_t x1, ssize_t y1) {
     ssize_t dx = abs(x1 - x0);
     ssize_t sx = x0 < x1 ? 1 : -1;
@@ -23,7 +24,7 @@ static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *map
             if (current_x < 0 || current_x >= terrain->width || current_y < 0 || current_y >= terrain->height) {
                 return 0;
             }
-            if (is_forbidden_landmark(terrain_at(current_x, current_y, terrain), mapping)) { return 0; }
+            if (is_barrier_terrain(terrain_at(current_x, current_y, terrain), mapping)) { return 0; }
         } else { is_first = 0; }
         ssize_t e2 = 2 * error;
         if (e2 >= dy) {
@@ -40,15 +41,16 @@ static int is_path_clear(const TerrainMap *terrain, KernelParametersMapping *map
     return 1;
 }
 
-Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t kernel_size, const TerrainMap *terrain,
-                                KernelParametersMapping *mapping) {
+Matrix *get_hard_reachability_mask(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+                                   const TerrainMap *terrain,
+                                   KernelParametersMapping *mapping) {
     Matrix *result = matrix_new(kernel_size, kernel_size);
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height) { return result; }
-    if (is_forbidden_landmark(terrain_at(x, y, terrain), mapping)) { return result; }
+    if (is_barrier_terrain(terrain_at(x, y, terrain), mapping)) { return result; }
     const ssize_t kernel_center_x = (kernel_size) / 2;
     const ssize_t kernel_center_y = (kernel_size) / 2;
     bool full_reachable = true;
-    // check if surroundings are fully reachable, meaning no forbidden landmark, if yes, return matrix filled with 1.0
+    // check if surroundings are fully reachable, meaning no barrier terrain, if yes, return matrix filled with 1.0
     for (ssize_t i = 0; i < kernel_size; ++i) {
         for (ssize_t j = 0; j < kernel_size; ++j) {
             const ssize_t dx = i - kernel_center_x;
@@ -56,7 +58,7 @@ Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
             const ssize_t new_x = x + dx;
             const ssize_t new_y = y + dy;
             if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height) { continue; }
-            if (is_forbidden_landmark(terrain_at(new_x, new_y, terrain), mapping)) {
+            if (is_barrier_terrain(terrain_at(new_x, new_y, terrain), mapping)) {
                 full_reachable = false;
                 break;
             }
@@ -75,9 +77,9 @@ Matrix *get_reachability_kernel(const ssize_t x, const ssize_t y, const ssize_t 
             const ssize_t new_x = x + dx;
             const ssize_t new_y = y + dy;
             if (new_x < 0 || new_x >= terrain->width || new_y < 0 || new_y >= terrain->height) { continue; }
-            if (is_forbidden_landmark(terrain_at(new_x, new_y, terrain), mapping)) { continue; }
+            if (is_barrier_terrain(terrain_at(new_x, new_y, terrain), mapping)) { continue; }
             if (is_path_clear(terrain, mapping, x, y, new_x, new_y)) {
-                matrix_set(result, (ssize_t) i, (ssize_t) j, 1.0);
+                matrix_set(result, i, j, 1.0);
             }
         }
     }
@@ -90,8 +92,7 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     if (x0 == x1 && y0 == y1) {
         // stay probability
         int terrain_type = terrain_at(x0, y0, terrain);
-        int idx = landmark_to_index(terrain_type);
-        return mapping->stay_probabilities[idx];
+        return terrain_stay_weight(mapping, terrain_type);
     }
 
     ssize_t dx = abs(x1 - x0);
@@ -105,12 +106,10 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     ssize_t prev_y = y0;
     double factor = 1.0;
     int first = 1;
-
-#define WATER_TO_WATER_FACTOR 1.0
-#define WATER_TO_LAND_FACTOR 1.5
-#define LAND_TO_WATER_FACTOR 0.75
+#define BARRIER_TO_BARRIER_FACTOR 1.0
+#define BARRIER_TO_LAND_FACTOR 1.5
+#define LAND_TO_BARRIER_FACTOR 0.75
 #define LAND_TO_LAND_FACTOR 1.0
-
     while (1) {
         if (!first) {
             // Check boundaries
@@ -123,22 +122,17 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
             const int prev_terrain = terrain_at(prev_x, prev_y, terrain);
             const int curr_terrain = terrain_at(current_x, current_y, terrain);
 
-            const int prev_idx = landmark_to_index(prev_terrain);
-            const int curr_idx = landmark_to_index(curr_terrain);
-
-            double transition_prob = mapping->transition_matrix[prev_idx][curr_idx];
-            // water specific transitions
-            if (is_forbidden_landmark(prev_terrain, mapping) || is_forbidden_landmark(curr_terrain, mapping)) {
-                if (is_forbidden_landmark(prev_terrain, mapping)) {
-                    factor *= is_forbidden_landmark(curr_terrain, mapping)
-                                  ? WATER_TO_WATER_FACTOR
-                                  : WATER_TO_LAND_FACTOR;
+            const double transition_prob = terrain_weight(mapping, prev_terrain, curr_terrain);
+            const bool is_prev_barrier = is_barrier_terrain(prev_terrain, mapping);
+            const bool is_curr_barrier = is_barrier_terrain(curr_terrain, mapping);
+            if (is_prev_barrier || is_curr_barrier) {
+                if (is_prev_barrier) {
+                    factor *= is_curr_barrier ? BARRIER_TO_BARRIER_FACTOR : BARRIER_TO_LAND_FACTOR;
                 } else {
-                    factor *= is_forbidden_landmark(curr_terrain, mapping) ? LAND_TO_WATER_FACTOR : LAND_TO_LAND_FACTOR;
+                    factor *= is_curr_barrier ? LAND_TO_BARRIER_FACTOR : LAND_TO_LAND_FACTOR;
                 }
             } else {
-                // Normale Transition-Wahrscheinlichkeit
-                factor = transition_prob;
+                factor *= transition_prob;
             }
 
             prev_x = current_x;
@@ -149,7 +143,7 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
 
         if (current_x == x1 && current_y == y1) break;
 
-        ssize_t e2 = 2 * error;
+        const ssize_t e2 = 2 * error;
         if (e2 >= dy) {
             if (current_x == x1) break;
             error += dy;
@@ -165,19 +159,18 @@ static double get_path_factor(const TerrainMap *terrain, KernelParametersMapping
     return factor;
 }
 
-Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
-                                     const TerrainMap *terrain, KernelParametersMapping *mapping) {
+Matrix *get_relaxed_reachability_mask(const ssize_t x, const ssize_t y, const ssize_t kernel_size,
+                                      const TerrainMap *terrain, KernelParametersMapping *mapping) {
     Matrix *result = matrix_new(kernel_size, kernel_size);
     matrix_fill(result, 0.0);
 
     if (x < 0 || x >= terrain->width || y < 0 || y >= terrain->height)
         return result;
 
-    const ssize_t kernel_center = kernel_size / 2;
-    int center_terrain = terrain_at(x, y, terrain);
-    int center_idx = landmark_to_index(center_terrain);
-
 #define REACHABILITY_NERF 0.65
+
+    const ssize_t kernel_center = kernel_size / 2;
+    const int center_terrain = terrain_at(x, y, terrain);
 
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (ssize_t i = 0; i < kernel_size; ++i) {
@@ -191,18 +184,16 @@ Matrix *get_reachability_kernel_soft(const ssize_t x, const ssize_t y, const ssi
                 continue;
 
             double factor = get_path_factor(terrain, mapping, x, y, new_x, new_y);
-            // forbidden landmark
-            int target_terrain = terrain_at(new_x, new_y, terrain);
-            if (is_forbidden_landmark(target_terrain, mapping)) {
+            const int target_terrain = terrain_at(new_x, new_y, terrain);
+            if (is_barrier_terrain(target_terrain, mapping)) {
                 factor *= REACHABILITY_NERF;
             }
-
             matrix_set(result, i, j, factor);
         }
     }
 
     // stay probability
-    matrix_set(result, kernel_center, kernel_center, mapping->stay_probabilities[center_idx]);
+    matrix_set(result, kernel_center, kernel_center, terrain_stay_weight(mapping, center_terrain));
 
     return result;
 }
@@ -222,7 +213,7 @@ static int get_distance_to(const TerrainMap *terrain, ssize_t x0, ssize_t y0,
     while (1) {
         if (!is_first) {
             if (current_x < 0 || current_x >= terrain->width || current_y < 0 || current_y >= terrain->height
-                || !is_forbidden_landmark(terrain_at(current_x, current_y, terrain), mapping)) {
+                || !is_barrier_terrain(terrain_at(current_x, current_y, terrain), mapping)) {
                 return dist;
             }
         } else { is_first = 0; }
@@ -282,7 +273,7 @@ void apply_terrain_bias(ssize_t x, ssize_t y, const TerrainMap *terrain, const T
     }
     for (int d = 0; d < D; ++d) {
         for (int j = 0; j < kernels->data[d]->len; ++j)
-            kernels->data[d]->data.points[j] *= weights[d];
+            kernels->data[d]->points[j] *= weights[d];
     }
     free(closest_path_per_direction);
     free(weights);

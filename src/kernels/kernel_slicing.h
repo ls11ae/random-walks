@@ -32,11 +32,9 @@ double compute_angle_ks(double x, double y);
 
 /**
  * @brief Computes the Tensor holding D matrices with the angles masks for each direction
- * @param W Width of the kernels (Kernels of dimenstions W x W)
- * @param D Number of directions 
  * @param tensor The tensor to be set  
  */
-void compute_overlap_percentages(int W, int D, Tensor *tensor);
+void compute_overlap_percentages(Tensor *tensor);
 
 #ifdef __cplusplus
     }

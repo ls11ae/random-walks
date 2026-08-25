@@ -1,8 +1,11 @@
 #include <gtest/gtest.h>
 
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/kernel_terrain_mapping.h"
+
+constexpr int kExampleLand = 50;
+constexpr int kExampleForbidden = 80;
 
 static TerrainMap init_terrain_map() {
     TerrainMap terrain;
@@ -12,40 +15,40 @@ static TerrainMap init_terrain_map() {
     for (int j = 0; j < terrain.height; j++) {
         terrain_values[j] = static_cast<int *>(malloc(terrain.width * sizeof(int)));
         for (int i = 0; i < terrain.width; i++) {
-            terrain_values[j][i] = 50; // terrain
+            terrain_values[j][i] = kExampleLand;
         }
     }
 
-    terrain_values[2][6] = WATER;
-    terrain_values[2][7] = WATER;
-    terrain_values[2][8] = WATER;
+    terrain_values[2][6] = kExampleForbidden;
+    terrain_values[2][7] = kExampleForbidden;
+    terrain_values[2][8] = kExampleForbidden;
 
-    terrain_values[3][5] = WATER;
+    terrain_values[3][5] = kExampleForbidden;
 
-    terrain_values[4][5] = WATER;
-    terrain_values[4][6] = WATER;
-    terrain_values[4][10] = WATER;
+    terrain_values[4][5] = kExampleForbidden;
+    terrain_values[4][6] = kExampleForbidden;
+    terrain_values[4][10] = kExampleForbidden;
 
-    terrain_values[5][5] = WATER;
-    terrain_values[5][7] = WATER;
-    terrain_values[5][8] = WATER;
+    terrain_values[5][5] = kExampleForbidden;
+    terrain_values[5][7] = kExampleForbidden;
+    terrain_values[5][8] = kExampleForbidden;
 
-    terrain_values[6][7] = WATER;
-    terrain_values[6][8] = WATER;
+    terrain_values[6][7] = kExampleForbidden;
+    terrain_values[6][8] = kExampleForbidden;
 
-    terrain_values[8][5] = WATER;
-    terrain_values[8][7] = WATER;
+    terrain_values[8][5] = kExampleForbidden;
+    terrain_values[8][7] = kExampleForbidden;
 
-    terrain_values[10][3] = WATER;
+    terrain_values[10][3] = kExampleForbidden;
 
-    terrain_values[11][3] = WATER;
-    terrain_values[11][9] = WATER;
-    terrain_values[11][10] = WATER;
+    terrain_values[11][3] = kExampleForbidden;
+    terrain_values[11][9] = kExampleForbidden;
+    terrain_values[11][10] = kExampleForbidden;
 
-    terrain_values[12][3] = WATER;
-    terrain_values[12][4] = WATER;
-    terrain_values[12][9] = WATER;
-    terrain_values[12][10] = WATER;
+    terrain_values[12][3] = kExampleForbidden;
+    terrain_values[12][4] = kExampleForbidden;
+    terrain_values[12][9] = kExampleForbidden;
+    terrain_values[12][10] = kExampleForbidden;
     terrain.data = terrain_values;
     return terrain;
 }
@@ -66,8 +69,27 @@ protected:
     }
 };
 
+static KernelParametersMapping *create_test_mapping(const TerrainMap *terrain) {
+    KernelParametersMapping *mapping = kernel_mapping_new(terrain, KPM_KIND_PARAMETERS);
+    if (!mapping) return nullptr;
+
+    const char *paths[] = {
+        "resources/kernel_mappings/mesa_brownian_terrestrial.csv",
+        "../resources/kernel_mappings/mesa_brownian_terrestrial.csv",
+        "../../resources/kernel_mappings/mesa_brownian_terrestrial.csv",
+    };
+
+    for (const char *path: paths) {
+        if (kernel_mapping_load_csv(mapping, path)) return mapping;
+    }
+
+    kernel_mapping_free(mapping);
+    return nullptr;
+}
+
 TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
-    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 3);
+    auto mapping = create_test_mapping(&terrain_map);
+    ASSERT_NE(mapping, nullptr);
     auto reachability_kernel1 = get_reachability_kernel(7, 4, 7, &terrain_map, mapping);
     // First row
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 1.0);
@@ -126,11 +148,12 @@ TEST_F(ReachabilityTest, ReachabilityKernelComplex) {
     ASSERT_EQ(matrix_get(reachability_kernel1, 5, 6), 0.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 6, 6), 0.0);
     matrix_free(reachability_kernel1);
-    free(mapping);
+    kernel_mapping_free(mapping);
 }
 
 TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
-    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
+    auto mapping = create_test_mapping(&terrain_map);
+    ASSERT_NE(mapping, nullptr);
     auto reachability_kernel1 = get_reachability_kernel(4, 11, 3, &terrain_map, mapping);
 
     ASSERT_EQ(matrix_get(reachability_kernel1, 0, 0), 0.0);
@@ -145,11 +168,12 @@ TEST_F(ReachabilityTest, ReachabilityKernelSimple) {
     ASSERT_EQ(matrix_get(reachability_kernel1, 1, 2), 0.0);
     ASSERT_EQ(matrix_get(reachability_kernel1, 2, 2), 1.0);
     matrix_free(reachability_kernel1);
-    free(mapping);
+    kernel_mapping_free(mapping);
 }
 
 TEST_F(ReachabilityTest, FullReachability) {
-    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
+    auto mapping = create_test_mapping(&terrain_map);
+    ASSERT_NE(mapping, nullptr);
     auto reachability_kernel1 = get_reachability_kernel(6, 14, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)
@@ -157,11 +181,12 @@ TEST_F(ReachabilityTest, FullReachability) {
             ASSERT_EQ(matrix_get(reachability_kernel1,i, j), 1.0);
 
     matrix_free(reachability_kernel1);
-    free(mapping);
+    kernel_mapping_free(mapping);
 }
 
 TEST_F(ReachabilityTest, ZeroReachability) {
-    auto mapping = create_default_brownian_mapping(TERRESTRIAL, 1);
+    auto mapping = create_test_mapping(&terrain_map);
+    ASSERT_NE(mapping, nullptr);
     auto reachability_kernel1 = get_reachability_kernel(3, 12, 3, &terrain_map, mapping);
 
     for (int i = 0; i < 3; ++i)
@@ -169,6 +194,5 @@ TEST_F(ReachabilityTest, ZeroReachability) {
             ASSERT_EQ(matrix_get(reachability_kernel1,i, j), 0.0);
 
     matrix_free(reachability_kernel1);
-    free(mapping);
+    kernel_mapping_free(mapping);
 }
-

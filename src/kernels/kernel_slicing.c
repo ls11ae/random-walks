@@ -1,4 +1,4 @@
-#include "math/kernel_slicing.h"
+#include "kernels/kernel_slicing.h"
 
 #define SAMPLES_PER_SIDE 200
 #define PI 3.14159265358979323846
@@ -13,11 +13,17 @@ double compute_angle_ks(double x, double y) {
     return degrees;
 }
 
-void compute_overlap_percentages(int W, int D, Tensor *tensor) {
-    const int S = W / 2;
-    const double angle_step = 360.0 / D;
+void compute_overlap_percentages(Tensor *tensor) {
     if (!tensor->data) return;
-    const int steps = 100;
+    const size_t W = tensor->data[0]->width;
+    const size_t D = tensor->len;
+    if (W % 2 == 0) {
+        fprintf(stderr, "Kernel width W must be odd.\n");
+        return;
+    }
+    const int S = (int) W / 2;
+    const double angle_step = 360.0 / D;
+    const int steps = SAMPLES_PER_SIDE;
 
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (int x_center = -S; x_center <= S; ++x_center) {

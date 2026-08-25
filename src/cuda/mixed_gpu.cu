@@ -14,13 +14,13 @@
 #include "math/math_utils.h"
 #include "parsers/constants.h"
 #include "parsers/terrain_parser.h"
-#include "walk/m_walk.h"
+#include "walk/m_walker.h"
 
 // INDEX macros (D major)
 #define INDEX3D(d, y, x, H, W) ( (d) * (H) * (W) + (y) * (W) + (x) )
 #define CUDA_CALL(call) do { cudaError_t _e = (call); if (_e != cudaSuccess) { fprintf(stderr, "CUDA error %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(_e)); exit(EXIT_FAILURE); } } while(0)
 
-inline Vector2D *get_dir_cell_set_for_tensor(const Tensor *t, const DirKernelsMap *dir_kernels_map) {
+inline DirOffsets *get_dir_cell_set_for_tensor(const Tensor *t, const DirKernelsMap *dir_kernels_map) {
 	return dir_kernels_map->data[t->len][t->data[0]->width];
 }
 
@@ -155,12 +155,12 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 			const Matrix *m = t->data[di];
 			const int total = static_cast<int>(m->width * m->width);
 			for (int i = 0; i < total; ++i) {
-				out.kernel_pool.push_back(static_cast<double>(m->data.points[i]));
+				out.kernel_pool.push_back(static_cast<double>(m->points[i]));
 			}
 		}
 
 		// Process directional offsets
-		if (Vector2D *dir_cell_set = get_dir_cell_set_for_tensor(t, km->dir_kernels)) {
+		if (DirOffsets *dir_cell_set = get_dir_cell_set_for_tensor(t, km->dir_kernels)) {
 			int D_dir = static_cast<int>(dir_cell_set->count);
 			if (D_dir != D) {
 				printf("WARNING: Tensor len=%d but dir_cell_set->count=%d\n", D, D_dir);
@@ -174,8 +174,8 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
 
 				for (size_t i = 0; i < dir_cell_set->sizes[di]; ++i) {
 					int2 v;
-					v.x = static_cast<int>(dir_cell_set->data[di][i].x);
-					v.y = static_cast<int>(dir_cell_set->data[di][i].y);
+					v.x = static_cast<int>(dir_cell_set->offsets[di][i].x);
+					v.y = static_cast<int>(dir_cell_set->offsets[di][i].y);
 					out.offsets_pool.push_back(v);
 				}
 			}
@@ -345,7 +345,7 @@ static Point2DArray *backtrace_mixed_gpu(
 		--index;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = get_dir_kernel(D_local, kernel_width);
+		DirOffsets *dir_kernel = get_dir_kernel(D_local, kernel_width);
 		if (!dir_kernel) {
 			fprintf(stderr, "Error: Failed to get dir kernel\n");
 			free(movements_x);
@@ -360,16 +360,14 @@ static Point2DArray *backtrace_mixed_gpu(
 		for (int d = 0; d < D_local; ++d) {
 			size_t offs_count = dir_kernel->sizes[direction];
 			for (size_t i = 0; i < offs_count; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
 
 				// Grenzen überprüfen
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H)
-					continue;
-				if (terrain_at(prev_x, prev_y, terrain) == UNMAPPED_TERRAIN)
 					continue;
 
 				const Tensor *previous_tensor = tensor_map->kernels[prev_y][prev_x];
@@ -462,6 +460,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
                              TerrainMap *terrain_map,
                              const bool serialize,
                              const char *serialization_path, KernelPoolC *pool) {
+	const int layer_count = T + 1;
 	const int n_kernels = static_cast<int>(pool->kernel_offsets_size);
 	const int Dmax = static_cast<int>(kernels_map->max_D);
 	const int max_D = Dmax;
@@ -484,8 +483,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 		));
 
 	CUDA_CALL(cudaMalloc(&d_kernel_offsets, n_kernels * sizeof(int)));
-	CUDA_CALL(cudaMemcpy(d_kernel_offsets, pool->kernel_offsets, n_kernels * sizeof(int), cudaMemcpyHostToDevice))
-	;
+	CUDA_CALL(cudaMemcpy(d_kernel_offsets, pool->kernel_offsets, n_kernels * sizeof(int), cudaMemcpyHostToDevice));
 
 	CUDA_CALL(cudaMalloc(&d_kernel_widths, n_kernels * sizeof(int)));
 	CUDA_CALL(cudaMemcpy(d_kernel_widths, pool->kernel_widths, n_kernels * sizeof(int), cudaMemcpyHostToDevice));
@@ -539,12 +537,12 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	// host DP flat if not serializing
 	double *h_dp_flat = nullptr;
 	if (!serialize) {
-		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(T) * dp_layer_size));
+		h_dp_flat = static_cast<double *>(malloc(static_cast<size_t>(layer_count) * dp_layer_size));
 		if (!h_dp_flat) {
 			perror("malloc h_dp_flat failed");
 			exit(EXIT_FAILURE);
 		}
-		memset(h_dp_flat, 0, static_cast<size_t>(T) * dp_layer_size);
+		memset(h_dp_flat, 0, static_cast<size_t>(layer_count) * dp_layer_size);
 	}
 
 	// init t=0
@@ -571,7 +569,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	dim3 block(8, 8, 8);
 	dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, (Dmax + block.z - 1) / block.z);
 
-	for (int t = 1; t < T; ++t) {
+	for (int t = 1; t < layer_count; ++t) {
 		dp_step_kernel_mixed<<<grid, block>>>(d_dp_prev, d_dp_current,
 		                                      d_kernel_pool, d_kernel_offsets, d_kernel_widths, d_kernel_Ds,
 		                                      d_kernel_index_by_cell,
@@ -601,7 +599,7 @@ Point2DArray *gpu_mixed_walk(const int T, const int W, const int H,
 	// Tensor **host_dp = convert_dp_host_to_tensor(h_dp_flat, T, max_D, H, W);
 	// Point2DArray *walk = m_walk_backtrace(host_dp, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	//                                       serialization_path, "");
-	auto walk = backtrace_mixed_gpu(h_dp_flat, T, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
+	auto walk = backtrace_mixed_gpu(h_dp_flat, layer_count, kernels_map, terrain_map, mapping, end_x, end_y, 0, serialize,
 	                                serialization_path, "");
 
 	// cleanup

@@ -4,16 +4,16 @@
 #include "move_bank_parser.h"
 #include "serialization.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "matrix/tensor.h"
 
 DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D) {
     DirKernelsMap *dir_kernels_map = malloc(sizeof(DirKernelsMap));
     dir_kernels_map->max_D = max_D;
     dir_kernels_map->max_kernel_size = max_M;
-    dir_kernels_map->data = malloc(sizeof(Vector2D *) * (max_D + 1));
+    dir_kernels_map->data = malloc(sizeof(DirOffsets **) * (max_D + 1));
     for (int d = 1; d <= max_D; d++) {
-        dir_kernels_map->data[d] = malloc(sizeof(Vector2D) * (max_M + 1));
+        dir_kernels_map->data[d] = malloc(sizeof(DirOffsets *) * (max_M + 1));
         for (int m = 1; m <= max_M; m++) {
             dir_kernels_map->data[d][m] = get_dir_kernel(d, m);
         }
@@ -24,12 +24,23 @@ DirKernelsMap *get_dir_kernels(ssize_t max_M, ssize_t max_D) {
 DirKernelsMap *generate_dir_kernels(KernelParametersMapping *mapping) {
     ssize_t max_M = 0;
     ssize_t max_D = 0;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
-        const ssize_t t_D = parameters->D;
-        const ssize_t m = parameters->S * 2 + 1;
-        max_D = max_D > t_D ? max_D : t_D;
-        max_M = max_M > m ? max_M : m;
+    if (!mapping) return NULL;
+    if (mapping->kind == KPM_KIND_PARAMETERS) {
+        for (size_t i = 0; i < mapping->terrain_count; i++) {
+            if (!mapping->set[i]) continue;
+            KernelParameters *parameters = &mapping->data.parameters[i];
+            const ssize_t t_D = parameters->D;
+            const ssize_t m = parameters->S * 2 + 1;
+            max_D = max_D > t_D ? max_D : t_D;
+            max_M = max_M > m ? max_M : m;
+        }
+    } else {
+        for (size_t i = 0; i < mapping->terrain_count; i++) {
+            Tensor *kernel = mapping->data.kernels[i];
+            if (!kernel || kernel->len == 0) continue;
+            max_D = max_D > (ssize_t) kernel->len ? max_D : (ssize_t) kernel->len;
+            max_M = max_M > kernel->data[0]->width ? max_M : kernel->data[0]->width;
+        }
     }
     return get_dir_kernels(max_M, max_D);
 }
@@ -50,7 +61,7 @@ TerrainMap *terrain_single_value(const int land_type, const ssize_t width, const
     TerrainMap *terrain_map = malloc(sizeof(TerrainMap));
     terrain_map->height = height;
     terrain_map->width = width;
-    terrain_map->data = malloc(height * sizeof(int));
+    terrain_map->data = malloc(height * sizeof(int *));
     for (int i = 0; i < height; i++) {
         terrain_map->data[i] = malloc(width * sizeof(int));
         for (int j = 0; j < width; j++) {
@@ -90,4 +101,24 @@ Tensor *tensor_at(const char *output_path, ssize_t x, ssize_t y) {
     Tensor *t = deserialize_tensor(fp);
     fclose(fp);
     return t;
+}
+
+int landmarks_count(const TerrainMap *terrain) {
+    int count = 0;
+    int *copy = malloc(terrain->height * terrain->width * sizeof(int));
+    for (int i = 0; i < terrain->height; ++i) {
+        memcpy(copy + i * terrain->width, terrain->data[i], terrain->width * sizeof(int));
+    }
+
+    for (int k = 0; k < terrain->width * terrain->height; ++k) {
+        const int current_val = copy[k];
+        if (current_val != 0) {
+            count++;
+            for (int i = 0; i < terrain->width * terrain->height; ++i) {
+                if (copy[i] == current_val) copy[i] = 0;
+            }
+        }
+    }
+    free(copy);
+    return count;
 }

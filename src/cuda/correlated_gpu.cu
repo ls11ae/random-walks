@@ -179,8 +179,9 @@ Point2DArray *backtrace_correlated_gpu_serialized(const char *dp_path, const flo
 Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const int start_x, const int start_y,
                                   const int end_x, const int end_y,
                                   const Tensor *kernel_tensor, const Tensor *angle_mask_tensor,
-                                  const Vector2D *dir_kernel_data, const bool serialize,
+                                  const DirOffsets *dir_kernel_data, const bool serialize,
                                   const char *serialization_path) {
+	const int layer_count = T + 1;
 	float *d_kernel, *d_mask;
 	int2 *d_offsets;
 	int *d_sizes;
@@ -235,7 +236,7 @@ Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const i
 	cudaMalloc(&d_dp_current, dp_layer_size);
 
 	// Host buffer for the entire DP-Tensor
-	const size_t elements = static_cast<size_t>(serialize ? 1 : T) * D * H * W * sizeof(float);
+	const size_t elements = static_cast<size_t>(serialize ? 1 : layer_count) * D * H * W * sizeof(float);
 	printf("DP in bytes %zu \n", elements);
 	auto *h_dp_flat = static_cast<float *>(malloc(elements));
 	if (!h_dp_flat) {
@@ -271,7 +272,7 @@ Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const i
 	cudaEventRecord(start, nullptr);
 
 	// Run kernel for each time step
-	for (int t = 1; t < T; t++) {
+	for (int t = 1; t < layer_count; t++) {
 		//printf("<< %d / %d >>\n", t, T);
 		dp_step_kernel<<<grid, block>>>(d_dp_prev, d_dp_current, d_kernel, d_mask,
 		                                d_offsets, d_sizes, D, H, W, S);
@@ -312,7 +313,7 @@ Point2DArray *gpu_correlated_walk(const int T, const int W, const int H, const i
 
 	printf("start backtracking \n");
 	const auto start_time = std::chrono::high_resolution_clock::now();
-	Point2DArray *path_gpu = backtrace_correlated_gpu(h_dp_flat, h_mask, h_offsets_expanded, h_sizes, T, S, W, H,
+	Point2DArray *path_gpu = backtrace_correlated_gpu(h_dp_flat, h_mask, h_offsets_expanded, h_sizes, layer_count, S, W, H,
 	                                                  h_kernel, end_x, end_y, 0, static_cast<int32_t>(D),
 	                                                  serialization_path,
 	                                                  serialize);

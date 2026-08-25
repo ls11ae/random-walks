@@ -1,456 +1,428 @@
 #include "parsers/kernel_terrain_mapping.h"
 
 #include <assert.h>
+#include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include "move_bank_parser.h"
-#include "matrix/kernels.h"
-#include "matrix/matrix.h"
+#include <string.h>
+#include <strings.h>
 
-// Helper: wrap a single Matrix into a Tensor (len = 1)
-static Tensor *tensor_from_single_matrix(Matrix *m) {
-    Tensor *t = (Tensor *) malloc(sizeof(Tensor));
+#include "kernels/kernels.h"
+#include "matrix/matrix.h"
+#include "parsers/constants.h"
+
+static bool valid_params(const KernelParameters *p) {
+    return p && p->S >= MIN_STEP_SIZE &&
+           ((!p->is_brownian && p->D > 1) || (p->is_brownian && p->D == 1));
+}
+
+static int value_index(const int *values, const size_t count, const int value) {
+    for (size_t i = 0; i < count; ++i) {
+        if (values[i] == value) return (int) i;
+    }
+    return -1;
+}
+
+static Tensor *single_matrix_tensor(Matrix *m) {
+    Tensor *t = malloc(sizeof(Tensor));
     if (!t) return NULL;
-    t->len = 1;
-    t->data = (Matrix **) malloc(sizeof(Matrix *));
+
+    t->data = malloc(sizeof(Matrix *));
     if (!t->data) {
         free(t);
         return NULL;
     }
+
+    t->len = 1;
     t->data[0] = m;
     return t;
 }
 
-void init_transition_matrix(KernelParametersMapping *mapping) {
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        const double default_stay_probabilities[LAND_MARKS_COUNT] = {
-            0.8, // TREE_COVER
-            0.75, // SHRUBLAND
-            0.85, // GRASSLAND
-            0.84, // CROPLAND
-            0.7, // BUILT_UP
-            0.95, // SPARSE_VEGETATION
-            0.8, // SNOW_AND_ICE
-            0.9, // WATER
-            0.8, // HERBACEOUS_WETLAND
-            0.85, // MANGROVES
-            0.7 // MOSS_AND_LICHEN
-        };
-        mapping->stay_probabilities[i] = default_stay_probabilities[i];
+int terrain_to_mapping_index(const KernelParametersMapping *mapping, const int terrain) {
+    return mapping ? value_index(mapping->terrain_values, mapping->terrain_count, terrain) : -1;
+}
 
-        for (int j = 0; j < LAND_MARKS_COUNT; j++) {
-            if (i == j) {
-                mapping->transition_matrix[i][j] = default_stay_probabilities[i];
-            } else {
-                mapping->transition_matrix[i][j] = (1.0 - default_stay_probabilities[i]) / (LAND_MARKS_COUNT - 1);
-            }
+int mapping_index_to_terrain(const KernelParametersMapping *mapping, const size_t index) {
+    if (!mapping || index >= mapping->terrain_count) return -1;
+    return mapping->terrain_values[index];
+}
+
+KernelParametersMapping *kernel_mapping_new(const TerrainMap *terrain, const KernelMapKind kind) {
+    if (!terrain || !terrain->data) return NULL;
+
+    const size_t cells = (size_t) terrain->width * (size_t) terrain->height;
+    int *values = malloc(cells * sizeof(int));
+    if (!values) return NULL;
+
+    size_t count = 0;
+    for (ssize_t y = 0; y < terrain->height; ++y) {
+        for (ssize_t x = 0; x < terrain->width; ++x) {
+            const int value = terrain->data[y][x];
+            if (value_index(values, count, value) < 0) values[count++] = value;
         }
     }
 
-    int water_idx = landmark_to_index(WATER);
-    mapping->transition_matrix[water_idx][water_idx] = 1.0;
-    for (int j = 0; j < LAND_MARKS_COUNT; j++) {
-        if (j != water_idx) {
-            mapping->transition_matrix[water_idx][j] = 1.0;
-            mapping->transition_matrix[j][water_idx] = 0.0;
-        }
-    }
-}
-
-int landmark_to_index(enum landmarkType terrain_value) {
-    switch (terrain_value) {
-        case TREE_COVER: // Value 10
-            return 0;
-        case SHRUBLAND: // Value 20
-            return 1;
-        case GRASSLAND: // Value 30
-            return 2;
-        case CROPLAND: // Value 40
-            return 3;
-        case BUILT_UP: // Value 50
-            return 4;
-        case SPARSE_VEGETATION: // Value 60 (Desert-like, open)
-            return 5;
-        case SNOW_AND_ICE: // Value 70
-            return 6;
-        case WATER: // Value 80 (Assuming terrestrial agent, difficult to traverse)
-            return 7;
-        case HERBACEOUS_WETLAND: // Value 90 (Marshes, bogs)
-            return 8;
-        case MANGROVES: // Value 95
-            return 9;
-        case MOSS_AND_LICHEN: // Value 100 (Tundra-like, uneven ground)
-            return 10;
-        default: return -1; // should not happen
-    }
-}
-
-enum kernel_mode {
-    MODE_MIXED,
-    MODE_BROWNIAN,
-    MODE_CORRELATED
-};
-
-static KernelParameters make_kernel_params(const enum landmarkType terrain_value, enum animal_type animal_type,
-                                           const int base_step_size,
-                                           const enum kernel_mode mode) {
-    KernelParameters params;
-    double base_step_multiplier;
-    float len_diff;
-    float angle_diff;
-    int is_brownian, D;
-
-    switch (terrain_value) {
-        case TREE_COVER:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 8;
-            len_diff = 0.4f;
-            angle_diff = 0.8f;
-            base_step_multiplier = 0.7f;
-            break;
-        case SHRUBLAND:
-            is_brownian = 0;
-            D = 8;
-            len_diff = 0.8f;
-            angle_diff = 0.3f;
-            base_step_multiplier = 0.5f;
-            break;
-        case GRASSLAND:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 6;
-            len_diff = 0.9f;
-            angle_diff = 0.2f;
-            base_step_multiplier = 1.0f;
-            break;
-        case CROPLAND:
-            is_brownian = 0;
-            D = 8;
-            len_diff = 0.8f;
-            angle_diff = 0.4f;
-            base_step_multiplier = 0.7f;
-            break;
-        case BUILT_UP:
-            is_brownian = 0;
-            D = 4;
-            len_diff = 0.5f;
-            angle_diff = 0.2f;
-            base_step_multiplier = 0.6f;
-            break;
-        case SPARSE_VEGETATION:
-            is_brownian = 0;
-            D = 8;
-            len_diff = 0.6f;
-            angle_diff = 0.5f;
-            base_step_multiplier = 0.8f;
-            break;
-        case SNOW_AND_ICE:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 10;
-            len_diff = 0.4f;
-            angle_diff = 0.1f;
-            base_step_multiplier = animal_type == AIRBORNE ? 0.9f : 0.7f;
-            break;
-        case WATER:
-            is_brownian = 0;
-            D = 8;
-            len_diff = 0.5f;
-            angle_diff = 0.2f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.8f;
-            break;
-        case HERBACEOUS_WETLAND:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 8;;
-            len_diff = 0.5f;
-            angle_diff = 0.5f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.0f : 0.4f;
-            break;
-        case MANGROVES:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 5;;
-            len_diff = 0.8f;
-            angle_diff = 0.4f;
-            base_step_multiplier = animal_type == AIRBORNE ? 1.2f : 0.45f;
-            break;
-        case MOSS_AND_LICHEN:
-            is_brownian = 0;
-            D = 8;
-            len_diff = 1.0f;
-            angle_diff = 0.5f;
-            base_step_multiplier = 0.6f;
-            break;
-        default:
-            is_brownian = animal_type != AIRBORNE;
-            D = animal_type != AIRBORNE ? 1 : 6;
-            len_diff = 1.0f;
-            angle_diff = 0.3f;
-            base_step_multiplier = 1.0f;
-            break;
-    }
-
-    if (mode == MODE_BROWNIAN) {
-        is_brownian = 1;
-        D = 1;
-    } else if (mode == MODE_CORRELATED) {
-        is_brownian = 0;
-        D = 8;
-    }
-
-    params.is_brownian = is_brownian;
-    params.D = D;
-    params.sigma_length = len_diff;
-    params.sigma_angle = angle_diff;
-    params.S = (ssize_t) (base_step_multiplier * (float) base_step_size);
-
-    params.bias_x = 0;
-    params.bias_y = 0;
-    return params;
-}
-
-KernelParametersMapping *create_default_mapping(const enum animal_type animal_type,
-                                                const int base_step_size, const enum kernel_mode mode) {
-    KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
-    params_mapping->animal = animal_type;
-    if (!params_mapping) {
-        perror("malloc kernels mapping");
-        return NULL;
-    }
-    params_mapping->kind = KPM_KIND_PARAMETERS;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        params_mapping->forbidden_landmarks[i] = 0;
-    }
-    params_mapping->forbidden_landmarks_count = 0;
-    params_mapping->has_forbidden_landmarks = false;
-
-    float bias_factor;
-    switch (animal_type) {
-        case AIRBORNE: bias_factor = 0.6f;
-            params_mapping->has_forbidden_landmarks = false;
-            params_mapping->forbidden_landmarks_count = 0;
-            break;
-        case TERRESTRIAL: bias_factor = 0.4f;
-            params_mapping->has_forbidden_landmarks = true;
-            params_mapping->forbidden_landmarks[0] = WATER;
-            params_mapping->forbidden_landmarks_count = 1;
-            break;
-        default: bias_factor = 0.6f;
-            params_mapping->has_forbidden_landmarks = true;
-            params_mapping->forbidden_landmarks[0] = TREE_COVER;
-            params_mapping->forbidden_landmarks_count = 1;
-            break;
-    }
-
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters params = make_kernel_params(landmarks[i], animal_type, base_step_size, mode);
-        params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
-        params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
-        params_mapping->data.parameters[i] = params;
-    }
-    init_transition_matrix(params_mapping);
-    return params_mapping;
-}
-
-KernelParametersMapping *
-create_default_marine_mapping(const int base_step_size, const ssize_t base_dirs, const float len_diffusivity,
-                              const float angle_diffusivity) {
-    KernelParametersMapping *params_mapping = malloc(sizeof(KernelParametersMapping));
-    init_transition_matrix(params_mapping);
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        params_mapping->forbidden_landmarks[i] = 0;
-    }
-    params_mapping->animal = MARINE;
-    if (!params_mapping) {
-        perror("malloc kernels mapping");
-        return NULL;
-    }
-    params_mapping->kind = KPM_KIND_PARAMETERS;
-    params_mapping->has_forbidden_landmarks = true;
-    params_mapping->forbidden_landmarks[0] = TREE_COVER;
-    params_mapping->forbidden_landmarks_count = 1;
-
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters params = make_kernel_params(landmarks[i], MARINE, base_step_size, MODE_MIXED);
-        params.bias_x = (ssize_t) ((float) base_step_size * 2);
-        params.bias_y = (ssize_t) ((float) base_step_size * 2);
-        params_mapping->data.parameters[i] = params;
-    }
-
-    KernelParameters p;
-    p.D = base_dirs;
-    p.sigma_length = len_diffusivity;
-    p.sigma_angle = angle_diffusivity;
-    p.S = base_step_size;
-    p.is_brownian = base_dirs == 1;
-    p.bias_x = 0;
-    p.bias_y = 0;
-    params_mapping->data.parameters[landmark_to_index(WATER)] = p;
-
-    return params_mapping;
-}
-
-void update_mapping(const KernelParametersMapping *m, const int terrain, const int S, const ssize_t D,
-                    const float diffusity) {
-    KernelParameters p = m->data.parameters[landmark_to_index(terrain)];
-    p.S = S;
-    p.D = D;
-    if (D == 1) {
-        p.is_brownian = true;
-    }
-    p.sigma_length = diffusity;
-}
-
-KernelParametersMapping *create_default_mixed_mapping(enum animal_type animal_type, int base_step_size) {
-    return create_default_mapping(animal_type, base_step_size, MODE_MIXED);
-}
-
-KernelParametersMapping *create_default_brownian_mapping(enum animal_type animal_type, int base_step_size) {
-    return create_default_mapping(animal_type, base_step_size, MODE_BROWNIAN);
-}
-
-KernelParametersMapping *create_default_correlated_mapping(enum animal_type animal_type, int base_step_size) {
-    return create_default_mapping(animal_type, base_step_size, MODE_CORRELATED);
-}
-
-void set_landmark_mapping(KernelParametersMapping *kernel_mapping, const enum landmarkType terrain_value,
-                          const KernelParameters *params) {
-    assert((!params->is_brownian && params->D > 1) || (params->is_brownian && params->D == 1));
-    const int index = landmark_to_index(terrain_value);
-    kernel_mapping->data.parameters[index] = *params;
-    if (is_forbidden_landmark(terrain_value, kernel_mapping)) {
-        for (int i = 0; i < LAND_MARKS_COUNT; ++i)
-            if (kernel_mapping->forbidden_landmarks[i] == terrain_value)
-                kernel_mapping->forbidden_landmarks[i] = 0;
-        kernel_mapping->forbidden_landmarks_count--;
-        if (kernel_mapping->forbidden_landmarks_count == 0) {
-            kernel_mapping->has_forbidden_landmarks = false;
-        }
-    }
-}
-
-void set_landmark_kernel(KernelParametersMapping *kernel_mapping, enum landmarkType terrain_value,
-                         Matrix *kernel, ssize_t dirs) {
-    const int index = landmark_to_index(terrain_value);
-    Tensor *tensor;
-    if (dirs == 1) {
-        tensor = tensor_from_single_matrix(kernel);
-    } else {
-        tensor = generate_kernels_from_matrix(kernel, dirs);
-    }
-    kernel_mapping->data.kernels[index] = tensor;
-}
-
-void set_forbidden_landmark(KernelParametersMapping *kernel_mapping, const enum landmarkType terrain_value) {
-    const int index = landmark_to_index(terrain_value);
-    kernel_mapping->has_forbidden_landmarks = true;
-    if (kernel_mapping->forbidden_landmarks[index] != terrain_value)
-        kernel_mapping->forbidden_landmarks_count++;
-    kernel_mapping->forbidden_landmarks[index] = terrain_value;
-}
-
-bool is_forbidden_landmark(const enum landmarkType terrain_value, const KernelParametersMapping *kernel_mapping) {
-    if (terrain_value == 0) return true;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        if (kernel_mapping->forbidden_landmarks[i] == terrain_value)
-            return true;
-    }
-    return false;
-}
-
-KernelParameters *get_parameters_of_terrain(KernelParametersMapping *mapping, enum landmarkType terrain_value) {
-    const int index = landmark_to_index(terrain_value);
-    return &mapping->data.parameters[index];
-}
-
-
-// Helper: build a default kernel Tensor for terrain/settings
-static Tensor *build_default_kernel_for(enum landmarkType terrain_value, const KernelParameters *p) {
-    // Enforce the invariant: brownian => D == 1
-    const bool is_brownian = (p->is_brownian || p->D <= 1);
-    const ssize_t S = p->S;
-    const ssize_t M = 2 * S + 1;
-
-    if (is_brownian) {
-        const double sigma_max = S / 3.0;
-        const double sigma = sigma_max * sqrt(p->sigma_length);
-        Matrix *m = matrix_generator_gaussian_pdf(M, M, sigma, p->bias_x, p->bias_y);
-        return tensor_from_single_matrix(m);
-    }
-    return generate_correlated_kernels(p->D, M, p->sigma_angle, p->sigma_length);
-}
-
-static KernelParametersMapping *create_default_kernels_internal(enum animal_type animal_type,
-                                                                int base_step_size,
-                                                                enum kernel_mode mode) {
-    KernelParametersMapping *mapping = (KernelParametersMapping *) malloc(sizeof(KernelParametersMapping));
+    KernelParametersMapping *mapping = calloc(1, sizeof(KernelParametersMapping));
     if (!mapping) {
-        perror("malloc kernels mapping");
+        free(values);
         return NULL;
     }
 
-    mapping->kind = KPM_KIND_KERNELS;
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        mapping->forbidden_landmarks[i] = 0;
-    }
-    mapping->forbidden_landmarks_count = 0;
-    mapping->has_forbidden_landmarks = false;
+    mapping->kind = kind;
+    mapping->terrain_count = count;
+    mapping->terrain_values = malloc(count * sizeof(int));
+    mapping->set = calloc(count, sizeof(bool));
+    mapping->barrier = calloc(count, sizeof(bool));
+    mapping->unmapped = calloc(count, sizeof(bool));
+    mapping->transition_weights = malloc(count * count * sizeof(double));
 
-    float bias_factor;
-    switch (animal_type) {
-        case AIRBORNE:
-            bias_factor = 0.6f;
-            mapping->has_forbidden_landmarks = false;
-            mapping->forbidden_landmarks_count = 0;
-            break;
-        case TERRESTRIAL:
-            bias_factor = 0.4f;
-            mapping->has_forbidden_landmarks = true;
-            mapping->forbidden_landmarks[0] = WATER;
-            mapping->forbidden_landmarks_count = 1;
-            break;
-        default:
-            bias_factor = 0.6f;
-            mapping->has_forbidden_landmarks = true;
-            mapping->forbidden_landmarks[0] = TREE_COVER;
-            mapping->forbidden_landmarks_count = 1;
-            break;
+    if (!mapping->terrain_values || !mapping->set || !mapping->barrier ||
+        !mapping->unmapped || !mapping->transition_weights) {
+        kernel_mapping_free(mapping);
+        free(values);
+        return NULL;
     }
 
-    for (int i = 0; i < LAND_MARKS_COUNT; i++) {
-        KernelParameters params = make_kernel_params(landmarks[i], animal_type, base_step_size, mode);
-        // Apply animal-specific bias as in parameters mapping
-        params.bias_x = (ssize_t) ((float) base_step_size * bias_factor);
-        params.bias_y = (ssize_t) ((float) base_step_size * bias_factor);
+    memcpy(mapping->terrain_values, values, count * sizeof(int));
+    free(values);
 
-        // Construct Tensor* kernel per landmark
-        Tensor *kernel = build_default_kernel_for(landmarks[i], &params);
-        mapping->data.kernels[i] = kernel;
+    for (size_t i = 0; i < count * count; ++i) mapping->transition_weights[i] = 1.0;
+
+    if (kind == KPM_KIND_PARAMETERS) {
+        mapping->data.parameters = calloc(count, sizeof(KernelParameters));
+    } else {
+        mapping->data.kernels = calloc(count, sizeof(Tensor *));
+    }
+
+    if (!mapping->data.parameters) {
+        kernel_mapping_free(mapping);
+        return NULL;
     }
 
     return mapping;
 }
 
-KernelParametersMapping *create_default_mixed_kernels(enum animal_type animal_type, int base_step_size) {
-    return create_default_kernels_internal(animal_type, base_step_size, MODE_MIXED);
+bool set_terrain_params(KernelParametersMapping *mapping, const int terrain, const KernelParameters *params) {
+    assert(valid_params(params));
+    if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || !valid_params(params)) return false;
+
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    if (index < 0) return false;
+
+    mapping->data.parameters[index] = *params;
+    mapping->set[index] = true;
+    return true;
 }
 
-KernelParametersMapping *create_default_brownian_kernels(enum animal_type animal_type, int base_step_size) {
-    return create_default_kernels_internal(animal_type, base_step_size, MODE_BROWNIAN);
+bool set_terrain_kernel(KernelParametersMapping *mapping, const int terrain, Matrix *kernel, const ssize_t dirs) {
+    if (!mapping || mapping->kind != KPM_KIND_KERNELS || !kernel || dirs < 1) return false;
+
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    if (index < 0) return false;
+
+    Tensor *tensor = dirs == 1 ? single_matrix_tensor(kernel) : generate_kernels_from_matrix(kernel, dirs);
+    if (!tensor) return false;
+
+    if (mapping->data.kernels[index]) tensor_free(mapping->data.kernels[index]);
+    mapping->data.kernels[index] = tensor;
+    mapping->set[index] = true;
+    return true;
 }
 
-KernelParametersMapping *create_default_correlated_kernels(enum animal_type animal_type, int base_step_size) {
-    return create_default_kernels_internal(animal_type, base_step_size, MODE_CORRELATED);
-}
+bool set_terrain_barrier(KernelParametersMapping *mapping, const int terrain, const bool barrier) {
+    if (!mapping) return false;
 
-void kernel_parameters_mapping_free(KernelParametersMapping *mapping) {
-    if (!mapping) return;
-    if (mapping->kind == KPM_KIND_KERNELS) {
-        for (size_t i = 0; i < LAND_MARKS_COUNT; ++i) {
-            Tensor *t = mapping->data.kernels[i];
-            if (t) {
-                tensor_free(t);
-                mapping->data.kernels[i] = NULL;
-            }
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    if (index < 0) return false;
+
+    mapping->barrier[index] = barrier;
+    mapping->has_barrier = false;
+    for (size_t i = 0; i < mapping->terrain_count; ++i) {
+        if (mapping->barrier[i]) {
+            mapping->has_barrier = true;
+            break;
         }
     }
+    return true;
+}
+
+bool set_terrain_unmapped(KernelParametersMapping *mapping, const int terrain, const bool unmapped) {
+    if (!mapping) return false;
+
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    if (index < 0) return false;
+
+    mapping->unmapped[index] = unmapped;
+    return true;
+}
+
+
+bool set_terrain_weight(KernelParametersMapping *mapping, const int from, const int to, const double weight) {
+    if (!mapping) return false;
+
+    const int from_index = terrain_to_mapping_index(mapping, from);
+    const int to_index = terrain_to_mapping_index(mapping, to);
+    if (from_index < 0 || to_index < 0) return false;
+
+    mapping->transition_weights[(size_t) from_index * mapping->terrain_count + (size_t) to_index] = weight;
+    return true;
+}
+
+double terrain_weight(const KernelParametersMapping *mapping, const int from, const int to) {
+    if (!mapping) return 0.0;
+
+    const int from_index = terrain_to_mapping_index(mapping, from);
+    const int to_index = terrain_to_mapping_index(mapping, to);
+    if (from_index < 0 || to_index < 0) return 0.0;
+
+    return mapping->transition_weights[(size_t) from_index * mapping->terrain_count + (size_t) to_index];
+}
+
+double terrain_stay_weight(const KernelParametersMapping *mapping, const int terrain) {
+    return terrain_weight(mapping, terrain, terrain);
+}
+
+bool is_unmapped_terrain(const int terrain, const KernelParametersMapping *mapping) {
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    return index < 0 || mapping->unmapped[index];
+}
+
+bool is_barrier_terrain(const int terrain, const KernelParametersMapping *mapping) {
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    return index >= 0 && !mapping->unmapped[index] && mapping->barrier[index];
+}
+
+KernelParameters *terrain_params(KernelParametersMapping *mapping, const int terrain) {
+    if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || is_unmapped_terrain(terrain, mapping)) return NULL;
+
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    return index >= 0 && mapping->set[index] ? &mapping->data.parameters[index] : NULL;
+}
+
+const KernelParameters *terrain_params_const(const KernelParametersMapping *mapping, const int terrain) {
+    if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || is_unmapped_terrain(terrain, mapping)) return NULL;
+
+    const int index = terrain_to_mapping_index(mapping, terrain);
+    return index >= 0 && mapping->set[index] ? &mapping->data.parameters[index] : NULL;
+}
+
+static char *trim(char *s) {
+    while (isspace((unsigned char) *s)) ++s;
+    if (*s == '\0') return s;
+
+    char *end = s + strlen(s) - 1;
+    while (end > s && isspace((unsigned char) *end)) *end-- = '\0';
+    return s;
+}
+
+static bool bool_value(const char *s, bool *out) {
+    if (strcmp(s, "1") == 0 || strcasecmp(s, "true") == 0 || strcasecmp(s, "yes") == 0) {
+        *out = true;
+        return true;
+    }
+    if (strcmp(s, "0") == 0 || strcasecmp(s, "false") == 0 || strcasecmp(s, "no") == 0) {
+        *out = false;
+        return true;
+    }
+    return false;
+}
+
+KernelParametersMapping *kernel_mapping_load_csv(const char *filename) {
+    if (!filename) return NULL;
+
+    FILE *fp = fopen(filename, "r");
+    if (!fp) return NULL;
+
+    char line[512];
+    size_t terrain_count = 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *comment = strchr(line, '#');
+        if (comment) *comment = '\0';
+
+        char *p = trim(line);
+        if (*p == '\0') continue;
+        if (strncasecmp(p, "terrain", 7) == 0) continue;
+
+        ++terrain_count;
+    }
+
+    if (terrain_count == 0) {
+        fclose(fp);
+        return NULL;
+    }
+
+    KernelParametersMapping *mapping = calloc(1, sizeof(*mapping));
+    if (!mapping) {
+        fclose(fp);
+        return NULL;
+    }
+
+    mapping->terrain_count = terrain_count;
+    mapping->has_barrier = false;
+    mapping->kind = KPM_KIND_PARAMETERS;
+
+    mapping->terrain_values = calloc(terrain_count, sizeof(*mapping->terrain_values));
+    mapping->set = calloc(terrain_count, sizeof(*mapping->set));
+    mapping->barrier = calloc(terrain_count, sizeof(*mapping->barrier));
+    mapping->unmapped = calloc(terrain_count, sizeof(*mapping->unmapped));
+    mapping->transition_weights = calloc(terrain_count * terrain_count, sizeof(double));
+    mapping->data.parameters = calloc(terrain_count, sizeof(*mapping->data.parameters));
+
+    if (!mapping->terrain_values ||
+        !mapping->set ||
+        !mapping->barrier ||
+        !mapping->unmapped ||
+        !mapping->transition_weights ||
+        !mapping->data.parameters) {
+        free(mapping->terrain_values);
+        free(mapping->set);
+        free(mapping->barrier);
+        free(mapping->unmapped);
+        free(mapping->transition_weights);
+        free(mapping->data.parameters);
+        free(mapping);
+        fclose(fp);
+        return NULL;
+    }
+
+    rewind(fp);
+
+    bool ok = true;
+    size_t index = 0;
+
+    while (ok && fgets(line, sizeof(line), fp)) {
+        char *comment = strchr(line, '#');
+        if (comment) *comment = '\0';
+
+        char *p = trim(line);
+        if (*p == '\0') continue;
+        if (strncasecmp(p, "terrain", 7) == 0) continue;
+
+        char *fields[10];
+        size_t n = 0;
+        char *save = NULL;
+
+        for (char *token = strtok_r(p, ",", &save);
+             token && n < 10;
+             token = strtok_r(NULL, ",", &save)) {
+            fields[n++] = trim(token);
+        }
+
+        if (n != 10 || strtok_r(NULL, ",", &save) != NULL) {
+            ok = false;
+            break;
+        }
+
+        char *end = NULL;
+
+        const int terrain = (int) strtol(fields[0], &end, 10);
+        if (*end != '\0') {
+            ok = false;
+            break;
+        }
+
+        bool barrier = false;
+        bool unmapped = false;
+
+        if (!bool_value(fields[8], &barrier) ||
+            !bool_value(fields[9], &unmapped)) {
+            ok = false;
+            break;
+        }
+
+        KernelParameters params;
+
+        end = NULL;
+        params.is_brownian = strtol(fields[1], &end, 10) != 0;
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.S = strtol(fields[2], &end, 10);
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.D = (ssize_t) strtol(fields[3], &end, 10);
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.sigma_length = strtof(fields[4], &end);
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.sigma_angle = strtof(fields[5], &end);
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.bias_x = (ssize_t) strtol(fields[6], &end, 10);
+        if (*end != '\0') ok = false;
+
+        end = NULL;
+        params.bias_y = (ssize_t) strtol(fields[7], &end, 10);
+        if (*end != '\0') ok = false;
+
+        if (!ok || !valid_params(&params)) {
+            ok = false;
+            break;
+        }
+
+        mapping->terrain_values[index] = terrain;
+        mapping->unmapped[index] = unmapped;
+        mapping->barrier[index] = barrier;
+        mapping->has_barrier = mapping->has_barrier || barrier;
+        mapping->data.parameters[index] = params;
+        mapping->set[index] = true;
+        mapping->transition_weights[index] = 1.0;
+
+        ++index;
+    }
+
+    fclose(fp);
+
+    if (index != terrain_count) {
+        ok = false;
+    }
+
+    for (size_t i = 0; ok && i < mapping->terrain_count; ++i) {
+        if (!mapping->unmapped[i] && !mapping->set[i]) {
+            ok = false;
+        }
+    }
+
+    if (!ok) {
+        free(mapping->terrain_values);
+        free(mapping->set);
+        free(mapping->barrier);
+        free(mapping->unmapped);
+        free(mapping->transition_weights);
+        free(mapping->data.parameters);
+        free(mapping);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < mapping->terrain_count * mapping->terrain_count; ++i)
+        mapping->transition_weights[i] = 1.0;
+
+    return mapping;
+}
+
+void kernel_mapping_free(KernelParametersMapping *mapping) {
+    if (!mapping) return;
+
+    if (mapping->kind == KPM_KIND_KERNELS && mapping->data.kernels) {
+        for (size_t i = 0; i < mapping->terrain_count; ++i) {
+            if (mapping->data.kernels[i]) tensor_free(mapping->data.kernels[i]);
+        }
+        free(mapping->data.kernels);
+    } else {
+        free(mapping->data.parameters);
+    }
+
+    free(mapping->terrain_values);
+    free(mapping->set);
+    free(mapping->barrier);
+    free(mapping->unmapped);
+    free(mapping->transition_weights);
     free(mapping);
 }

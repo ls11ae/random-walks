@@ -1,19 +1,20 @@
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 
 #include <assert.h>
 
-#include "matrix.h"
+#include "matrix/matrix.h"
 #include "math/math_utils.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "ScalarMapping.h"
-#include "tensor.h"
+#include "matrix/tensor.h"
 #include "math/distribution.h"
-#include "math/kernel_slicing.h"
+#include "kernels/kernel_slicing.h"
 #include "parsers/constants.h"
+#include "parsers/kernel_terrain_mapping.h"
 #include "parsers/move_bank_parser.h"
-#include "walk/c_walk.h"
+#include "walk/c_walker.h"
 
 
 Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
@@ -33,41 +34,19 @@ Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigm
 		for (ssize_t x = 0; x < matrix->width; x++) {
 			const double distance_squared = euclid_sqr(x_offset, y_offset, x, y);
 			const double gaussian_value = exp(-distance_squared / (2 * pow(sigma, 2)));
-			matrix->data.points[index++] = gaussian_value;
+			matrix->points[index++] = gaussian_value;
 		}
 	}
 
 	double sum = 0.0;
 	for (int i = 0; i < matrix->len; ++i) {
-		sum += matrix->data.points[i];
+		sum += matrix->points[i];
 	}
 
 	//printf("%f\n", sum);
 
 	for (int i = 0; i < matrix->len; ++i) {
-		matrix->data.points[i] /= sum;
-	}
-
-	return matrix;
-}
-
-Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
-                                  ssize_t y_offset) {
-	scale = 1.0; // TODO: remove scaling
-	Matrix *matrix = matrix_generator_gaussian_pdf(width, height, sigma, x_offset, y_offset);
-	if (x_offset != 0 || y_offset != 0) {
-		// Mische Gaußverteilung mit Gleichverteilung
-		const double alpha = 0.001;
-		const double uniform_value = 1.0 / (double) (width * height);
-
-		for (int i = 0; i < matrix->len; ++i) {
-			matrix->data.points[i] = (1.0 - alpha) * matrix->data.points[i] + alpha * uniform_value;
-		}
-
-		//  normalisieren
-		double sum = 0.0;
-		for (int i = 0; i < matrix->len; ++i) sum += matrix->data.points[i];
-		for (int i = 0; i < matrix->len; ++i) matrix->data.points[i] /= sum;
+		matrix->points[i] /= sum;
 	}
 
 	return matrix;
@@ -118,7 +97,7 @@ Matrix *generate_chi_kernel(const ssize_t size, const ssize_t subsample_size, in
 		for (int x = 0; x < m->width; x++) {
 			const double dist = euclid(big_size / 2, big_size / 2, x, y);
 			const double value = chi_distribution_generate(chi, dist / scale_k);
-			m->data.points[index++] = value;
+			m->points[index++] = value;
 		}
 	}
 	free(chi);
@@ -184,7 +163,7 @@ Matrix *generate_length_kernel_ss(const ssize_t size, const double scaling) {
 		for (ssize_t j = -half_size; j <= half_size; ++j) {
 			const ssize_t displacement = size / 6;
 			const double dist = euclid(displacement * subsampling, 0, j, i);
-			kernel->data.points[(i + half_size) * kernel_size + (j + half_size)] =
+			kernel->points[(i + half_size) * kernel_size + (j + half_size)] =
 					exp(-0.5 * pow(dist * ((1 - pow(scaling, 2)) / (double) (size / 3)) / std_dev, 2)) / (
 						std_dev * sqrt(2 * M_PI));
 		}
@@ -206,7 +185,7 @@ Matrix *generate_angle_kernel_ss(ssize_t size, double angle_diffusity) {
 			size_t yy = (size_t) (y + half);
 			size_t xx = (size_t) (x + half);
 
-			kernel->data.points[yy * grid_size + xx] = wrapped_normal(
+			kernel->points[yy * grid_size + xx] = wrapped_normal(
 				MIN_RHO + (1 - angle_diffusity) * MAX_RHO, angle); // rho between 0.1 and 0.99
 		}
 	}
@@ -216,7 +195,7 @@ Matrix *generate_angle_kernel_ss(ssize_t size, double angle_diffusity) {
 }
 
 Matrix *generate_combined_kernel_ss(Matrix *length_kernel, Matrix *angle_kernel) {
-	if (!length_kernel || !angle_kernel || !length_kernel->data.points || !angle_kernel->data.points ||
+	if (!length_kernel || !angle_kernel || !length_kernel->points || !angle_kernel->points ||
 	    length_kernel->height != angle_kernel->height || length_kernel->width != angle_kernel->width) {
 		return NULL;
 	}
@@ -314,19 +293,20 @@ Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs) {
 }
 
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
-	const int terrain_count = LAND_MARKS_COUNT;
+	if (!mapping || mapping->kind != KPM_KIND_PARAMETERS || mapping->terrain_count == 0) return NULL;
+	const size_t terrain_count = mapping->terrain_count;
 	Tensor **tensors = malloc(terrain_count * sizeof(Tensor *));
 	if (!tensors) return NULL;
 
 	size_t max_D = 0;
 	int success = 1;
 
-	for (int i = 0; i < terrain_count && success; i++) {
-		KernelParameters *parameters = kernel_parameters_of_landmark(landmarks[i], mapping);
-		if (!parameters) {
+	for (size_t i = 0; i < terrain_count && success; i++) {
+		if (!mapping->set[i]) {
 			success = 0;
 			continue;
 		}
+		KernelParameters *parameters = &mapping->data.parameters[i];
 		ssize_t t_D = parameters->D;
 		ssize_t M = parameters->S * 2 + 1;
 		tensors[i] = generate_correlated_kernels(t_D, M, parameters->sigma_angle, parameters->sigma_length);
@@ -342,6 +322,15 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 		correlated_kernels = tensor_set_new(terrain_count, tensors);
 		if (correlated_kernels) {
 			correlated_kernels->max_D = max_D;
+			correlated_kernels->terrain_values = malloc(terrain_count * sizeof(int));
+			if (!correlated_kernels->terrain_values) {
+				tensor_set_free(correlated_kernels);
+				correlated_kernels = NULL;
+			} else {
+				memcpy(correlated_kernels->terrain_values,
+				       mapping->terrain_values,
+				       terrain_count * sizeof(int));
+			}
 		}
 	}
 
@@ -351,26 +340,24 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping) {
 	return correlated_kernels;
 }
 
-static inline int landmark_to_index_from_value(int terrain_value) {
-	if (terrain_value == MANGROVES) return 9;
-	if (terrain_value == MOSS_AND_LICHEN) return 10;
-	if (terrain_value >= 10 && terrain_value <= 90 && terrain_value % 10 == 0)
-		return terrain_value / 10 - 1;
+static inline int terrain_set_index_from_value(const TensorSet *correlated_tensors, int terrain_value) {
+	if (!correlated_tensors) return -1;
+	if (correlated_tensors->terrain_values) {
+		for (size_t i = 0; i < correlated_tensors->len; ++i) {
+			if (correlated_tensors->terrain_values[i] == terrain_value) return (int) i;
+		}
+	}
 	return -1; // invalid
 }
 
-Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, bool full_bias,
-                                 const TensorSet *correlated_tensors, bool serialized) {
+Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value,
+                                 const TensorSet *correlated_tensors, bool return_copy) {
 	ssize_t M = p->S * 2 + 1;
 	Tensor *result = NULL;
 	if (p->is_brownian) {
 		const double sigma_max = p->S / 3.0;
 		const double sigma = sigma_max * sqrt(p->sigma_length);
-		Matrix *kernel;
-		if (full_bias)
-			kernel = matrix_generator_gaussian_pdf(M, M, (double) sigma, p->bias_x, p->bias_y);
-		else
-			kernel = matrix_gaussian_pdf_alpha(M, M, (double) sigma, (double) 1, p->bias_x, p->bias_y);
+		Matrix *kernel = matrix_generator_gaussian_pdf(M, M, sigma, p->bias_x, p->bias_y);
 
 		result = malloc(sizeof(Tensor));
 		result->data = malloc(sizeof(Matrix *));
@@ -378,8 +365,8 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, b
 		result->data[0] = kernel;
 		return result;
 	}
-	int index = landmark_to_index_from_value(terrain_value);
-	assert(index >= 0 && index < LAND_MARKS_COUNT);
+	int index = terrain_set_index_from_value(correlated_tensors, terrain_value);
+	assert(index >= 0 && index < (int) correlated_tensors->len);
 
 	result = correlated_tensors->data[index];
 	// Should only happen if called from time walker as weather can influense S and D
@@ -388,7 +375,7 @@ Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, b
 		return result;
 	}
 	assert(result);
-	if (serialized) {
+	if (return_copy) {
 		return tensor_clone(result);
 	}
 	return result;
@@ -412,8 +399,20 @@ Tensor *generate_kernel(const KernelParameters *p) {
 
 Matrix *kernel_from_array(const double *array, const ssize_t w, const ssize_t h) {
 	Matrix *m = matrix_new(w, h);
-	memcpy(m->data.points, array, sizeof(double) * w * h);
+	memcpy(m->points, array, sizeof(double) * w * h);
 	return m;
+}
+
+Tensor *rotational_kernel_from_matrix(const Matrix *array, ssize_t d) {
+	Tensor *result = malloc(sizeof(Tensor));
+	result->data = malloc(sizeof(Matrix *) * d);
+	result->len = d;
+	for (ssize_t i = 0; i < d; ++i) {
+		Matrix *current = matrix_clone(array);
+		rotate_kernel(current, (double) (i * 360.0 / (double) d));
+		result->data[i] = current;
+	}
+	return result;
 }
 
 Matrix *generate_directed_matrix(const ssize_t S, const float angle_diff, const ssize_t bias_x, const ssize_t bias_y) {

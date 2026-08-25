@@ -4,7 +4,7 @@
  * 
  * This file includes functions to generate Gaussian PDF matrices, Chi distribution kernels,
  * and tensors containing rotated versions of kernel matrices for correlated random walks.
- * It also provides functionality to generate a set of correlated tensors for all landmark types
+ * It also provides functionality to generate a set of correlated tensors for mapped terrain values
  * based on provided kernel parameters.
  * 
  * These functions are essential for simulating various types of random walks, including
@@ -56,25 +56,6 @@ void rotate_kernel(Matrix *kernel, double deg);
 Matrix *matrix_generator_gaussian_pdf(ssize_t width, ssize_t height, double sigma, ssize_t x_offset,
                                       ssize_t y_offset);
 
-/**
- * @brief Generate a Gaussian PDF matrix
- * 
- * Bivariate Normal Distribution used for Brownian motion kernels
- * Center of the distribution is at (x_offset, y_offset)
- * Used for offsets that are not (0,0), this function guarantees non zero values for all matrix entries
- * To this end it mixes the Gaussian PDF with the offsets with a uniform distribution scaled by alpha
- * This ensures that all directions have a non-zero probability of being chosen, making it a more robust kernel for Biased Random Walks
- * 
- * @param width The width of the matrix
- * @param height The height of the matrix
- * @param sigma The standard deviation of the Gaussian
- * @param scale The scale factor for the Gaussian
- * @param x_offset The x-offset for the Gaussian
- * @param y_offset The y-offset for the Gaussian
- * @return A pointer to the generated Matrix
- */
-Matrix *matrix_gaussian_pdf_alpha(ssize_t width, ssize_t height, double sigma, double scale, ssize_t x_offset,
-                                  ssize_t y_offset);
 
 /**
  * @brief Get Gaussian parameters based on diffusity and terrain value
@@ -126,8 +107,8 @@ Tensor *generate_correlated_kernels(ssize_t dirs, ssize_t size, double angle_dif
 Tensor *generate_kernels_from_matrix(const Matrix *base_kernel, ssize_t dirs);
 
 /**
- * @brief Generate a set of correlated Tensors for all landmark types based on the provided KernelParametersMapping
- * @param mapping The KernelParametersMapping containing parameters for each landmark type
+ * @brief Generate a set of correlated Tensors for mapped terrain values based on the provided KernelParametersMapping
+ * @param mapping The KernelParametersMapping containing parameters for each terrain value
  * @return A pointer to the generated TensorSet
  */
 TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
@@ -136,13 +117,12 @@ TensorSet *generate_correlated_tensors(KernelParametersMapping *mapping);
  * @brief Generate terrain dependant BW kernel from Kernel Parameters or return pre-calculated CW kernel
  * @param p Parameters for kernel to be generated
  * @param terrain_value Current terrain value
- * @param full_bias True if biased kernels may have 0 probabilities, false otherwise
  * @param correlated_tensors Set if pre-computed correlated kernels, defined by kernel_parameters_mapping
- * @param serialized True if called from a serialized kernels map function, otherwise false
+ * @param return_copy True if the returned tensor should be cloned.
  * @return Kernel taylored to terrain value and kernel parameters
  */
-Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value, bool full_bias,
-                                 const TensorSet *correlated_tensors, bool serialized);
+Tensor *generate_kernel_from_set(const KernelParameters *p, int terrain_value,
+                                 const TensorSet *correlated_tensors, bool return_copy);
 
 /**
 * @brief Generate terrain dependant Brownian or Correlated kernel, depending on kernel params and terrain
@@ -158,6 +138,8 @@ Tensor *generate_kernel(const KernelParameters *p);
  * @return Kernel from an array
  */
 Matrix *kernel_from_array(const double *array, ssize_t w, ssize_t h);
+
+Tensor *rotational_kernel_from_matrix(const Matrix *array, ssize_t d);
 #ifdef __cplusplus
 }
 #endif

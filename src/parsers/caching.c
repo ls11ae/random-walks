@@ -1,10 +1,12 @@
 #include "caching.h"
 
+#include <stdio.h>
+
 uint64_t compute_matrix_hash(const Matrix *m) {
     uint64_t h = 146527;
     for (size_t i = 0; i < m->len; i++) {
         uint64_t bits;
-        memcpy(&bits, &m->data.points[i], sizeof(bits));
+        memcpy(&bits, &m->points[i], sizeof(bits));
         h ^= bits + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
     }
     return h;
@@ -37,26 +39,6 @@ uint32_t hash_bytes(const void *key, size_t length) {
     hash += (hash << 3);
     hash ^= (hash >> 11);
     hash += (hash << 15);
-    return hash;
-}
-
-uint32_t weather_entry_hash(const WeatherEntry *entry) {
-    uint32_t hash = 0;
-    // Hash each field individually and combine them
-    hash = hash_bytes(&entry->temperature, sizeof(entry->temperature));
-    hash ^= hash_bytes(&entry->humidity, sizeof(entry->humidity));
-    hash ^= hash_bytes(&entry->precipitation, sizeof(entry->precipitation));
-    hash ^= hash_bytes(&entry->wind_speed, sizeof(entry->wind_speed));
-    hash ^= hash_bytes(&entry->wind_direction, sizeof(entry->wind_direction));
-    hash ^= hash_bytes(&entry->snow_fall, sizeof(entry->snow_fall));
-    hash ^= hash_bytes(&entry->weather_code, sizeof(entry->weather_code));
-    hash ^= hash_bytes(&entry->cloud_cover, sizeof(entry->cloud_cover));
-
-    // Final mixing
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-
     return hash;
 }
 
@@ -210,7 +192,7 @@ size_t tensor_hash(const Tensor *t) {
         hash = hash_mix(hash, m->len);
 
         for (ssize_t j = 0; j < m->len; ++j) {
-            hash = hash_mix(hash, hash_double(m->data.points[j]));
+            hash = hash_mix(hash, hash_double(m->points[j]));
         }
     }
 

@@ -5,54 +5,56 @@
 
 #include "math/math_utils.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 #include "parsers/constants.h"
 #include "parsers/environment_params.h"
 #include "parsers/kernel_terrain_mapping.h"
 #include "parsers/serialization.h"
 #include "parsers/walk_json.h"
 #include "parsers/move_bank_parser.h"
-#include "walk/m_walk.h"
+#include "walk/t_walker.h"
 
-Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, KernelParametersMapping *mapping,
-                       const KernelParamsYXT *tensor_set,
-                       const TerrainMap *terrain_map,
-                       const bool strict_reachability) {
+static Tensor *set_env_kernel(const ssize_t y, const ssize_t x, const ssize_t t, KernelParametersMapping *mapping,
+                              const KernelParamsYXT *tensor_set,
+                              const TerrainMap *terrain_map,
+                              const bool strict_reachability) {
 	const int terrain_val = terrain_at(x, y, terrain_map);
-	if (terrain_val == UNMAPPED_TERRAIN) return NULL;
-	if (strict_reachability && is_forbidden_landmark(terrain_val, mapping)) {
+	if (is_unmapped_terrain(terrain_val, mapping)) return NULL;
+	if (strict_reachability && is_barrier_terrain(terrain_val, mapping)) {
 		return NULL;
 	}
 	const KernelParameters *params = tensor_set->data[y][x][t];
-	const bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+	if (!params) return NULL;
+	const bool on_barrier = is_barrier_terrain(terrain_val, mapping);
 	Matrix *soft_reach_mat = NULL;
 	Tensor *tensor_at_t = NULL;
 
 	if (mapping->kind == KPM_KIND_PARAMETERS) {
 		tensor_at_t = generate_kernel(params);
 		const size_t D = tensor_at_t->len;
-		if (on_forbidden_terrain) {
+		if (on_barrier) {
 			apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 		} else {
 			const ssize_t M = 2 * params->S + 1;
 			soft_reach_mat = strict_reachability
-				                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
-				                 : get_reachability_kernel_soft(x, y, M, terrain_map, mapping);
+				                 ? get_hard_reachability_mask(x, y, M, terrain_map, mapping)
+				                 : get_relaxed_reachability_mask(x, y, M, terrain_map, mapping);
 			for (ssize_t d = 0; d < D; d++) {
 				matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
 				matrix_normalize_L1(tensor_at_t->data[d]);
 			}
 		}
 	} else {
-		const int index = landmark_to_index(terrain_val);
+		const int index = terrain_to_mapping_index(mapping, terrain_val);
+		if (index < 0) return NULL;
 		tensor_at_t = tensor_clone(mapping->data.kernels[index]);
-		if (on_forbidden_terrain) {
+		if (on_barrier) {
 			apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 		} else {
 			const ssize_t M = tensor_at_t->data[0]->width;
 			soft_reach_mat = strict_reachability
-				                 ? get_reachability_kernel(x, y, M, terrain_map, mapping)
-				                 : get_reachability_kernel_soft(
+				                 ? get_hard_reachability_mask(x, y, M, terrain_map, mapping)
+				                 : get_relaxed_reachability_mask(
 					                 x, y, M, terrain_map, mapping);
 			for (ssize_t d = 0; d < tensor_at_t->len; d++) {
 				matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
@@ -74,19 +76,14 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
                                  ssize_t T,
                                  const ssize_t start_x,
                                  const ssize_t start_y) {
+	const ssize_t layer_count = T + 1;
 	const int start_terrain = terrain_at(start_x, start_y, terrain_map);
 	Tensor *start_kernel = generate_kernel(tensor_set->data[start_y][start_x][0]);
 
 	const size_t max_D = tensor_set->max_D;
 
-	bool strict_reachability = false;
-	if (mapping->animal == MARINE) {
-		strict_reachability = true;
-	}
-	if (is_forbidden_landmark(start_terrain, mapping))
-		printf("WARNING: START ON FORBIDDEN LANDMARK %i \n", start_terrain);
-	if (is_forbidden_landmark(start_terrain, mapping))
-		strict_reachability = false;
+	if (is_barrier_terrain(start_terrain, mapping))
+		printf("WARNING: START ON BARRIER TERRAIN %i \n", start_terrain);
 
 	W = terrain_map->width;
 	H = terrain_map->height;
@@ -94,10 +91,10 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 	assert(T >= 1);
 	assert(max_D >= 1);
 
-	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
+	Tensor **DP_mat = malloc(layer_count * sizeof(Tensor *));
 	assert(DP_mat != NULL && "Failed to allocate DP_mat");
 
-	for (int i = 0; i < T; i++) {
+	for (int i = 0; i < layer_count; i++) {
 		Tensor *current = tensor_new(W, H, max_D);
 		assert(current != NULL && "Failed to create tensor");
 		DP_mat[i] = current;
@@ -109,17 +106,19 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 	}
 	tensor_free(start_kernel);
 
-	for (ssize_t t = 1; t < T; t++) {
+	const bool strict_reachability = false;
+	for (ssize_t t = 1; t < layer_count; t++) {
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
 				int terrain_val = terrain_at(x, y, terrain_map);
-				if (terrain_val == UNMAPPED_TERRAIN || strict_reachability && is_forbidden_landmark(
+				if (is_unmapped_terrain(terrain_val, mapping) || strict_reachability && is_barrier_terrain(
 					    terrain_val, mapping))
 					continue;
 				Tensor *tensor_at_t = set_env_kernel(y, x, t, mapping, tensor_set, terrain_map, strict_reachability);
+				if (!tensor_at_t) continue;
 				const size_t D = tensor_at_t->len;
-				const Vector2D *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
+				const DirOffsets *dir_cell_set = dir_kernels_map->data[D][2 * tensor_set->data[y][x][t]->S + 1];
 				for (ssize_t d = 0; d < D; ++d) {
 					double sum = 0.0;
 
@@ -128,8 +127,8 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 						const ssize_t kernel_width = current_kernel->width;
 
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
+							const ssize_t prev_kernel_x = dir_cell_set->offsets[d][i].x;
+							const ssize_t prev_kernel_y = dir_cell_set->offsets[d][i].y;
 							const ssize_t xx = x - prev_kernel_x;
 							const ssize_t yy = y - prev_kernel_y;
 
@@ -138,13 +137,13 @@ Tensor **mixed_walk_time_compact(ssize_t W, ssize_t H,
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
 
-							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
-							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
+							const double a = DP_mat[t - 1]->data[di]->points[yy * W + xx];
+							const double b = current_kernel->points[kernel_y * current_kernel->width + kernel_x];
 
 							sum += a * b;
 						}
 					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
+					DP_mat[t]->data[d]->points[y * W + x] = sum;
 				}
 				tensor_free(tensor_at_t);
 			}
@@ -158,19 +157,20 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
                                           const DirKernelsMap *dir_kernels_map,
                                           KernelParametersMapping *mapping,
                                           const ssize_t end_x, const ssize_t end_y) {
+	const ssize_t layer_count = T + 1;
 	TensorSet *correlated_kernels = generate_correlated_tensors(mapping);
-	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
+	assert(!isnan(matrix_get(DP_Matrix[layer_count - 1]->data[0], end_x, end_y)));
 
-	const bool strict_reachability = mapping->animal == MARINE;
+	const bool strict_reachability = false;
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
-	Point2D *points = malloc(sizeof(Point2D) * T);
+	Point2D *points = malloc(sizeof(Point2D) * layer_count);
 	path->points = points;
-	path->length = T;
+	path->length = layer_count;
 
 	int start_terrain = terrain_at(end_x, end_y, terrain);
-	if (is_forbidden_landmark(start_terrain, mapping))
-		printf("WARNING: END ON FORBIDDEN LANDMARK %i \n", start_terrain);
+	if (is_barrier_terrain(start_terrain, mapping))
+		printf("WARNING: END ON BARRIER TERRAIN %i \n", start_terrain);
 
 	ssize_t x = end_x;
 	ssize_t y = end_y;
@@ -179,12 +179,12 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 	size_t H = DP_Matrix[0]->data[0]->height;
 
 	size_t direction = 0;
-	size_t index = T - 1;
+	size_t index = layer_count - 1;
 
-	for (ssize_t t = T - 1; t >= 1; --t) {
+	for (ssize_t t = layer_count - 1; t >= 1; --t) {
 		int terrain_val = terrain_at(x, y, terrain);
-		if (is_forbidden_landmark(terrain_val, mapping))
-			printf("WARNING: WALK THROUGH FORBIDDEN LANDMARK %i \n", terrain_val);
+		if (is_barrier_terrain(terrain_val, mapping))
+			printf("WARNING: WALK THROUGH BARRIER TERRAIN %i \n", terrain_val);
 		Tensor *current_tensor = set_env_kernel(y, x, t, mapping, tensor_set, terrain, strict_reachability);
 		if (current_tensor == NULL) continue;
 		const size_t D = current_tensor->len;
@@ -202,19 +202,19 @@ Point2DArray *backtrace_time_walk_compact(Tensor **DP_Matrix, const ssize_t T, c
 		index--;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = dir_kernels_map->data[D][current_tensor->data[0]->width];
+		DirOffsets *dir_kernel = dir_kernels_map->data[D][current_tensor->data[0]->width];
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
 
 				if (prev_x < 0 || prev_x >= W || prev_y < 0 || prev_y >= H) continue;
 
-				if (terrain_at(prev_x, prev_y, terrain) == 0) continue;
+				if (is_unmapped_terrain(terrain_at(prev_x, prev_y, terrain), mapping)) continue;
 
 				if (d >= current_tensor->len) continue;
 
@@ -273,7 +273,8 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
                                     KernelParametersMapping *mapping,
                                     const TerrainMap *terrain, const TimedLocation start, const TimedLocation goal,
                                     const EnvWeightProfile *env_weight) {
-	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(T, terrain, grid, mapping, env_weight);
+	const size_t layer_count = T + 1;
+	KernelParamsYXT *kernel_paramsXYT = get_kernels_environment_grid(layer_count, terrain, grid, mapping, env_weight);
 	const ssize_t max_D = (ssize_t) kernel_paramsXYT->max_D;
 	const ssize_t max_S = (ssize_t) kernel_paramsXYT->max_S;
 	DirKernelsMap *dir_kernels = get_dir_kernels(2 * max_S + 1, max_D);
@@ -286,7 +287,7 @@ static Point2DArray *time_walk_base(const size_t T, const EnvironmentInfluenceGr
 	                                                 goal.coordinates.x,
 	                                                 goal.coordinates.y);
 
-	if (dp != NULL) tensor4D_free(dp, T);
+	if (dp != NULL) tensor4D_free(dp, layer_count);
 
 	dir_kernels_free(dir_kernels);
 	if (walk == NULL || walk->length == 0) {
@@ -318,20 +319,11 @@ Point2DArray *time_walk_env_binary(const size_t T, KernelParametersMapping *mapp
 	return walk;
 }
 
-Point2DArray *single_state_walk(const ssize_t T, KernelsMap3D *kmap,
-                                TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
-                                const ssize_t end_x,
-                                const ssize_t end_y) {
-	Tensor **dp = m_walk(terrain->width, terrain->height, terrain, NULL, kmap, T, start_x, start_y, false,
-	                     true, "");
-	Point2DArray *walk = m_walk_backtrace(dp, T, kmap, terrain, NULL, end_x, end_y, 0, false, "", "");
-	tensor4D_free(dp, T);
-	return walk;
-}
 
 Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_map, KernelParametersMapping *mapping,
                       const TensorSet *tensor_set, const ssize_t start_x, const ssize_t start_y) {
-	Tensor **DP_mat = malloc(T * sizeof(Tensor *));
+	const size_t layer_count = T + 1;
+	Tensor **DP_mat = malloc(layer_count * sizeof(Tensor *));
 	assert(DP_mat != NULL && "Failed to allocate DP_mat");
 	Tensor *start_kernel = tensor_set->data[timeline[0]];
 
@@ -341,7 +333,7 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 	size_t W = terrain_map->width;
 	size_t H = terrain_map->height;
 
-	for (int i = 0; i < T; i++) {
+	for (int i = 0; i < layer_count; i++) {
 		Tensor *current = tensor_new(W, H, max_D);
 		assert(current != NULL && "Failed to create tensor");
 		DP_mat[i] = current;
@@ -352,23 +344,27 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 		matrix_set(DP_mat[0]->data[d], start_x, start_y, 1.0 / (double) start_kernel->len);
 	}
 
-	for (ssize_t t = 1; t < T; ++t) {
-		const int state = timeline[t];
-		const Vector2D *dir_cell_set = tensor_set->grid_cells[state];
+	for (ssize_t t = 1; t < layer_count; ++t) {
+		const int state = timeline[t - 1];
+		const DirOffsets *dir_cell_set = tensor_set->grid_cells[state];
 #pragma omp for collapse(2) schedule(dynamic)
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
 				Tensor *tensor_at_t = tensor_clone(tensor_set->data[state]);
 				const int terrain_val = terrain_at(x, y, terrain_map);
+				if (is_unmapped_terrain(terrain_val, mapping)) {
+					tensor_free(tensor_at_t);
+					continue;
+				}
 
-				bool on_forbidden_terrain = is_forbidden_landmark(terrain_val, mapping);
+				bool on_barrier = is_barrier_terrain(terrain_val, mapping);
 				Matrix *soft_reach_mat = NULL;
 				const size_t D = tensor_at_t->len;
-				if (on_forbidden_terrain) {
+				if (on_barrier) {
 					apply_terrain_bias(x, y, terrain_map, tensor_at_t, mapping);
 				} else {
-					soft_reach_mat = get_reachability_kernel_soft(x, y, tensor_at_t->data[0]->width,
-					                                              terrain_map, mapping);
+					soft_reach_mat = get_relaxed_reachability_mask(x, y, tensor_at_t->data[0]->width,
+					                                               terrain_map, mapping);
 					assert(soft_reach_mat->len == tensor_at_t->data[0]->len);
 					for (ssize_t d = 0; d < D; d++) {
 						matrix_mul_inplace(tensor_at_t->data[d], soft_reach_mat);
@@ -386,8 +382,8 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 						const ssize_t kernel_width = current_kernel->width;
 
 						for (int i = 0; i < dir_cell_set->sizes[d]; ++i) {
-							const ssize_t prev_kernel_x = dir_cell_set->data[d][i].x;
-							const ssize_t prev_kernel_y = dir_cell_set->data[d][i].y;
+							const ssize_t prev_kernel_x = dir_cell_set->offsets[d][i].x;
+							const ssize_t prev_kernel_y = dir_cell_set->offsets[d][i].y;
 							const ssize_t xx = x - prev_kernel_x;
 							const ssize_t yy = y - prev_kernel_y;
 
@@ -396,14 +392,14 @@ Tensor **time_walk_dp(size_t T, const int *timeline, const TerrainMap *terrain_m
 							const ssize_t kernel_x = prev_kernel_x + kernel_width / 2;
 							const ssize_t kernel_y = prev_kernel_y + kernel_width / 2;
 
-							const double a = DP_mat[t - 1]->data[di]->data.points[yy * W + xx];
-							const double b = current_kernel->data.points[kernel_y * current_kernel->width + kernel_x];
+							const double a = DP_mat[t - 1]->data[di]->points[yy * W + xx];
+							const double b = current_kernel->points[kernel_y * current_kernel->width + kernel_x];
 
 							assert(!isnan(a));
 							sum += a * b;
 						}
 					}
-					DP_mat[t]->data[d]->data.points[y * W + x] = sum;
+					DP_mat[t]->data[d]->points[y * W + x] = sum;
 				}
 				tensor_free(tensor_at_t);
 			}
@@ -418,14 +414,15 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
                              const TerrainMap *terrain, const ssize_t start_x, const ssize_t start_y,
                              const ssize_t end_x,
                              const ssize_t end_y) {
+	const ssize_t layer_count = T + 1;
 	Tensor **DP_Matrix = time_walk_dp(T, timeline, terrain, mapping, tensor_set, start_x,
 	                                  start_y);
-	assert(!isnan(matrix_get(DP_Matrix[T - 1]->data[0], end_x, end_y)));
+	assert(!isnan(matrix_get(DP_Matrix[layer_count - 1]->data[0], end_x, end_y)));
 
 	Point2DArray *path = malloc(sizeof(Point2DArray));
-	Point2D *points = malloc(sizeof(Point2D) * T);
+	Point2D *points = malloc(sizeof(Point2D) * layer_count);
 	path->points = points;
-	path->length = T;
+	path->length = layer_count;
 
 	ssize_t x = end_x;
 	ssize_t y = end_y;
@@ -434,10 +431,10 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 	size_t H = DP_Matrix[0]->data[0]->height;
 
 	size_t direction = 0;
-	size_t index = T - 1;
+	size_t index = layer_count - 1;
 
-	for (ssize_t t = T - 1; t >= 1; --t) {
-		const int state = timeline[t];
+	for (ssize_t t = layer_count - 1; t >= 1; --t) {
+		const int state = timeline[t - 1];
 		Tensor *current_tensor = tensor_set->data[state];
 		const size_t D = current_tensor->len;
 		const ssize_t kernel_width = current_tensor->data[0]->width;
@@ -454,12 +451,12 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 		index--;
 
 		size_t count = 0;
-		Vector2D *dir_kernel = tensor_set->grid_cells[state];
+		DirOffsets *dir_kernel = tensor_set->grid_cells[state];
 
 		for (int d = 0; d < D; ++d) {
 			for (int i = 0; i < dir_kernel->sizes[direction]; ++i) {
-				const ssize_t dx = dir_kernel->data[direction][i].x;
-				const ssize_t dy = dir_kernel->data[direction][i].y;
+				const ssize_t dx = dir_kernel->offsets[direction][i].x;
+				const ssize_t dy = dir_kernel->offsets[direction][i].y;
 
 				const ssize_t prev_x = x - dx;
 				const ssize_t prev_y = y - dy;
@@ -498,7 +495,7 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 			free(path->points);
 			free(path);
 			perror("no neighbors");
-			tensor4D_free(DP_Matrix, T);
+			tensor4D_free(DP_Matrix, layer_count);
 			return NULL;
 		}
 
@@ -515,6 +512,6 @@ Point2DArray *state_dep_walk(const ssize_t T, const int *timeline, const TensorS
 	path->points[0].x = x;
 	path->points[0].y = y;
 
-	tensor4D_free(DP_Matrix, T);
+	tensor4D_free(DP_Matrix, layer_count);
 	return path;
 }

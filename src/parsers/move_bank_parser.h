@@ -8,7 +8,6 @@
  * parameter grids, CSV parsing helpers for weather data, and utilities for memory management.
  */
 
-#include "math/Point2D.h"
 #include "parsers/terrain_parser.h"
 #include "types.h"
 
@@ -62,14 +61,8 @@ void free_kernel_parameters_yxt(KernelParamsYXT *kernel_parameters_terrain);
  * @param kernels_mapping Mapping that provides parameters for terrain classes.
  * @return Pointer to KernelParameters for the terrain, or NULL if unavailable.
  */
-KernelParameters *kernel_parameters_of_landmark(int terrain_value, KernelParametersMapping *kernels_mapping);
+KernelParameters *kernel_parameters_of_terrain(int terrain_value, KernelParametersMapping *kernels_mapping);
 
-
-/**
- * @brief Free a WeatherEntry instance or array element.
- * @param entry Pointer to the entry to free. It is safe to pass NULL.
- */
-void weather_entry_free(WeatherEntry *entry);
 
 #ifdef __cplusplus
 }

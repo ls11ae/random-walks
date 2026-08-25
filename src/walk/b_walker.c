@@ -2,18 +2,19 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "math/Point2D.h"
-#include "b_walk.h"
+#include "matrix/point2D.h"
+#include "b_walker.h"
 #include "math/math_utils.h"
 #include "math/path_finding.h"
-#include "matrix/kernels.h"
+#include "kernels/kernels.h"
 
 Tensor *brownian_init(const Matrix *kernel, const ssize_t W, const ssize_t H, const ssize_t T, const ssize_t start_x,
                       const ssize_t start_y) {
 	const int S = (int) kernel->width / 2;
-	Tensor *tensor = tensor_new(W, H, T);
+	const ssize_t layer_count = T + 1;
+	Tensor *tensor = tensor_new(W, H, layer_count);
 	matrix_set(tensor->data[0], start_x, start_y, 1.0);
-	for (int t = 1; t < T; t++) {
+	for (int t = 1; t < layer_count; t++) {
 		printf("t = %d\n", t);
 #pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int y = 0; y < H; ++y) {
@@ -129,7 +130,8 @@ Point2DArray *brownian_multi_step(ssize_t W, ssize_t H, ssize_t T,
 		return NULL;
 	}
 	const ssize_t num_steps = (ssize_t) steps->length;
-	const ssize_t total_points = T * (num_steps - 1);
+	const ssize_t layer_count = T + 1;
+	const ssize_t total_points = layer_count * (num_steps - 1);
 
 	Point2DArray *result = malloc(sizeof(Point2DArray));
 	if (!result) return NULL;
@@ -174,6 +176,3 @@ Point2DArray *brownian_multi_step(ssize_t W, ssize_t H, ssize_t T,
 	}
 	return result;
 }
-
-
-
