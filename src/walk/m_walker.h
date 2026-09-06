@@ -54,6 +54,16 @@ Tensor **mixed_utilization_distribution_parallel_thread_local(Tensor **DP_Matrix
                                                               const KernelContext *kernels_context,
                                                               ssize_t end_x, ssize_t end_y);
 
+/**
+ * Calculate the time-averaged utilization distribution directly as one 2D
+ * matrix. Unlike mixed_utilization_distribution(), this keeps only the current
+ * and previous backward layers in memory instead of materializing T + 1
+ * complete utilization tensors.
+ */
+Matrix *mixed_utilization_distribution_sum(Tensor **DP_Matrix, ssize_t T,
+                                           const KernelContext *kernels_context,
+                                           ssize_t end_x, ssize_t end_y);
+
 Tensor **mixed_visit(KernelContext *kernel_context, ssize_t T,
                      ssize_t start_x,
                      ssize_t start_y, const bool *target_area);

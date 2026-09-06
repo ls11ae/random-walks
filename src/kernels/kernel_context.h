@@ -14,6 +14,8 @@ enum ComputationMode {
     SERIALIZATION
 };
 
+struct KernelPoolC;
+
 typedef struct {
     enum ReachabilityMode reachability_mode;
     enum ComputationMode mode;
@@ -24,6 +26,8 @@ typedef struct {
     DirKernelsMap *dir_kernels_map;
     const char *dp_dir;
     const char *kernel_pool_dir;
+    /* Lazily packed CUDA representation. Owned by this context. */
+    struct KernelPoolC *cuda_kernel_pool;
 } KernelContext;
 
 KernelContext *kernel_context_on_fly(TerrainMap *terrain,
