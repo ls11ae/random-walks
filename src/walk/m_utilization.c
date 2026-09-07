@@ -16,6 +16,8 @@
 #include "walk/m_walker.h"
 
 
+static void utilization_accumulate(Matrix *accumulator, const Tensor *layer);
+
 static ssize_t best_end_direction(Tensor **dp, const ssize_t t, const Point2D end) {
     ssize_t best_direction = 0;
     double best_probability = -1.0;
@@ -130,7 +132,7 @@ static int utilization_step_serial(Tensor **utilization, Tensor **DP_Matrix, con
                 const double current_util = matrix_get(utilization[t]->data[direction], x, y);
                 if (current_util <= 0.0) continue;
 
-                const double total = utilization_transition_total(DP_Matrix, t, kernels_map, dir_cell_set,
+                const double total = utilization_transition_total(DP_Matrix[t - 1], kernels_map, dir_cell_set,
                                                                   direction, x, y, W, H);
                 if (total <= 0.0) continue;
 
@@ -178,7 +180,7 @@ static int utilization_step_atomic(Tensor **utilization, Tensor **DP_Matrix, con
                 const double current_util = matrix_get(utilization[t]->data[direction], x, y);
                 if (current_util <= 0.0) continue;
 
-                const double total = utilization_transition_total(DP_Matrix, t, kernels_map, dir_cell_set,
+                const double total = utilization_transition_total(DP_Matrix[t - 1], kernels_map, dir_cell_set,
                                                                   direction, x, y, W, H);
                 if (total <= 0.0) continue;
 
