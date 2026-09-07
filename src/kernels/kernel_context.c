@@ -13,6 +13,10 @@
 #include "parsers/serialization.h"
 #include "parsers/terrain_parser.h"
 
+#ifdef USE_CUDA
+void kernelpoolc_free(const struct KernelPoolC *pool);
+#endif
+
 static int tensors_match_exactly(const Tensor *a, const Tensor *b) {
     if (!a || !b || a->len != b->len) return 0;
 
@@ -67,6 +71,7 @@ KernelContext *kernel_context_on_fly(TerrainMap *terrain, KernelParametersMappin
     context->reachability_mode = reachability_mode;
     context->dp_dir = NULL;
     context->kernel_pool_dir = NULL;
+    context->cuda_kernel_pool = NULL;
     return context;
 }
 
@@ -93,6 +98,7 @@ KernelContext *kernel_context_pool(TerrainMap *terrain, KernelParametersMapping 
     context->reachability_mode = kernels_pool->soft_reachability;
     context->dp_dir = NULL;
     context->kernel_pool_dir = NULL;
+    context->cuda_kernel_pool = NULL;
     return context;
 }
 
@@ -146,11 +152,19 @@ KernelContext *kernel_context_serialization(TerrainMap *terrain,
     context->reachability_mode = reachability_mode;
     context->dp_dir = dp_dir;
     context->kernel_pool_dir = kernel_pool_dir;
+    context->cuda_kernel_pool = NULL;
     return context;
 }
 
 void kernel_context_free(KernelContext *context) {
     if (!context) return;
+
+#ifdef USE_CUDA
+    if (context->cuda_kernel_pool) {
+        kernelpoolc_free(context->cuda_kernel_pool);
+        context->cuda_kernel_pool = NULL;
+    }
+#endif
 
     if (context->base_kernels) {
         tensor_set_free(context->base_kernels);

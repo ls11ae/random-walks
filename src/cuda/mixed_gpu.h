@@ -38,7 +38,7 @@ struct KernelPool {
 };
 #endif
 
-typedef struct {
+typedef struct KernelPoolC {
     double *kernel_pool;
     int kernel_pool_size;
 
@@ -82,7 +82,7 @@ KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
  * CUDA forward calculation matching m_walk(). The returned series contains
  * T + 1 Tensor layers and is released with tensor4D_free(result, T + 1).
  */
-Tensor **gpu_m_walk(const KernelContext *kernels_context, ssize_t T,
+Tensor **gpu_m_walk(KernelContext *kernels_context, ssize_t T,
                     ssize_t start_x, ssize_t start_y);
 
 /**
@@ -106,8 +106,20 @@ Tensor **gpu_mixed_utilization_distribution_pooled(Tensor **DP_Matrix, ssize_t T
  * Kernel-map ownership is handled according to the supplied KernelContext.
  */
 Tensor **gpu_mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
-                                            const KernelContext *kernels_context,
+                                            KernelContext *kernels_context,
                                             ssize_t end_x, ssize_t end_y);
+
+/**
+ * Memory-bounded CUDA UD reduction. The returned matrix is the time-averaged
+ * sum over directions and is released with matrix_free().
+ */
+Matrix *gpu_mixed_utilization_distribution_sum_pooled(
+    Tensor **DP_Matrix, ssize_t T, const KernelsMap3D *kernels_map,
+    const KernelPoolC *pool, ssize_t end_x, ssize_t end_y);
+
+Matrix *gpu_mixed_utilization_distribution_sum(
+    Tensor **DP_Matrix, ssize_t T, KernelContext *kernels_context,
+    ssize_t end_x, ssize_t end_y);
 
 Point2DArray *gpu_mixed_walk(int T, int W, int H,
                              int start_x, int start_y,
