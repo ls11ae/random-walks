@@ -3,6 +3,7 @@
 
 #include "kernels/kernel_context.h"
 
+#include <assert.h>
 #include <ftw.h>
 #include <stdlib.h>
 

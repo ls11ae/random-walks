@@ -113,13 +113,14 @@ Tensor **m_walk(const KernelContext *kernels_context, const ssize_t T, const ssi
                 const ssize_t start_y) {
 	if (!kernels_context || !kernels_context->terrain || !kernels_context->mapping || T <= 0) return NULL;
 	if (context_forbids_point(kernels_context, start_x, start_y)) return NULL;
+	const ssize_t layer_count = T + 1;
 
 	int owned = 0;
 	const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
 	if (!kernels_map) return NULL;
 
 	Tensor **dp = m_walk_base(kernels_context->terrain->width, kernels_context->terrain->height,
-	                          kernels_context->terrain, kernels_map, T, start_x, start_y);
+	                          kernels_context->terrain, kernels_map, layer_count, start_x, start_y);
 
 	if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
 	return dp;

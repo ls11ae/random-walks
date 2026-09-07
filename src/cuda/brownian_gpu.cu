@@ -144,9 +144,10 @@ Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint
                                 const uint32_t start_x, const uint32_t start_y, const int32_t end_x,
                                 const int32_t end_y) {
     printf("start\n");
+    const uint32_t layer_count = T + 1;
     const uint32_t size_2d = W * H;
 
-    auto *tensor = static_cast<float *>(calloc(T * size_2d, sizeof(float)));
+    auto *tensor = static_cast<float *>(calloc(layer_count * size_2d, sizeof(float)));
 
     tensor[start_y * W + start_x] = 1.0;
 
@@ -156,7 +157,7 @@ Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint
     cudaEventCreate(&stop);
     cudaEventRecord(start, nullptr);
 
-    gpu_tensor_walk(tensor, kernel, T, H, W, S);
+    gpu_tensor_walk(tensor, kernel, layer_count, H, W, S);
 
     cudaEventRecord(stop, nullptr);
     cudaEventSynchronize(stop);
@@ -167,7 +168,7 @@ Point2DArray *gpu_brownian_walk(const float *kernel, const int32_t S, const uint
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
-    Point2DArray *path = b_walk_backtrace_flat(tensor, kernel, T, H, W, S, end_x, end_y);
+    Point2DArray *path = b_walk_backtrace_flat(tensor, kernel, layer_count, H, W, S, end_x, end_y);
 
     printf("gpu_tensor_walk took %.3f ms\n", milliseconds);
 

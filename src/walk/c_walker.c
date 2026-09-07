@@ -22,6 +22,7 @@
 
 Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize_t T, const ssize_t start_x,
                          const ssize_t start_y, bool use_serialization, const char *output_folder) {
+	const ssize_t layer_count = T + 1;
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t S = (ssize_t) kernel->data[0]->width / 2;
 
@@ -57,8 +58,8 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 	Tensor *prev = NULL;
 
 	if (!use_serialization) {
-		DP_mat = malloc(T * sizeof(Tensor *));
-		for (int i = 0; i < T; i++) {
+		DP_mat = malloc(layer_count * sizeof(Tensor *));
+		for (int i = 0; i < layer_count; i++) {
 			Tensor *current = tensor_new(W, H, D);
 			DP_mat[i] = current;
 		}
@@ -78,7 +79,7 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 	Tensor *angles_mask = tensor_new(kernel_width, kernel_width, D);
 	compute_overlap_percentages(angles_mask);
 
-	for (ssize_t t = 1; t < T; t++) {
+	for (ssize_t t = 1; t < layer_count; t++) {
 		Tensor *current = NULL;
 
 		if (use_serialization) {
@@ -149,18 +150,19 @@ Tensor **correlated_init(ssize_t W, ssize_t H, const Tensor *kernel, const ssize
 Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, const char *dp_folder, const ssize_t T,
                                    const Tensor *kernel, ssize_t end_x, ssize_t end_y,
                                    ssize_t dir) {
+	const ssize_t layer_count = T + 1;
 	Point2DArray *path = malloc(sizeof(Point2DArray));
 	if (!path) {
 		perror("Failed to allocate path");
 		return NULL;
 	}
-	path->points = malloc(sizeof(Point2D) * T);
+	path->points = malloc(sizeof(Point2D) * layer_count);
 	if (!path->points) {
 		perror("Failed to allocate path points");
 		free(path);
 		return NULL;
 	}
-	path->length = T;
+	path->length = layer_count;
 
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t kernel_width = (ssize_t) kernel->data[0]->width;
@@ -199,8 +201,8 @@ Point2DArray *correlated_backtrace(bool use_serialization, Tensor **DP_Matrix, c
 	compute_overlap_percentages(angles_mask);
 
 
-	size_t index = T - 1;
-	for (size_t t = T - 1; t >= 1; --t) {
+	size_t index = layer_count - 1;
+	for (size_t t = layer_count - 1; t >= 1; --t) {
 		const size_t max_neighbors = (2 * S + 1) * (2 * S + 1) * D;
 		ssize_t *movements_x = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
 		ssize_t *movements_y = (ssize_t *) malloc(max_neighbors * sizeof(ssize_t));
@@ -334,6 +336,7 @@ Point2DArray *correlated_backtrace_precomputed(bool use_serialization, Tensor **
 Tensor **correlated_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
                                              const Tensor *kernel, const ssize_t end_x, const ssize_t end_y) {
 	if (!DP_Matrix || !kernel || T <= 0) return NULL;
+	const ssize_t layer_count = T + 1;
 
 	const ssize_t W = DP_Matrix[0]->data[0]->width;
 	const ssize_t H = DP_Matrix[0]->data[0]->height;
@@ -346,13 +349,13 @@ Tensor **correlated_utilization_distribution(Tensor **DP_Matrix, const ssize_t T
 	Tensor *angle_mask = tensor_new(kernel_width, kernel_width, D);
 	compute_overlap_percentages(angle_mask);
 
-	Tensor **utilization = malloc((size_t) T * sizeof(Tensor *));
+	Tensor **utilization = malloc((size_t) layer_count * sizeof(Tensor *));
 	if (!utilization) {
 		free_Vector2D(dir_cell_set);
 		tensor_free(angle_mask);
 		return NULL;
 	}
-	for (ssize_t t = 0; t < T; ++t) {
+	for (ssize_t t = 0; t < layer_count; ++t) {
 		utilization[t] = tensor_new(W, H, D);
 		if (!utilization[t]) {
 			tensor4D_free(utilization, t);
@@ -363,10 +366,10 @@ Tensor **correlated_utilization_distribution(Tensor **DP_Matrix, const ssize_t T
 	}
 
 	for (ssize_t d = 0; d < D; ++d) {
-		matrix_set(utilization[T - 1]->data[d], end_x, end_y, 1.0 / (double) D);
+		matrix_set(utilization[layer_count - 1]->data[d], end_x, end_y, 1.0 / (double) D);
 	}
 
-	for (ssize_t t = T - 1; t >= 1; --t) {
+	for (ssize_t t = layer_count - 1; t >= 1; --t) {
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
 				for (ssize_t direction = 0; direction < D; ++direction) {
@@ -424,6 +427,7 @@ Tensor **correlated_utilization_distribution(Tensor **DP_Matrix, const ssize_t T
 Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel, const ssize_t T,
                           const ssize_t start_x, const ssize_t start_y, const bool *target_area) {
 	if (!kernel || !target_area || T <= 0) return NULL;
+	const ssize_t layer_count = T + 1;
 
 	const ssize_t D = (ssize_t) kernel->len;
 	const ssize_t kernel_width = kernel->data[0]->width;
@@ -434,8 +438,8 @@ Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel
 	Tensor *angle_mask = tensor_new(kernel_width, kernel_width, D);
 	compute_overlap_percentages(angle_mask);
 
-	Tensor **dp = malloc((size_t) T * sizeof(Tensor *));
-	Tensor **visit = malloc((size_t) T * sizeof(Tensor *));
+	Tensor **dp = malloc((size_t) layer_count * sizeof(Tensor *));
+	Tensor **visit = malloc((size_t) layer_count * sizeof(Tensor *));
 	if (!dp || !visit) {
 		free(dp);
 		free(visit);
@@ -443,7 +447,7 @@ Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel
 		tensor_free(angle_mask);
 		return NULL;
 	}
-	for (ssize_t t = 0; t < T; ++t) {
+	for (ssize_t t = 0; t < layer_count; ++t) {
 		dp[t] = tensor_new(W, H, D);
 		visit[t] = tensor_new(W, H, D);
 		if (!dp[t] || !visit[t]) {
@@ -461,7 +465,7 @@ Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel
 		matrix_set(visit[0]->data[d], start_x, start_y, initial_visit);
 	}
 
-	for (ssize_t t = 1; t < T; ++t) {
+	for (ssize_t t = 1; t < layer_count; ++t) {
 		for (ssize_t y = 0; y < H; ++y) {
 			for (ssize_t x = 0; x < W; ++x) {
 				for (ssize_t direction = 0; direction < D; ++direction) {
@@ -496,7 +500,7 @@ Tensor **correlated_visit(const ssize_t W, const ssize_t H, const Tensor *kernel
 		}
 	}
 
-	tensor4D_free(dp, T);
+	tensor4D_free(dp, layer_count);
 	free_Vector2D(dir_cell_set);
 	tensor_free(angle_mask);
 	return visit;
@@ -507,6 +511,7 @@ double visit_probability(Tensor **DP_Matrix, const ssize_t T,
                          const ssize_t end_x, const ssize_t end_y,
                          const bool *target_area) {
 	if (!DP_Matrix || !kernel || T <= 0) return 0.0;
+	const ssize_t layer_count = T + 1;
 
 	const ssize_t W = DP_Matrix[0]->data[0]->width;
 	const ssize_t H = DP_Matrix[0]->data[0]->height;
@@ -516,12 +521,12 @@ double visit_probability(Tensor **DP_Matrix, const ssize_t T,
 	double weighted_visit = 0.0;
 	double total = 0.0;
 	for (size_t d = 0; d < kernel->len; ++d) {
-		const double p = matrix_get(DP_Matrix[T - 1]->data[d], end_x, end_y);
+		const double p = matrix_get(DP_Matrix[layer_count - 1]->data[d], end_x, end_y);
 		total += p;
-		weighted_visit += p * matrix_get(visit[T - 1]->data[d], end_x, end_y);
+		weighted_visit += p * matrix_get(visit[layer_count - 1]->data[d], end_x, end_y);
 	}
 
-	tensor4D_free(visit, T);
+	tensor4D_free(visit, layer_count);
 	return total > 0.0 ? weighted_visit / total : 0.0;
 }
 
@@ -532,7 +537,8 @@ Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder,
 		return NULL;
 	}
 	const ssize_t num_steps = (ssize_t) steps->length;
-	const ssize_t total_points = T * (num_steps - 1);
+	const ssize_t layer_count = T + 1;
+	const ssize_t total_points = layer_count * (num_steps - 1);
 
 	Point2DArray *result = malloc(sizeof(Point2DArray));
 	if (!result) return NULL;
@@ -559,7 +565,7 @@ Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder,
 			return NULL;
 		}
 		Point2DArray *pth = correlated_backtrace(use_serialization, DP_Matrix, dp_folder, T, kernel, end_x, end_y, dir);
-		tensor4D_free(DP_Matrix, T);
+		tensor4D_free(DP_Matrix, layer_count);
 		if (!pth) {
 			// Check immediately after calling backtrace
 			printf("points returned invalid\n");
@@ -576,7 +582,6 @@ Point2DArray *correlated_multi_step(ssize_t W, ssize_t H, const char *dp_folder,
 			point2d_array_free(pth);
 			free(result->points);
 			free(result);
-			tensor4D_free(DP_Matrix, T);
 			return NULL;
 		}
 
