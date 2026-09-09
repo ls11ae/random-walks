@@ -112,102 +112,6 @@ static double utilization_transition_total(const Tensor *forward_previous,
     return total;
 }
 
-static int utilization_step_serial(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
-                                   const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                   const ssize_t max_M, const ssize_t W, const ssize_t H) {
-    for (ssize_t y = 0; y < H; ++y) {
-        for (ssize_t x = 0; x < W; ++x) {
-            const Tensor *destination_tensor = kernels_map->kernels[y][x];
-            if (!destination_tensor || destination_tensor->len == 0) continue;
-
-            const size_t D = destination_tensor->len;
-            const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
-            if (!dir_cell_set) continue;
-
-            for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
-                const double current_util = matrix_get(utilization[t]->data[direction], x, y);
-                if (current_util <= 0.0) continue;
-
-                const double total = utilization_transition_total(DP_Matrix[t - 1], kernels_map, dir_cell_set,
-                                                                  direction, x, y, W, H);
-                if (total <= 0.0) continue;
-
-                for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-                    const ssize_t dx = dir_cell_set->offsets[direction][i].x;
-                    const ssize_t dy = dir_cell_set->offsets[direction][i].y;
-                    const ssize_t prev_x = x - dx;
-                    const ssize_t prev_y = y - dy;
-
-                    if (!in_bounds(prev_x, prev_y, W, H)) continue;
-
-                    const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
-                    if (!prev_tensor) continue;
-
-                    for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
-                        const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[prev_d],
-                                                                       prev_x, prev_y);
-                        const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
-                        const double contribution = current_util * previous_probability * transition / total;
-                        const double old_util = matrix_get(utilization[t - 1]->data[prev_d], prev_x, prev_y);
-                        matrix_set(utilization[t - 1]->data[prev_d], prev_x, prev_y, old_util + contribution);
-                    }
-                }
-            }
-        }
-    }
-
-    return 1;
-}
-
-static int utilization_step_atomic(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
-                                   const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                   const ssize_t max_M, const ssize_t W, const ssize_t H) {
-#pragma omp parallel for collapse(2) schedule(dynamic)
-    for (ssize_t y = 0; y < H; ++y) {
-        for (ssize_t x = 0; x < W; ++x) {
-            const Tensor *destination_tensor = kernels_map->kernels[y][x];
-            if (!destination_tensor || destination_tensor->len == 0) continue;
-
-            const size_t D = destination_tensor->len;
-            const DirOffsets *dir_cell_set = dir_kernels->data[D][max_M];
-            if (!dir_cell_set) continue;
-
-            for (ssize_t direction = 0; direction < (ssize_t) D; ++direction) {
-                const double current_util = matrix_get(utilization[t]->data[direction], x, y);
-                if (current_util <= 0.0) continue;
-
-                const double total = utilization_transition_total(DP_Matrix[t - 1], kernels_map, dir_cell_set,
-                                                                  direction, x, y, W, H);
-                if (total <= 0.0) continue;
-
-                for (size_t i = 0; i < dir_cell_set->sizes[direction]; ++i) {
-                    const ssize_t dx = dir_cell_set->offsets[direction][i].x;
-                    const ssize_t dy = dir_cell_set->offsets[direction][i].y;
-                    const ssize_t prev_x = x - dx;
-                    const ssize_t prev_y = y - dy;
-
-                    if (!in_bounds(prev_x, prev_y, W, H)) continue;
-
-                    const Tensor *prev_tensor = kernels_map->kernels[prev_y][prev_x];
-                    if (!prev_tensor) continue;
-
-                    for (ssize_t prev_d = 0; prev_d < (ssize_t) prev_tensor->len; ++prev_d) {
-                        const double previous_probability = matrix_get(DP_Matrix[t - 1]->data[prev_d],
-                                                                       prev_x, prev_y);
-                        const double transition = predecessor_kernel_value(prev_tensor, prev_d, dx, dy);
-                        const double contribution = current_util * previous_probability * transition / total;
-                        const size_t index = (size_t) prev_y * (size_t) W + (size_t) prev_x;
-#pragma omp atomic update
-                        utilization[t - 1]->data[prev_d]->points[index] += contribution;
-                    }
-                }
-            }
-        }
-    }
-
-    return 1;
-}
-
 static int utilization_step_pair_thread_local(const Tensor *current, Tensor *previous,
                                               const Tensor *forward_previous,
                                               const KernelsMap3D *kernels_map,
@@ -323,7 +227,9 @@ Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
     }
 
     for (ssize_t t = layer_count - 1; t >= 1; --t) {
-        if (!utilization_step_thread_local(utilization, DP_Matrix, t, kernels_map, dir_kernels, max_M, W, H)) {
+        if (!utilization_step_pair_thread_local(
+                utilization[t], utilization[t - 1], DP_Matrix[t - 1],
+                kernels_map, dir_kernels, max_M, W, H)) {
             tensor4D_free(utilization, layer_count);
             if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
             return NULL;
@@ -424,14 +330,6 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
     return walk;
 }
 
-static int utilization_step_thread_local(Tensor **utilization, Tensor **DP_Matrix, const ssize_t t,
-                                         const KernelsMap3D *kernels_map, const DirKernelsMap *dir_kernels,
-                                         const ssize_t max_M, const ssize_t W, const ssize_t H) {
-    return utilization_step_pair_thread_local(
-        utilization[t], utilization[t - 1], DP_Matrix[t - 1], kernels_map,
-        dir_kernels, max_M, W, H);
-}
-
 static void utilization_accumulate(Matrix *accumulator, const Tensor *layer) {
     if (!accumulator || !accumulator->points || !layer || !layer->data) return;
 
@@ -442,27 +340,6 @@ static void utilization_accumulate(Matrix *accumulator, const Tensor *layer) {
             accumulator->points[index] += matrix->points[index];
         }
     }
-}
-
-Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, const ssize_t T,
-                                        const KernelContext *kernels_context, const ssize_t end_x,
-                                        const ssize_t end_y) {
-    return mixed_utilization_distribution_parallel_thread_local(DP_Matrix, T, kernels_context, end_x, end_y);
-}
-
-Tensor **mixed_utilization_distribution_parallel_atomic(Tensor **DP_Matrix, const ssize_t T,
-                                                        const KernelContext *kernels_context,
-                                                        const ssize_t end_x, const ssize_t end_y) {
-    return mixed_utilization_distribution_impl(DP_Matrix, T, kernels_context, end_x, end_y,
-                                               utilization_step_atomic);
-}
-
-
-Tensor **mixed_utilization_distribution_parallel_thread_local(Tensor **DP_Matrix, const ssize_t T,
-                                                              const KernelContext *kernels_context,
-                                                              const ssize_t end_x, const ssize_t end_y) {
-    return mixed_utilization_distribution_impl(DP_Matrix, T, kernels_context, end_x, end_y,
-                                               utilization_step_thread_local);
 }
 
 Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,

@@ -45,15 +45,6 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, ssize_t T,
 Tensor **mixed_utilization_distribution(Tensor **DP_Matrix, ssize_t T,
                                         const KernelContext *kernels_context, ssize_t end_x, ssize_t end_y);
 
-Tensor **mixed_utilization_distribution_parallel_atomic(Tensor **DP_Matrix, ssize_t T,
-                                                        const KernelContext *kernels_context,
-                                                        ssize_t end_x, ssize_t end_y);
-
-
-Tensor **mixed_utilization_distribution_parallel_thread_local(Tensor **DP_Matrix, ssize_t T,
-                                                              const KernelContext *kernels_context,
-                                                              ssize_t end_x, ssize_t end_y);
-
 /**
  * Calculate the time-averaged utilization distribution directly as one 2D
  * matrix. Unlike mixed_utilization_distribution(), this keeps only the current
