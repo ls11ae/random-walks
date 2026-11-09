@@ -116,6 +116,15 @@ extern "C" void kernelpoolc_free(const KernelPoolC *pool) {
 	delete pool;
 }
 
+static KernelPoolC *context_cuda_kernel_pool(KernelContext *context,
+	                                         const KernelsMap3D *kernels_map) {
+	if (!context || !kernels_map) return nullptr;
+	if (!context->cuda_kernel_pool) {
+		context->cuda_kernel_pool = build_kernel_pool_c(kernels_map, context->terrain);
+	}
+	return context->cuda_kernel_pool;
+}
+
 // Build the kernel pool from kernels_map
 KernelPool build_kernel_pool_from_kernels_map(const KernelsMap3D *km,
                                               const TerrainMap *terrain_map) {
@@ -544,6 +553,23 @@ private:
 	ssize_t count_;
 };
 
+class MixedMatrixOwner {
+public:
+	explicit MixedMatrixOwner(Matrix *matrix) : matrix_(matrix) {}
+	~MixedMatrixOwner() {
+		if (matrix_) matrix_free(matrix_);
+	}
+	Matrix *get() const { return matrix_; }
+	Matrix *release() {
+		Matrix *result = matrix_;
+		matrix_ = nullptr;
+		return result;
+	}
+
+private:
+	Matrix *matrix_;
+};
+
 static bool mixed_cuda_ok(const cudaError_t status, const char *operation) {
 	if (status == cudaSuccess) return true;
 	fprintf(stderr, "Mixed CUDA utilization failed during %s: %s\n", operation, cudaGetErrorString(status));
@@ -725,6 +751,19 @@ static void copy_flat_to_tensor(const double *flat, const MixedUdShape &shape, T
 	}
 }
 
+static void add_flat_directions_to_matrix(const double *flat, const MixedUdShape &shape,
+	                                      Matrix *accumulator) {
+	if (!flat || !accumulator || !accumulator->points ||
+	    accumulator->len != static_cast<ssize_t>(shape.cell_count)) return;
+
+	for (int direction = 0; direction < shape.D; ++direction) {
+		const double *values = flat + static_cast<size_t>(direction) * shape.cell_count;
+		for (size_t cell = 0; cell < shape.cell_count; ++cell) {
+			accumulator->points[cell] += values[cell];
+		}
+	}
+}
+
 static Tensor **gpu_mixed_utilization_distribution_pooled_impl(
 	Tensor **DP_Matrix, const ssize_t T, const KernelsMap3D *kernels_map,
 	const KernelPoolC *pool, const ssize_t end_x, const ssize_t end_y) {
@@ -837,6 +876,120 @@ static Tensor **gpu_mixed_utilization_distribution_pooled_impl(
 	}
 
 	return utilization.release();
+}
+
+static Matrix *gpu_mixed_utilization_distribution_sum_pooled_impl(
+	Tensor **DP_Matrix, const ssize_t T, const KernelsMap3D *kernels_map,
+	const KernelPoolC *pool, const ssize_t end_x, const ssize_t end_y) {
+	MixedUdShape shape;
+	if (!validate_mixed_ud_inputs(DP_Matrix, T, kernels_map, pool, end_x, end_y, &shape)) return nullptr;
+
+	MixedDirectionMetadata direction_metadata;
+	if (!build_mixed_direction_metadata(kernels_map, pool, shape, &direction_metadata) ||
+	    direction_metadata.offsets.empty()) return nullptr;
+
+	MixedMatrixOwner accumulator(matrix_new(shape.W, shape.H));
+	if (!accumulator.get()) return nullptr;
+
+	std::vector<double> host_dp(shape.state_count);
+	std::vector<double> host_utilization(shape.state_count, 0.0);
+	const size_t end_cell = static_cast<size_t>(end_y) * static_cast<size_t>(shape.W) +
+	                        static_cast<size_t>(end_x);
+	const int end_kernel = pool->kernel_index_by_cell[end_cell];
+	const int end_D = pool->kernel_Ds[end_kernel];
+	const double end_value = 1.0 / static_cast<double>(end_D);
+	for (int direction = 0; direction < end_D; ++direction) {
+		host_utilization[static_cast<size_t>(direction) * shape.cell_count + end_cell] = end_value;
+	}
+	add_flat_directions_to_matrix(host_utilization.data(), shape, accumulator.get());
+
+	MixedCudaBuffer<double> device_kernel_pool;
+	MixedCudaBuffer<int> device_kernel_offsets;
+	MixedCudaBuffer<int> device_kernel_widths;
+	MixedCudaBuffer<int> device_kernel_Ds;
+	MixedCudaBuffer<int> device_kernel_index_by_cell;
+	MixedCudaBuffer<int2> device_direction_offsets;
+	MixedCudaBuffer<int> device_direction_starts;
+	MixedCudaBuffer<int> device_direction_counts;
+	MixedCudaBuffer<int> device_direction_lookup;
+	MixedCudaBuffer<double> device_dp_previous;
+	MixedCudaBuffer<double> device_utilization_current;
+	MixedCudaBuffer<double> device_utilization_previous;
+	MixedCudaBuffer<double> device_denominators;
+
+	if (!device_kernel_pool.allocate(static_cast<size_t>(pool->kernel_pool_size), "allocating kernel values") ||
+	    !device_kernel_offsets.allocate(static_cast<size_t>(shape.kernel_count), "allocating kernel offsets") ||
+	    !device_kernel_widths.allocate(static_cast<size_t>(shape.kernel_count), "allocating kernel widths") ||
+	    !device_kernel_Ds.allocate(static_cast<size_t>(shape.kernel_count), "allocating kernel directions") ||
+	    !device_kernel_index_by_cell.allocate(shape.cell_count, "allocating cell kernel indices") ||
+	    !device_direction_offsets.allocate(direction_metadata.offsets.size(), "allocating direction offsets") ||
+	    !device_direction_starts.allocate(direction_metadata.starts.size(), "allocating direction starts") ||
+	    !device_direction_counts.allocate(direction_metadata.counts.size(), "allocating direction counts") ||
+	    !device_direction_lookup.allocate(direction_metadata.direction_lookup.size(), "allocating direction lookup") ||
+	    !device_dp_previous.allocate(shape.state_count, "allocating streamed DP layer") ||
+	    !device_utilization_current.allocate(shape.state_count, "allocating current utilization layer") ||
+	    !device_utilization_previous.allocate(shape.state_count, "allocating previous utilization layer") ||
+	    !device_denominators.allocate(shape.state_count, "allocating transition denominators")) {
+		return nullptr;
+	}
+
+	if (!device_kernel_pool.copy_from_host(pool->kernel_pool, static_cast<size_t>(pool->kernel_pool_size),
+	                                       "copying kernel values") ||
+	    !device_kernel_offsets.copy_from_host(pool->kernel_offsets, static_cast<size_t>(shape.kernel_count),
+	                                          "copying kernel offsets") ||
+	    !device_kernel_widths.copy_from_host(pool->kernel_widths, static_cast<size_t>(shape.kernel_count),
+	                                         "copying kernel widths") ||
+	    !device_kernel_Ds.copy_from_host(pool->kernel_Ds, static_cast<size_t>(shape.kernel_count),
+	                                    "copying kernel directions") ||
+	    !device_kernel_index_by_cell.copy_from_host(pool->kernel_index_by_cell, shape.cell_count,
+	                                                "copying cell kernel indices") ||
+	    !device_direction_offsets.copy_from_host(direction_metadata.offsets.data(), direction_metadata.offsets.size(),
+	                                             "copying direction offsets") ||
+	    !device_direction_starts.copy_from_host(direction_metadata.starts.data(), direction_metadata.starts.size(),
+	                                            "copying direction starts") ||
+	    !device_direction_counts.copy_from_host(direction_metadata.counts.data(), direction_metadata.counts.size(),
+	                                            "copying direction counts") ||
+	    !device_direction_lookup.copy_from_host(direction_metadata.direction_lookup.data(),
+	                                            direction_metadata.direction_lookup.size(),
+	                                            "copying direction lookup") ||
+	    !device_utilization_current.copy_from_host(host_utilization.data(), shape.state_count,
+	                                               "copying final utilization layer")) {
+		return nullptr;
+	}
+
+	constexpr unsigned int block_size = 256;
+	const size_t required_blocks = (shape.state_count + block_size - 1) / block_size;
+	const unsigned int block_count = static_cast<unsigned int>(std::min<size_t>(required_blocks, 65535));
+	for (ssize_t t = T; t >= 1; --t) {
+		if (!copy_tensor_to_flat(DP_Matrix[t - 1], shape, host_dp.data()) ||
+		    !device_dp_previous.copy_from_host(host_dp.data(), shape.state_count, "streaming forward DP layer")) {
+			return nullptr;
+		}
+
+		mixed_ud_denominator_kernel<<<block_count, block_size>>>(
+			device_dp_previous.get(), device_denominators.get(), device_kernel_pool.get(),
+			device_kernel_offsets.get(), device_kernel_widths.get(), device_kernel_Ds.get(),
+			device_kernel_index_by_cell.get(), device_direction_offsets.get(), device_direction_starts.get(),
+			device_direction_counts.get(), shape.D, shape.H, shape.W, shape.cell_count, shape.state_count);
+		if (!mixed_cuda_ok(cudaGetLastError(), "launching denominator kernel")) return nullptr;
+
+		mixed_ud_gather_kernel<<<block_count, block_size>>>(
+			device_utilization_current.get(), device_utilization_previous.get(), device_dp_previous.get(),
+			device_denominators.get(), device_kernel_pool.get(), device_kernel_offsets.get(),
+			device_kernel_widths.get(), device_kernel_Ds.get(), device_kernel_index_by_cell.get(),
+			device_direction_lookup.get(), shape.max_M, shape.H, shape.W, shape.cell_count,
+			shape.state_count);
+		if (!mixed_cuda_ok(cudaGetLastError(), "launching utilization gather kernel") ||
+		    !device_utilization_previous.copy_to_host(host_utilization.data(), shape.state_count,
+		                                              "copying utilization layer")) {
+			return nullptr;
+		}
+		add_flat_directions_to_matrix(host_utilization.data(), shape, accumulator.get());
+		device_utilization_current.swap(device_utilization_previous);
+	}
+
+	matrix_factor_inplace(accumulator.get(), 1.0 / static_cast<double>(T + 1));
+	return accumulator.release();
 }
 
 static bool validate_mixed_forward_inputs(const KernelsMap3D *kernels_map,
@@ -1071,6 +1224,22 @@ static Tensor **gpu_m_walk_pooled_impl(const KernelsMap3D *kernels_map, const Ke
 	return result.release();
 }
 
+static void report_mixed_cuda_completion(const char *operation, const ssize_t T,
+	                                      const ssize_t W, const ssize_t H) {
+	int device = -1;
+	cudaDeviceProp properties{};
+	if (cudaGetDevice(&device) == cudaSuccess &&
+	    cudaGetDeviceProperties(&properties, device) == cudaSuccess) {
+		fprintf(stdout,
+		        "[randomwalks native] %s: CUDA kernels completed on device %d (%s), grid=%zdx%zd, T=%zd\n",
+		        operation, device, properties.name, W, H, T);
+	} else {
+		fprintf(stdout, "[randomwalks native] %s: CUDA kernels completed, grid=%zdx%zd, T=%zd\n",
+		        operation, W, H, T);
+	}
+	fflush(stdout);
+}
+
 } // namespace
 
 extern "C" Tensor **gpu_m_walk_pooled(const KernelsMap3D *kernels_map, const KernelPoolC *pool,
@@ -1086,7 +1255,7 @@ extern "C" Tensor **gpu_m_walk_pooled(const KernelsMap3D *kernels_map, const Ker
 	}
 }
 
-extern "C" Tensor **gpu_m_walk(const KernelContext *kernels_context, const ssize_t T,
+extern "C" Tensor **gpu_m_walk(KernelContext *kernels_context, const ssize_t T,
 	                            const ssize_t start_x, const ssize_t start_y) {
 	if (!kernels_context || !kernels_context->terrain || !kernels_context->mapping || T <= 0 ||
 	    start_x < 0 || start_x >= kernels_context->terrain->width ||
@@ -1104,9 +1273,11 @@ extern "C" Tensor **gpu_m_walk(const KernelContext *kernels_context, const ssize
 		return nullptr;
 	}
 
-	KernelPoolC *pool = build_kernel_pool_c(kernels_map, kernels_context->terrain);
+	KernelPoolC *pool = context_cuda_kernel_pool(kernels_context, kernels_map);
 	Tensor **result = pool ? gpu_m_walk_pooled(kernels_map, pool, T, start_x, start_y) : nullptr;
-	kernelpoolc_free(pool);
+	if (result) {
+		report_mixed_cuda_completion("gpu_m_walk", T, kernels_map->width, kernels_map->height);
+	}
 	if (owned) kernels_map3d_free(const_cast<KernelsMap3D *>(kernels_map));
 	return result;
 }
@@ -1126,7 +1297,47 @@ extern "C" Tensor **gpu_mixed_utilization_distribution_pooled(
 }
 
 extern "C" Tensor **gpu_mixed_utilization_distribution(
-	Tensor **DP_Matrix, const ssize_t T, const KernelContext *kernels_context,
+	Tensor **DP_Matrix, const ssize_t T, KernelContext *kernels_context,
+	const ssize_t end_x, const ssize_t end_y) {
+	if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0) return nullptr;
+	int owned = 0;
+	const KernelsMap3D *kernels_map = context_kernels_map(kernels_context, &owned);
+	if (!kernels_map) return nullptr;
+	if (kernels_map->width != kernels_context->terrain->width ||
+	    kernels_map->height != kernels_context->terrain->height) {
+		if (owned) kernels_map3d_free(const_cast<KernelsMap3D *>(kernels_map));
+		return nullptr;
+	}
+
+	KernelPoolC *pool = context_cuda_kernel_pool(kernels_context, kernels_map);
+	Tensor **result = pool
+		                  ? gpu_mixed_utilization_distribution_pooled(DP_Matrix, T, kernels_map, pool, end_x, end_y)
+		                  : nullptr;
+	if (result) {
+		report_mixed_cuda_completion(
+			"gpu_mixed_utilization_distribution", T, kernels_map->width, kernels_map->height);
+	}
+	if (owned) kernels_map3d_free(const_cast<KernelsMap3D *>(kernels_map));
+	return result;
+}
+
+extern "C" Matrix *gpu_mixed_utilization_distribution_sum_pooled(
+	Tensor **DP_Matrix, const ssize_t T, const KernelsMap3D *kernels_map,
+	const KernelPoolC *pool, const ssize_t end_x, const ssize_t end_y) {
+	try {
+		return gpu_mixed_utilization_distribution_sum_pooled_impl(
+			DP_Matrix, T, kernels_map, pool, end_x, end_y);
+	} catch (const std::bad_alloc &) {
+		fprintf(stderr, "Unable to allocate mixed CUDA utilization-sum buffers\n");
+		return nullptr;
+	} catch (...) {
+		fprintf(stderr, "Unexpected failure in mixed CUDA utilization sum\n");
+		return nullptr;
+	}
+}
+
+extern "C" Matrix *gpu_mixed_utilization_distribution_sum(
+	Tensor **DP_Matrix, const ssize_t T, KernelContext *kernels_context,
 	const ssize_t end_x, const ssize_t end_y) {
 	if (!DP_Matrix || !kernels_context || !kernels_context->terrain || T <= 0) return nullptr;
 
@@ -1139,11 +1350,16 @@ extern "C" Tensor **gpu_mixed_utilization_distribution(
 		return nullptr;
 	}
 
-	KernelPoolC *pool = build_kernel_pool_c(kernels_map, kernels_context->terrain);
-	Tensor **result = pool
-		                  ? gpu_mixed_utilization_distribution_pooled(DP_Matrix, T, kernels_map, pool, end_x, end_y)
-		                  : nullptr;
-	kernelpoolc_free(pool);
+	KernelPoolC *pool = context_cuda_kernel_pool(kernels_context, kernels_map);
+	Matrix *result = pool
+		? gpu_mixed_utilization_distribution_sum_pooled(
+			DP_Matrix, T, kernels_map, pool, end_x, end_y)
+		: nullptr;
+	if (result) {
+		report_mixed_cuda_completion(
+			"gpu_mixed_utilization_distribution_sum", T,
+			kernels_map->width, kernels_map->height);
+	}
 	if (owned) kernels_map3d_free(const_cast<KernelsMap3D *>(kernels_map));
 	return result;
 }
