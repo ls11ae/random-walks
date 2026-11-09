@@ -1,8 +1,10 @@
 #include "walk/m_walker.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "math/math_utils.h"
@@ -36,14 +38,15 @@ static void free_path(Point2DArray *path) {
 
 static Tensor **m_walk_base(const ssize_t W, const ssize_t H, const TerrainMap *terrain_map,
                             const KernelsMap3D *kernels_map, const ssize_t T,
-                            const ssize_t start_x, const ssize_t start_y) {
+                            const ssize_t start_x, const ssize_t start_y,
+                            const Matrix *start_distribution) {
 	if (W <= 0 || H <= 0 || T <= 0 || !kernels_map || !kernels_map->kernels) return NULL;
 	if (W > kernels_map->width || H > kernels_map->height) return NULL;
 	if (terrain_map && (W > terrain_map->width || H > terrain_map->height)) return NULL;
 	if (!in_bounds(start_x, start_y, W, H)) return NULL;
 
 	const Tensor *start_kernel = kernels_map->kernels[start_y][start_x];
-	if (!start_kernel || start_kernel->len == 0) return NULL;
+	if (!start_distribution && (!start_kernel || start_kernel->len == 0)) return NULL;
 
 	const ssize_t max_D = kernels_map->max_D;
 	const DirKernelsMap *dir_kernels = kernels_map->dir_kernels;
@@ -63,9 +66,22 @@ static Tensor **m_walk_base(const ssize_t W, const ssize_t H, const TerrainMap *
 		}
 	}
 
-	const double init_value = 1.0 / (double) start_kernel->len;
-	for (ssize_t d = 0; d < (ssize_t) start_kernel->len; ++d) {
-		matrix_set(DP_mat[0]->data[d], start_x, start_y, init_value);
+	if (start_distribution) {
+		for (ssize_t y = 0; y < H; ++y) {
+			for (ssize_t x = 0; x < W; ++x) {
+				const Tensor *kernel = kernels_map->kernels[y][x];
+				if (!kernel || kernel->len == 0) continue;
+				const double probability = matrix_get(start_distribution, x, y) / (double) kernel->len;
+				for (size_t d = 0; d < kernel->len; ++d) {
+					matrix_set(DP_mat[0]->data[d], x, y, probability);
+				}
+			}
+		}
+	} else {
+		const double init_value = 1.0 / (double) start_kernel->len;
+		for (ssize_t d = 0; d < (ssize_t) start_kernel->len; ++d) {
+			matrix_set(DP_mat[0]->data[d], start_x, start_y, init_value);
+		}
 	}
 
 	for (ssize_t t = 1; t < T; ++t) {
@@ -120,7 +136,7 @@ Tensor **m_walk(const KernelContext *kernels_context, const ssize_t T, const ssi
 	if (!kernels_map) return NULL;
 
 	Tensor **dp = m_walk_base(kernels_context->terrain->width, kernels_context->terrain->height,
-	                          kernels_context->terrain, kernels_map, layer_count, start_x, start_y);
+	                          kernels_context->terrain, kernels_map, layer_count, start_x, start_y, NULL);
 
 	if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
 	return dp;
@@ -241,4 +257,138 @@ Point2DArray *m_walk_backtrack_base(Tensor **DP_Matrix, const ssize_t T,
 	path->points[0].x = x;
 	path->points[0].y = y;
 	return path;
+}
+
+static int valid_error_distribution(const Matrix *error) {
+	if (!error->points || error->width <= 0 || error->height <= 0 ||
+	    error->width % 2 == 0 || error->height % 2 == 0 ||
+	    error->width > SSIZE_MAX / error->height || error->len != error->width * error->height) return 0;
+
+	double total = 0.0;
+	for (ssize_t i = 0; i < error->len; ++i) {
+		if (!isfinite(error->points[i]) || error->points[i] < 0.0) return 0;
+		total += error->points[i];
+	}
+	return isfinite(total) && total > 0.0;
+}
+
+static Matrix *endpoint_distribution(const KernelContext *context, const KernelsMap3D *kernels_map,
+                                      const ssize_t center_x, const ssize_t center_y,
+                                      const Matrix *error) {
+	const ssize_t W = context->terrain->width;
+	const ssize_t H = context->terrain->height;
+	Matrix *distribution = matrix_new(W, H);
+	if (!distribution) return NULL;
+
+	double total = 0.0;
+	for (ssize_t j = 0; j < error->height; ++j) {
+		const ssize_t dy = j - error->height / 2;
+		if (dy < -center_y || dy >= H - center_y) continue;
+		const ssize_t y = center_y + dy;
+		for (ssize_t i = 0; i < error->width; ++i) {
+			const ssize_t dx = i - error->width / 2;
+			if (dx < -center_x || dx >= W - center_x) continue;
+			const ssize_t x = center_x + dx;
+			const Tensor *kernel = kernels_map->kernels[y][x];
+			if (!kernel || kernel->len == 0 || context_forbids_point(context, x, y)) continue;
+			const double weight = matrix_get(error, i, j);
+			matrix_set(distribution, x, y, weight);
+			total += weight;
+		}
+	}
+	if (total <= 0.0) {
+		matrix_free(distribution);
+		return NULL;
+	}
+	matrix_normalize_L1(distribution);
+	return distribution;
+}
+
+static Point2DArray *backtrace_uncertain_endpoint(Tensor **dp, const ssize_t layer_count,
+                                                  const KernelContext *context,
+                                                  const KernelsMap3D *kernels_map,
+                                                  const Matrix *end_distribution) {
+	typedef struct {
+		ssize_t x, y, direction;
+	} EndState;
+	const size_t max_D = (size_t) kernels_map->max_D;
+	size_t support = 0;
+	for (ssize_t i = 0; i < end_distribution->len; ++i) {
+		if (end_distribution->points[i] > 0.0) ++support;
+	}
+	if (support == 0 || support > SIZE_MAX / max_D / sizeof(EndState)) return NULL;
+	const size_t capacity = support * max_D;
+	EndState *states = malloc(capacity * sizeof(EndState));
+	double *weights = malloc(capacity * sizeof(double));
+	if (!states || !weights) {
+		free(states);
+		free(weights);
+		return NULL;
+	}
+
+	size_t count = 0;
+	for (ssize_t y = 0; y < end_distribution->height; ++y) {
+		for (ssize_t x = 0; x < end_distribution->width; ++x) {
+			const double error_weight = matrix_get(end_distribution, x, y);
+			if (error_weight <= 0.0) continue;
+			for (size_t d = 0; d < max_D; ++d) {
+				const double probability = matrix_get(dp[layer_count - 1]->data[d], x, y) * error_weight;
+				if (probability <= 0.0 || !isfinite(probability)) continue;
+				states[count] = (EndState) {x, y, (ssize_t) d};
+				weights[count++] = probability;
+			}
+		}
+	}
+
+	Point2DArray *walk = NULL;
+	if (count > 0) {
+		const EndState end = states[weighted_random_index(weights, count)];
+		walk = m_walk_backtrack_base(dp, layer_count, kernels_map, context->terrain,
+		                             end.x, end.y, end.direction);
+	}
+	free(states);
+	free(weights);
+	return walk;
+}
+
+Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,
+                                const ssize_t start_x, const ssize_t start_y,
+                                const ssize_t end_x, const ssize_t end_y,
+                                const Matrix *error_distribution) {
+	if (!kernel_context || !kernel_context->terrain || !kernel_context->mapping || T <= 0 || T == SSIZE_MAX) return NULL;
+	const ssize_t W = kernel_context->terrain->width;
+	const ssize_t H = kernel_context->terrain->height;
+	if (!in_bounds(start_x, start_y, W, H) || !in_bounds(end_x, end_y, W, H)) return NULL;
+
+	if (!error_distribution) {
+		Tensor **dp = m_walk(kernel_context, T, start_x, start_y);
+		if (!dp) return NULL;
+		Point2DArray *walk = m_walk_backtrace(dp, T, kernel_context, end_x, end_y);
+		tensor4D_free(dp, T + 1);
+		return walk;
+	}
+	if (!valid_error_distribution(error_distribution)) return NULL;
+
+	int owned = 0;
+	const KernelsMap3D *kernels_map = context_kernels_map(kernel_context, &owned);
+	if (!kernels_map) return NULL;
+	Point2DArray *walk = NULL;
+	Matrix *start = NULL;
+	Matrix *end = NULL;
+	if (W > kernels_map->width || H > kernels_map->height || !kernels_map->kernels) goto cleanup;
+	start = endpoint_distribution(kernel_context, kernels_map, start_x, start_y, error_distribution);
+	end = endpoint_distribution(kernel_context, kernels_map, end_x, end_y, error_distribution);
+	if (start && end) {
+		Tensor **dp = m_walk_base(W, H, kernel_context->terrain, kernels_map, T + 1, start_x, start_y, start);
+		if (dp) {
+			walk = backtrace_uncertain_endpoint(dp, T + 1, kernel_context, kernels_map, end);
+			tensor4D_free(dp, T + 1);
+		}
+	}
+
+cleanup:
+	if (start) matrix_free(start);
+	if (end) matrix_free(end);
+	if (owned) kernels_map3d_free((KernelsMap3D *) kernels_map);
+	return walk;
 }

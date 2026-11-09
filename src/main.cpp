@@ -1,10 +1,12 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <ostream>
 
 #include "cuda/mixed_gpu.h"
 #include "kernels/kernel_context.h"
+#include "kernels/kernels.h"
 #include "matrix/point2D.h"
 #include "math/math_utils.h"
 #include "matrix/tensor.h"
@@ -175,16 +177,63 @@ namespace {
 
         return full_walk;
     }
+
+    int single_state_example() {
+        constexpr ssize_t T = 8;
+        constexpr Point2D start = {7, 10};
+        constexpr Point2D end = {13, 10};
+        TerrainMap *terrain = terrain_single_value(kMesaGrassland, 21, 21);
+        KernelParametersMapping *mapping = terrain ? kernel_mapping_new(terrain, KPM_KIND_KERNELS) : nullptr;
+        Matrix *kernel = matrix_generator_gaussian_pdf(3, 3, 1.0, 0, 0);
+        Matrix *error_distribution = matrix_new(3, 3);
+        const bool ready = mapping && kernel && error_distribution &&
+                           set_terrain_kernel(mapping, kMesaGrassland, kernel, 1);
+        if (ready) kernel = nullptr; // The one-direction mapping owns the kernel.
+        KernelContext *context = ready ? kernel_context_pool(terrain, mapping, REACHABILITY_FULL) : nullptr;
+
+        Point2DArray *certain = nullptr;
+        Point2DArray *uncertain = nullptr;
+        if (context) {
+            // Relative GPS error: separable [1, 2, 1] weights, centered at (1, 1).
+            const double weights[] = {1, 2, 1, 2, 4, 2, 1, 2, 1};
+            for (size_t i = 0; i < 9; ++i) error_distribution->points[i] = weights[i];
+
+            certain = single_state_walk(T, context, start.x, start.y, end.x, end.y, nullptr);
+            uncertain = single_state_walk(T, context, start.x, start.y, end.x, end.y, error_distribution);
+            const Point2DArray *walks[] = {certain, uncertain};
+            const char *labels[] = {"Full certainty", "GPS uncertainty"};
+            for (size_t i = 0; i < 2; ++i) {
+                if (!walks[i]) continue;
+                std::printf("%s (%zu points, %zd steps):", labels[i], walks[i]->length, T);
+                for (size_t j = 0; j < walks[i]->length; ++j) {
+                    std::printf(" (%zd, %zd)", walks[i]->points[j].x, walks[i]->points[j].y);
+                }
+                std::printf("\n");
+            }
+        }
+
+        const bool ok = certain && uncertain;
+        if (!ok) std::fprintf(stderr, "Single-state example failed.\n");
+        point2d_array_free(certain);
+        point2d_array_free(uncertain);
+        kernel_context_free(context);
+        if (kernel) matrix_free(kernel);
+        if (error_distribution) matrix_free(error_distribution);
+        kernel_mapping_free(mapping);
+        terrain_map_free(terrain);
+        return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
 } // namespace
 
 #include <iostream>
 
 
 int main(int argc, char **argv) {
+    if (argc > 1 && std::strcmp(argv[1], "--single-state-example") == 0) return single_state_example();
 #ifndef USE_CUDA
     (void) argc;
     (void) argv;
-    std::fprintf(stderr, "This comparison requires a CUDA-enabled build.\n");
+    std::fprintf(stderr, "This comparison requires a CUDA-enabled build. Use --single-state-example for the CPU example.\n");
     return EXIT_FAILURE;
 #else
     const char *terrain_path = argc > 1

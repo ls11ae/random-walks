@@ -254,18 +254,6 @@ Point2DArray *m_walk_backtrace(Tensor **DP_Matrix, const ssize_t T,
     return walk;
 }
 
-Point2DArray *single_state_walk(const ssize_t T, KernelContext *kernel_context,
-                                const ssize_t start_x,
-                                const ssize_t start_y,
-                                const ssize_t end_x,
-                                const ssize_t end_y) {
-    Tensor **dp = m_walk(kernel_context, T, start_x, start_y);
-    Point2DArray *walk = m_walk_backtrace(dp, T, kernel_context, end_x, end_y);
-    tensor4D_free(dp, T + 1);
-    return walk;
-}
-
-
 Tensor **mixed_visit(KernelContext *kernel_context, const ssize_t T,
                      const ssize_t start_x,
                      const ssize_t start_y, const bool *target_area) {

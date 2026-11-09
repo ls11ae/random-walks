@@ -50,11 +50,28 @@ Tensor **mixed_visit(KernelContext *kernel_context, ssize_t T,
                      ssize_t start_y, const bool *target_area);
 
 
+/**
+ * Sample a walk of T transitions (T + 1 points).
+ *
+ * error_distribution == NULL keeps the start and end fixed. Otherwise the same
+ * spatial error weights are centered on both observations: entry (i, j) refers
+ * to offset (i - width/2, j - height/2). Dimensions must be positive and odd;
+ * weights must be finite, nonnegative, and have a positive finite sum. Weights
+ * need not be normalized. Out-of-map, unmapped, and hard-barrier cells are
+ * discarded and the remaining start weights are normalized.
+ *
+ * The initial DP layer contains the start distribution. The final position and
+ * direction are sampled jointly with weight D(x, y, d, T) * end_error(x, y),
+ * then backtracking runs for exactly T transitions, including sampling t=0.
+ * Returns NULL for invalid inputs or if no compatible path exists. The matrix
+ * remains owned by the caller and is never modified.
+ */
 Point2DArray *single_state_walk(ssize_t T, KernelContext *kernel_context,
                                 ssize_t start_x,
                                 ssize_t start_y,
                                 ssize_t end_x,
-                                ssize_t end_y);
+                                ssize_t end_y,
+                                const Matrix *error_distribution);
 
 #ifdef __cplusplus
 }
